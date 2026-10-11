@@ -1,0 +1,16 @@
+/.tools/
+/.build/
+/.swiftpm/
+/DerivedData/
+*.xcodeproj
+*.xcresult
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# Local assistant configuration and development notes
+/.claude/
+/.superpowers/
+/CLAUDE.md
+/AGENTS.md
+/docs/
