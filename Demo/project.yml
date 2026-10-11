@@ -1,0 +1,87 @@
+name: CutawayDemo
+options:
+  bundleIdPrefix: dev.cutaway
+  # The lowest deployment target Xcode 27 accepts. The package itself declares iOS 13.
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  CutawayServer:
+    path: ..
+targets:
+  # The sample app. cutaway-probe connects to it.
+  CutawayDemo:
+    type: application
+    platform: iOS
+    sources:
+      - CutawayDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.demo
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    dependencies:
+      - package: CutawayServer
+        product: CutawayServer
+    scheme: {}
+  # An empty app that hosts the unit tests. It does not link or start the server:
+  # the tests decide when the server starts and what is on screen.
+  TestHost:
+    type: application
+    platform: iOS
+    sources:
+      - TestHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.testhost
+        # Four plain quadrants; the icon test samples them.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    scheme:
+      testTargets:
+        - CutawayServerTests
+  CutawayServerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../Tests/CutawayServerTests
+      # The demo's large tree, so that the stability tests measure what its page shows.
+      - path: CutawayDemo/ManyLayersView.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.servertests
+    dependencies:
+      - target: TestHost
+      - package: CutawayServer
+        product: CutawayServer
+  # Built in Release and limited to the public API: it checks what a Release host gets.
+  CutawayServerReleaseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../Tests/CutawayServerReleaseTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.serverreleasetests
+    dependencies:
+      - target: TestHost
+      - package: CutawayServer
+        product: CutawayServer
+schemes:
+  TestHostRelease:
+    build:
+      targets:
+        TestHost: all
+        CutawayServerReleaseTests: [test]
+    test:
+      config: Release
+      targets:
+        - CutawayServerReleaseTests

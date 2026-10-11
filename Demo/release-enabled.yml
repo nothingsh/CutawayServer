@@ -1,0 +1,16 @@
+# The same project with the package trait ReleaseEnabled switched on.
+# scripts/verify.sh uses it to check that a Release build can enable the server (S-API-02).
+include:
+  - project.yml
+name: CutawayDemoReleaseEnabled
+packages:
+  CutawayServer:
+    path: ..
+    traits:
+      - ReleaseEnabled
+targets:
+  CutawayServerReleaseTests:
+    settings:
+      base:
+        # Tells the test which outcome to expect.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) EXPECT_SERVER
