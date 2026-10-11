@@ -1,0 +1,212 @@
+#if !canImport(UIKit) || DEBUG || ReleaseEnabled
+internal import CutawayFlatBuffers
+
+// Each enumeration of the project next to its generated counterpart, both directions
+// together, so that a case added to one is seen missing from the other.
+
+extension ErrorCode {
+    init(_ generated: Cutaway_Wire_ErrorCode) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .malformedframe: self = .malformedFrame
+        case .unexpectedmessage: self = .unexpectedMessage
+        case .busy: self = .busy
+        case .appnotactive: self = .appNotActive
+        case .internal_: self = .internalError
+        case .layernotfound: self = .layerNotFound
+        case .attributenoteditable: self = .attributeNotEditable
+        case .invalidattributevalue: self = .invalidAttributeValue
+        }
+    }
+
+    var generated: Cutaway_Wire_ErrorCode {
+        switch self {
+        case .unknown: return .unknown
+        case .malformedFrame: return .malformedframe
+        case .unexpectedMessage: return .unexpectedmessage
+        case .busy: return .busy
+        case .appNotActive: return .appnotactive
+        case .internalError: return .internal_
+        case .layerNotFound: return .layernotfound
+        case .attributeNotEditable: return .attributenoteditable
+        case .invalidAttributeValue: return .invalidattributevalue
+        }
+    }
+}
+
+extension StreamStatus {
+    init(_ generated: Cutaway_Wire_StreamStatus) {
+        switch generated {
+        case .completed: self = .completed
+        case .cancelled: self = .cancelled
+        case .failed: self = .failed
+        }
+    }
+
+    var generated: Cutaway_Wire_StreamStatus {
+        switch self {
+        case .completed: return .completed
+        case .cancelled: return .cancelled
+        case .failed: return .failed
+        }
+    }
+}
+
+extension AppState {
+    init(_ generated: Cutaway_Wire_AppState) {
+        switch generated {
+        case .active: self = .active
+        case .inactive: self = .inactive
+        case .background: self = .background
+        }
+    }
+
+    var generated: Cutaway_Wire_AppState {
+        switch self {
+        case .active: return .active
+        case .inactive: return .inactive
+        case .background: return .background
+        }
+    }
+}
+
+extension DeviceKind {
+    init(_ generated: Cutaway_Wire_DeviceKind) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .phone: self = .phone
+        case .pad: self = .pad
+        case .mac: self = .mac
+        }
+    }
+
+    var generated: Cutaway_Wire_DeviceKind {
+        switch self {
+        case .unknown: return .unknown
+        case .phone: return .phone
+        case .pad: return .pad
+        case .mac: return .mac
+        }
+    }
+}
+
+extension DetailStatus {
+    init(_ generated: Cutaway_Wire_DetailStatus) {
+        switch generated {
+        case .ok: self = .ok
+        case .layernotfound: self = .layerNotFound
+        case .capturefailed: self = .captureFailed
+        }
+    }
+
+    var generated: Cutaway_Wire_DetailStatus {
+        switch self {
+        case .ok: return .ok
+        case .layerNotFound: return .layernotfound
+        case .captureFailed: return .capturefailed
+        }
+    }
+}
+
+extension AttributeValueKind {
+    /// A value the running FlatBuffers does not know reads as `None` (P-ATTR-06).
+    init(_ generated: Cutaway_Wire_AttributeValueKind) {
+        switch generated {
+        case .none_: self = .none
+        case .boolvalue: self = .bool
+        case .intvalue: self = .int
+        case .doublevalue: self = .double
+        case .stringvalue: self = .string
+        case .colorvalue: self = .color
+        case .pointvalue: self = .point
+        case .sizevalue: self = .size
+        case .rectvalue: self = .rect
+        case .insetsvalue: self = .insets
+        case .transformvalue: self = .transform
+        case .enumvalue: self = .enumeration
+        }
+    }
+
+    var generated: Cutaway_Wire_AttributeValueKind {
+        switch self {
+        case .none: return .none_
+        case .bool: return .boolvalue
+        case .int: return .intvalue
+        case .double: return .doublevalue
+        case .string: return .stringvalue
+        case .color: return .colorvalue
+        case .point: return .pointvalue
+        case .size: return .sizevalue
+        case .rect: return .rectvalue
+        case .insets: return .insetsvalue
+        case .transform: return .transformvalue
+        case .enumeration: return .enumvalue
+        }
+    }
+}
+
+/// The two enumerations share their raw values.
+extension LayoutAttribute {
+    init(_ generated: Cutaway_Wire_LayoutAttribute) {
+        self = LayoutAttribute(rawValue: generated.rawValue) ?? .notAnAttribute
+    }
+
+    var generated: Cutaway_Wire_LayoutAttribute {
+        Cutaway_Wire_LayoutAttribute(rawValue: rawValue) ?? .notanattribute
+    }
+}
+
+extension LayoutRelation {
+    init(_ generated: Cutaway_Wire_LayoutRelation) {
+        switch generated {
+        case .equal: self = .equal
+        case .lessthanorequal: self = .lessThanOrEqual
+        case .greaterthanorequal: self = .greaterThanOrEqual
+        }
+    }
+
+    var generated: Cutaway_Wire_LayoutRelation {
+        switch self {
+        case .equal: return .equal
+        case .lessThanOrEqual: return .lessthanorequal
+        case .greaterThanOrEqual: return .greaterthanorequal
+        }
+    }
+}
+
+extension LayoutItemKind {
+    init(_ generated: Cutaway_Wire_LayoutItemKind) {
+        switch generated {
+        case .view: self = .view
+        case .layoutguide: self = .layoutGuide
+        case .other: self = .other
+        }
+    }
+
+    var generated: Cutaway_Wire_LayoutItemKind {
+        switch self {
+        case .view: return .view
+        case .layoutGuide: return .layoutguide
+        case .other: return .other
+        }
+    }
+}
+
+extension ConstraintStatus {
+    init(_ generated: Cutaway_Wire_ConstraintStatus) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .satisfied: self = .satisfied
+        case .unsatisfied: self = .unsatisfied
+        }
+    }
+
+    var generated: Cutaway_Wire_ConstraintStatus {
+        switch self {
+        case .unknown: return .unknown
+        case .satisfied: return .satisfied
+        case .unsatisfied: return .unsatisfied
+        }
+    }
+}
+#endif
