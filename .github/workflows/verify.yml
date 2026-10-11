@@ -1,0 +1,28 @@
+# Runs the steps of scripts/verify.sh that need no simulator. The simulator tests, the Release
+# builds on a simulator and the probe still run locally with the full scripts/verify.sh.
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          # verify.sh checks that Protocol/ is at a released tag on the protocol's main branch.
+          fetch-depth: 0
+      - name: Fetch the protocol's tags and main branch
+        run: git -C Protocol fetch --tags origin main:refs/remotes/origin/main
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Verify (Mac steps)
+        run: scripts/verify.sh --mac-only
