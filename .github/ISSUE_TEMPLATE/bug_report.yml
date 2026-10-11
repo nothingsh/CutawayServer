@@ -1,0 +1,78 @@
+name: Bug report
+description: CutawayServer misbehaves in your app, or Cutaway shows wrong data from it.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Before filing, check the FAQ in the README, and that the build
+        defines `DEBUG` or enables the `ReleaseEnabled` trait (see "Debug and Release Builds").
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest setup that shows the problem. A sample project or view code helps most.
+      placeholder: |
+        1. Add a view like ...
+        2. Connect from Cutaway
+        3. Select the layer ...
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: CutawayServer version
+      description: A released version or a commit hash.
+    validations:
+      required: true
+  - type: input
+    id: cutaway-version
+    attributes:
+      label: Cutaway version
+  - type: input
+    id: xcode-version
+    attributes:
+      label: Xcode version
+      placeholder: e.g. 26.0 (17A324)
+    validations:
+      required: true
+  - type: input
+    id: ios-version
+    attributes:
+      label: iOS version
+      placeholder: e.g. iOS 26.0
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Where the app runs
+      options:
+        - Simulator
+        - Device over USB
+        - Both
+    validations:
+      required: true
+  - type: dropdown
+    id: ui-framework
+    attributes:
+      label: UI framework of the affected screen
+      options:
+        - UIKit
+        - SwiftUI
+        - Both
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or probe output
+      description: |
+        Console output, a crash log, or the output of
+        `swift run cutaway-probe --bundle-id <your bundle id> --wait 30` run from a clone of this repository.
+      render: text
