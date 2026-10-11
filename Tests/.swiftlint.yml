@@ -1,0 +1,11 @@
+# Relaxes the root .swiftlint.yml for the tests (S-REL-04). A crash in a test is a
+# failure, so forced unwraps and casts are the plain way to state an expectation there.
+disabled_rules:
+  - force_unwrapping
+  - force_cast
+  - force_try
+  - implicitly_unwrapped_optional
+  - return_value_from_void_function
+  - function_body_length
+  - type_body_length
+  - file_length
