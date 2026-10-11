@@ -1,0 +1,42 @@
+#!/bin/bash
+# Formats and lints the staged Swift files before each commit: SwiftFormat
+# rewrites them and stages the result, then SwiftLint checks them with --strict and stops the
+# commit on any violation (Xcode shows none, so this is where they surface). Uses the pinned tools of
+# scripts/get-swiftformat.sh and scripts/get-swiftlint.sh. Installed by scripts/install-git-hooks.sh.
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+fail() {
+  echo "pre-commit: $1" >&2
+  exit 1
+}
+
+# Added or modified Swift files, without the upstream and generated code the tools exclude.
+files=()
+while IFS= read -r -d '' file; do
+  case "$file" in
+    Sources/CutawayFlatBuffers/* | Sources/CutawayWire/Generated/* | Protocol/*) ;;
+    *) files+=("$file") ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=AM --no-renames -z -- '*.swift')
+[[ ${#files[@]} -gt 0 ]] || exit 0
+
+# Staging the formatted file would also stage changes that were left out on purpose.
+partial="$(git diff --name-only -- "${files[@]}")"
+[[ -z "$partial" ]] || {
+  echo "$partial" >&2
+  fail "these files have unstaged changes; stage or stash them, then commit again"
+}
+
+swiftformat="$(scripts/get-swiftformat.sh)" || fail "could not install the pinned SwiftFormat"
+swiftlint="$(scripts/get-swiftlint.sh)" || fail "could not install the pinned SwiftLint"
+
+"$swiftformat" --quiet "${files[@]}" || fail "SwiftFormat failed"
+git add -- "${files[@]}"
+
+# SwiftLint needs SourceKit from Xcode; the global developer directory may be CommandLineTools.
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" \
+  "$swiftlint" lint --strict --quiet --force-exclude "${files[@]}" ||
+  fail "SwiftLint found violations (above); fix them and commit again"
