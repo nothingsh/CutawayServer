@@ -1,0 +1,23 @@
+# SwiftFormat configuration (S-REL-02). The version is pinned in scripts/SWIFTFORMAT_VERSION and
+# installed by scripts/get-swiftformat.sh; scripts/verify.sh runs it in lint mode.
+#
+# Only layout rules are enabled, so formatting changes whitespace and line breaks and nothing
+# else. --rules is an allowlist: rules added by later SwiftFormat versions stay off.
+
+--swift-version 6.1
+--exclude Sources/CutawayFlatBuffers,Sources/CutawayWire/Generated,Protocol,.build,.tools,.swiftpm,DerivedData
+
+--indent 4
+--ifdef no-indent
+--ranges no-space
+--indent-strings true
+--closing-paren balanced
+--call-site-paren balanced
+# Wrapping follows SwiftLint's multiline_arguments_brackets and multiline_parameters (S-REL-04).
+--wrap-arguments before-first
+--wrap-parameters before-first
+--wrap-collections before-first
+--max-width 120
+--allow-partial-wrapping false
+
+--rules indent,spaceAroundOperators,spaceAroundParens,spaceAroundBraces,spaceAroundBrackets,spaceAroundComments,spaceAroundGenerics,spaceInsideParens,spaceInsideBrackets,spaceInsideBraces,spaceInsideGenerics,spaceInsideComments,consecutiveBlankLines,trailingSpace,blankLinesAtStartOfScope,blankLinesAtEndOfScope,blankLinesBetweenScopes,blankLinesAroundMark,linebreakAtEndOfFile,linebreaks,elseOnSameLine,leadingDelimiters,wrapAttributes,wrapArguments,wrap,braces
