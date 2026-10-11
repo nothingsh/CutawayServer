@@ -1,0 +1,13 @@
+FlatBuffers Swift runtime 25.12.19
+Source:  https://github.com/google/flatbuffers/archive/refs/tags/v25.12.19.tar.gz
+SHA-256: f81c3162b1046fe8b84b9a0dbdd383e24fdbcf88583b9cb6028f90d04d90696a
+Paths:   swift/Sources/FlatBuffers and swift/Sources/Common (*.swift only), swift/LICENSE
+
+Changes from upstream, applied by scripts/vendor-flatbuffers.sh:
+- Both source directories are compiled into the single module CutawayFlatBuffers.
+- Each "#if canImport(Common) / import Common / #endif" block is replaced by a
+  one-line comment (9 files).
+- Each file is wrapped in "#if !canImport(UIKit) || DEBUG || ReleaseEnabled" ... "#endif", so that it is compiled only
+  where CutawayServer is, or on platforms without UIKit.
+
+Do not edit these files by hand. scripts/verify.sh rebuilds this directory and compares.
