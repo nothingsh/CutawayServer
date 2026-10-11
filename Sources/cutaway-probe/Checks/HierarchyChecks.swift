@@ -1,0 +1,181 @@
+import CutawayWire
+import Foundation
+
+/// What a `Hierarchy` has to look like. Every function throws a `ProbeFailure` naming the
+/// first thing that is wrong.
+enum HierarchyChecks {
+    /// The response to `GetHierarchy`.
+    static func hierarchy(_ frame: Frame) throws -> Hierarchy {
+        guard case .hierarchy(let hierarchy)? = frame.body else {
+            throw ProbeFailure("expected Hierarchy, got \(Checks.describe(frame)) (P-HIER-01)")
+        }
+        try structure(hierarchy)
+        return hierarchy
+    }
+
+    /// The response to `GetSubtree` for `rootID`, compared with a hierarchy read before it
+    /// (P-HIER-10). Use it on a screen that did not change in between: it requires the
+    /// subtree to be exactly that part of the hierarchy.
+    static func subtree(_ frame: Frame, rootID: UInt64, hierarchy: Hierarchy) throws -> Hierarchy {
+        guard case .hierarchy(let subtree)? = frame.body else {
+            throw ProbeFailure("expected Hierarchy for GetSubtree, got \(Checks.describe(frame)) (P-HIER-10)")
+        }
+        guard let first = subtree.nodes.first, first.id == rootID else {
+            throw ProbeFailure(
+                "the subtree of \(rootID) begins with \(subtree.nodes.first.map { "node \($0.id)" } ?? "no node") (P-HIER-10)"
+            )
+        }
+        guard let start = hierarchy.nodes.firstIndex(where: { $0.id == rootID }) else {
+            throw ProbeFailure("the subtree's root \(rootID) is not in the hierarchy")
+        }
+        // The root and every following node whose parent is already in the part.
+        var ids: Set<UInt64> = [rootID]
+        var expected = [hierarchy.nodes[start]]
+        for node in hierarchy.nodes[(start + 1)...] {
+            guard ids.contains(node.parentID) else { break }
+            ids.insert(node.id)
+            expected.append(node)
+        }
+        for (index, (actual, wanted)) in zip(subtree.nodes, expected).enumerated() where actual != wanted {
+            throw ProbeFailure(
+                "the subtree of \(rootID) differs from the hierarchy at node \(index) (id \(actual.id), expected \(wanted.id)) (P-HIER-10)"
+            )
+        }
+        guard subtree.nodes.count == expected.count else {
+            throw ProbeFailure(
+                "the subtree of \(rootID) has \(subtree.nodes.count) nodes, the hierarchy \(expected.count) (P-HIER-10)"
+            )
+        }
+        guard subtree.keyWindowID == hierarchy.keyWindowID else {
+            throw ProbeFailure(
+                "the subtree's key_window_id is \(subtree.keyWindowID), the hierarchy's \(hierarchy.keyWindowID) (P-HIER-10)"
+            )
+        }
+        return subtree
+    }
+
+    /// The checks that hold for every app.
+    static func structure(_ hierarchy: Hierarchy) throws {
+        guard !hierarchy.nodes.isEmpty else {
+            throw ProbeFailure("Hierarchy has no nodes: an active app shows at least one window")
+        }
+        var seen = Set<UInt64>()
+        var roots = Set<UInt64>()
+        // The IDs from the current root down to the node before this one.
+        var ancestors: [UInt64] = []
+        // The z_position of the last child seen of each parent.
+        var lastZPosition: [UInt64: Double] = [:]
+        for (index, node) in hierarchy.nodes.enumerated() {
+            let name = "Hierarchy.nodes[\(index)]"
+            guard node.id != 0 else { throw ProbeFailure("\(name) has id 0 (P-HIER-03)") }
+            guard seen.insert(node.id).inserted else {
+                throw ProbeFailure("\(name) repeats id \(node.id) (P-HIER-03)")
+            }
+            if node.parentID == 0 {
+                roots.insert(node.id)
+                ancestors = []
+            } else {
+                guard seen.contains(node.parentID), node.parentID != node.id else {
+                    throw ProbeFailure(
+                        "\(name) (id \(node.id)) comes before its parent \(node.parentID) (P-HIER-01)"
+                    )
+                }
+                while let last = ancestors.last, last != node.parentID { ancestors.removeLast() }
+                guard !ancestors.isEmpty else {
+                    throw ProbeFailure(
+                        "\(name) (id \(node.id)) is not in pre-order: its parent \(node.parentID) is not "
+                            + "an ancestor of the node before it (P-HIER-01)"
+                    )
+                }
+            }
+            ancestors.append(node.id)
+
+            try checkClassNames(of: node, name: name)
+            try checkMemberReferences(of: node, name: name)
+            guard numbers(of: node).allSatisfy(\.isFinite) else {
+                throw ProbeFailure("\(name) (id \(node.id)) has a number that is not finite (P-HIER-05)")
+            }
+            // Siblings back to front: z_position never goes down (P-HIER-01). Windows are ordered
+            // by the window list instead (P-HIER-02).
+            if node.parentID != 0 {
+                if let previous = lastZPosition[node.parentID], node.zPosition < previous {
+                    throw ProbeFailure(
+                        "\(name) (id \(node.id)) has z_position \(node.zPosition), less than the \(previous) "
+                            + "of the sibling before it: siblings must be in drawing order (P-HIER-01)"
+                    )
+                }
+                lastZPosition[node.parentID] = node.zPosition
+            }
+        }
+        guard hierarchy.keyWindowID == 0 || roots.contains(hierarchy.keyWindowID) else {
+            throw ProbeFailure(
+                "Hierarchy.key_window_id \(hierarchy.keyWindowID) is not the id of a root node"
+            )
+        }
+    }
+
+    /// P-HIER-04, P-HIER-07: the class names of a node, of the view it backs, and of the view
+    /// controller whose root view that is.
+    private static func checkClassNames(of node: LayerNode, name: String) throws {
+        guard !node.className.isEmpty, !node.displayClassName.isEmpty else {
+            throw ProbeFailure("\(name) (id \(node.id)) has an empty class name")
+        }
+        switch (node.viewClassName, node.viewDisplayClassName) {
+        case (nil, nil):
+            break
+        case let (runtimeName?, displayName?) where !runtimeName.isEmpty && !displayName.isEmpty:
+            break
+        default:
+            throw ProbeFailure(
+                "\(name) (id \(node.id)) must have both view class names, not empty, or neither (P-HIER-04)"
+            )
+        }
+        switch (node.viewControllerClassName, node.viewControllerDisplayClassName) {
+        case (nil, nil):
+            break
+        case let (runtimeName?, displayName?) where !runtimeName.isEmpty && !displayName.isEmpty:
+            guard node.viewClassName != nil else {
+                throw ProbeFailure(
+                    "\(name) (id \(node.id)) names a view controller but backs no view (P-HIER-07)"
+                )
+            }
+        default:
+            throw ProbeFailure(
+                "\(name) (id \(node.id)) must have both view controller class names, not empty, or neither (P-HIER-07)"
+            )
+        }
+    }
+
+    /// P-HIER-09: the names of the variables that hold a node.
+    private static func checkMemberReferences(of node: LayerNode, name: String) throws {
+        for (referenceIndex, reference) in node.memberReferences.enumerated()
+            where reference.ownerClassName.isEmpty || reference.ownerDisplayClassName.isEmpty
+            || reference.name.isEmpty {
+            throw ProbeFailure(
+                "\(name) (id \(node.id)) member_references[\(referenceIndex)] has an empty field (P-HIER-09)"
+            )
+        }
+        for (referenceIndex, reference) in node.memberReferences.enumerated()
+            where reference.name.contains("$__lazy_storage_$_") {
+            throw ProbeFailure(
+                "\(name) (id \(node.id)) member_references[\(referenceIndex)] is named \(reference.name): "
+                    + "the prefix of a lazy property's storage must be left out (P-HIER-09)"
+            )
+        }
+    }
+
+    private static func numbers(of node: LayerNode) -> [Double] {
+        node.transform.components + [
+            node.bounds.origin.x,
+            node.bounds.origin.y,
+            node.bounds.size.width,
+            node.bounds.size.height,
+            node.position.x,
+            node.position.y,
+            node.anchorPoint.x,
+            node.anchorPoint.y,
+            node.zPosition,
+            Double(node.opacity)
+        ]
+    }
+}
