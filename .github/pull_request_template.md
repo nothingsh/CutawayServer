@@ -1,6 +1,7 @@
 <!--
+Open this pull request against the current dev-* branch, not main (see CONTRIBUTING.md).
 Title: use a Conventional Commits prefix, e.g. "feat: ...", "fix: ...", "docs: ...".
-The title becomes the commit subject on main.
+The title becomes the commit subject when the pull request is squashed.
 -->
 
 ## Summary
