@@ -606,6 +606,111 @@ final class AttributeCatalogTests: CaptureTestCase {
         XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
     }
 
+    func test_S_ATTR_08_sectionsMatchTheList() throws {
+        var seen = Set<String>()
+        for specimen in try specimens() {
+            for attribute in AttributeCatalog.standard.read(specimen.layer).flatMap(\.attributes) {
+                seen.insert(attribute.id)
+                XCTAssertEqual(
+                    attribute.section,
+                    ExpectedAttributes.sections[attribute.id] ?? .general,
+                    "\(specimen.name): \(attribute.id)"
+                )
+            }
+        }
+        XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
+        XCTAssertTrue(Set(ExpectedAttributes.sections.keys).isSubset(of: seen))
+    }
+
+    func test_S_ATTR_09_limitsMatchTheList() throws {
+        var seen = Set<String>()
+        for specimen in try specimens() {
+            for attribute in AttributeCatalog.standard.read(specimen.layer).flatMap(\.attributes) {
+                seen.insert(attribute.id)
+                XCTAssertEqual(
+                    attribute.limits,
+                    ExpectedAttributes.limits[attribute.id] ?? [],
+                    "\(specimen.name): \(attribute.id)"
+                )
+            }
+        }
+        XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
+        XCTAssertTrue(Set(ExpectedAttributes.limits.keys).isSubset(of: seen))
+    }
+
+    func test_S_ATTR_09_limitsHaveTheShapeOfTheProtocol() throws {
+        // P-ATTR-09, 10, for every attribute of every kind of layer.
+        let componentCounts: [AttributeValueKind: Int] = [
+            .int: 1,
+            .double: 1,
+            .point: 2,
+            .size: 2,
+            .rect: 4,
+            .insets: 4,
+            .transform: 16
+        ]
+        for specimen in try specimens() {
+            for attribute in AttributeCatalog.standard.read(specimen.layer).flatMap(\.attributes)
+                where !attribute.limits.isEmpty {
+                let name = "\(specimen.name): \(attribute.id)"
+                XCTAssertTrue(attribute.editable, name)
+                XCTAssertTrue(attribute.valueKind.isNumeric, name)
+                let count = try XCTUnwrap(componentCounts[attribute.valueKind], name)
+                XCTAssertTrue([1, count].contains(attribute.limits.count), name)
+                for limit in attribute.limits {
+                    let bounds = [limit.minimum, limit.maximum].compactMap { $0 }
+                    XCTAssertTrue(bounds.allSatisfy(\.isFinite), name)
+                    if attribute.valueKind == .int {
+                        XCTAssertTrue(bounds.allSatisfy { $0.rounded() == $0 }, name)
+                    }
+                    if let minimum = limit.minimum, let maximum = limit.maximum {
+                        let open = limit.minimumIsExclusive || limit.maximumIsExclusive
+                        XCTAssertTrue(open ? minimum < maximum : minimum <= maximum, name)
+                    }
+                    XCTAssertFalse(limit.minimum == nil && limit.minimumIsExclusive, name)
+                    XCTAssertFalse(limit.maximum == nil && limit.maximumIsExclusive, name)
+                }
+            }
+        }
+    }
+
+    func test_S_ATTR_09_fallbackValuesHaveNoLimitsButKeepTheirSection() {
+        // A number that cannot be read as one falls back to text (P-ATTR-03): read-only, so no
+        // limits; it is still the same attribute, so the same section.
+        let definition = AttributeCatalog.AttributeDefinition<CALayer>(
+            "opacity",
+            .double,
+            section: .layout,
+            limits: [NumberLimit(minimum: 0, maximum: 1)],
+            write: .number(\.opacity)
+        ) { _ in .string("odd") }
+        let fallback = AttributeCatalog.attribute(
+            id: "layer.opacity",
+            title: "Opacity",
+            value: .string("odd"),
+            definition: definition
+        )
+        XCTAssertEqual(
+            fallback,
+            Attribute(
+                id: "layer.opacity",
+                title: "Opacity",
+                value: .string("odd"),
+                valueKind: .string,
+                section: .layout
+            )
+        )
+        // With a value of its kind: editable, with its limits.
+        let read = AttributeCatalog.attribute(
+            id: "layer.opacity",
+            title: "Opacity",
+            value: .double(0.5),
+            definition: definition
+        )
+        XCTAssertEqual(read.limits, [NumberLimit(minimum: 0, maximum: 1)])
+        XCTAssertEqual(read.section, .layout)
+    }
+
     func test_S_ATTR_05_nilValuesKeepTheirKind() throws {
         let window = try makeWindow()
         let layer = CALayer()
@@ -639,7 +744,8 @@ final class AttributeCatalogTests: CaptureTestCase {
                 id: "layer.backgroundColor",
                 title: "Background Color",
                 value: .string("pattern"),
-                valueKind: .string
+                valueKind: .string,
+                section: .general
             )
         )
 
@@ -658,7 +764,13 @@ final class AttributeCatalogTests: CaptureTestCase {
                 value: .string("99"),
                 definition: definition
             ),
-            Attribute(id: "view.contentMode", title: "Content Mode", value: .string("99"), valueKind: .string)
+            Attribute(
+                id: "view.contentMode",
+                title: "Content Mode",
+                value: .string("99"),
+                valueKind: .string,
+                section: .general
+            )
         )
         // The same definition with a value of its kind keeps its flags.
         XCTAssertEqual(

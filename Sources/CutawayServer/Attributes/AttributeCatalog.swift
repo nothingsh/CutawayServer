@@ -2,7 +2,8 @@
 import CutawayWire
 import UIKit
 
-/// The attributes of a layer, by group, with what a client may change.
+/// The attributes of a layer, by group, with what a client may change, where an inspector
+/// shows them (P-ATTR-08) and the values a change may have (P-ATTR-09).
 ///
 /// Reading only reads: no layout is forced and nothing is changed. Writing is
 /// `AttributeEditing`'s, with the writers declared here. Group and attribute IDs are stable
@@ -49,27 +50,44 @@ struct AttributeCatalog {
 
     private typealias Outputs = AttributeOutputs
 
+    /// The limits of the catalog's attributes (P-ATTR-09, 10): what a change may be, and so what
+    /// `AttributeEditing` refuses (P-SET-07).
+    private enum Limits {
+        static let nonNegative = [NumberLimit(minimum: 0)]
+        static let positive = [NumberLimit(minimum: 0, minimumIsExclusive: true)]
+        static let unit = [NumberLimit(minimum: 0, maximum: 1)]
+        static let priority = [NumberLimit(minimum: 1, maximum: 1000)]
+        /// A rectangle anywhere, of no negative size.
+        static let nonNegativeSize = [.free, .free, NumberLimit(minimum: 0), NumberLimit(minimum: 0)]
+    }
+
     private static let layerGroup = GroupDefinition(
         "layer",
         subject: { (layer: CALayer, _: UIView?) in layer },
         [
             // Worked out from bounds, position, anchorPoint and transform.
-            .init("frame", .rect, write: nil) { Outputs.rect($0.frame) },
-            .init("bounds", .rect, write: .rect(\.bounds, nonNegative: true)) { Outputs.rect($0.bounds) },
-            .init("position", .point, write: .point(\.position)) { Outputs.point($0.position) },
-            .init("anchorPoint", .point, write: .point(\.anchorPoint)) { Outputs.point($0.anchorPoint) },
-            .init("zPosition", .double, write: .number(\.zPosition)) { Outputs.double($0.zPosition) },
-            .init("transform", .transform, write: .transform(\.transform)) { Outputs.transform($0.transform) },
+            .init("frame", .rect, section: .layout, write: nil) { Outputs.rect($0.frame) },
+            .init("bounds", .rect, section: .layout, limits: Limits.nonNegativeSize, write: .rect(\.bounds)) {
+                Outputs.rect($0.bounds)
+            },
+            .init("position", .point, section: .layout, write: .point(\.position)) { Outputs.point($0.position) },
+            .init("anchorPoint", .point, section: .layout, write: .point(\.anchorPoint)) {
+                Outputs.point($0.anchorPoint)
+            },
+            .init("zPosition", .double, section: .layout, write: .number(\.zPosition)) { Outputs.double($0.zPosition) },
+            .init("transform", .transform, section: .layout, write: .transform(\.transform)) {
+                Outputs.transform($0.transform)
+            },
             .init("hidden", .bool, write: .bool(\.isHidden)) { .bool($0.isHidden) },
-            .init("opacity", .double, write: .number(\.opacity, rule: .unit)) { Outputs.double($0.opacity) },
+            .init("opacity", .double, limits: Limits.unit, write: .number(\.opacity)) { Outputs.double($0.opacity) },
             .init("masksToBounds", .bool, write: .bool(\.masksToBounds)) { .bool($0.masksToBounds) },
-            .init("cornerRadius", .double, write: .number(\.cornerRadius, rule: .nonNegative)) {
+            .init("cornerRadius", .double, limits: Limits.nonNegative, write: .number(\.cornerRadius)) {
                 Outputs.double($0.cornerRadius)
             },
             .init("backgroundColor", .color, acceptsNil: true, write: .cgColor(\.backgroundColor)) {
                 Outputs.color($0.backgroundColor)
             },
-            .init("borderWidth", .double, write: .number(\.borderWidth, rule: .nonNegative)) {
+            .init("borderWidth", .double, limits: Limits.nonNegative, write: .number(\.borderWidth)) {
                 Outputs.double($0.borderWidth)
             },
             .init("borderColor", .color, acceptsNil: true, write: .cgColor(\.borderColor)) {
@@ -78,10 +96,10 @@ struct AttributeCatalog {
             .init("shadowColor", .color, acceptsNil: true, write: .cgColor(\.shadowColor)) {
                 Outputs.color($0.shadowColor)
             },
-            .init("shadowOpacity", .double, write: .number(\.shadowOpacity, rule: .unit)) {
+            .init("shadowOpacity", .double, limits: Limits.unit, write: .number(\.shadowOpacity)) {
                 Outputs.double($0.shadowOpacity)
             },
-            .init("shadowRadius", .double, write: .number(\.shadowRadius, rule: .nonNegative)) {
+            .init("shadowRadius", .double, limits: Limits.nonNegative, write: .number(\.shadowRadius)) {
                 Outputs.double($0.shadowRadius)
             },
             .init("shadowOffset", .size, write: .size(\.shadowOffset)) { Outputs.size($0.shadowOffset) }
@@ -92,14 +110,14 @@ struct AttributeCatalog {
         "view",
         subject: { (_: CALayer, view: UIView?) in view },
         [
-            .init("alpha", .double, write: .number(\.alpha, rule: .unit)) { Outputs.double($0.alpha) },
+            .init("alpha", .double, limits: Limits.unit, write: .number(\.alpha)) { Outputs.double($0.alpha) },
             .init("isHidden", .bool, write: .bool(\.isHidden)) { .bool($0.isHidden) },
             .init("isOpaque", .bool, write: .bool(\.isOpaque)) { .bool($0.isOpaque) },
             .init("clipsToBounds", .bool, write: .bool(\.clipsToBounds)) { .bool($0.clipsToBounds) },
             .init("isUserInteractionEnabled", .bool, write: .bool(\.isUserInteractionEnabled)) {
                 .bool($0.isUserInteractionEnabled)
             },
-            .init("tag", .int, write: .int(\.tag)) { .int(Int64($0.tag)) },
+            .init("tag", .int, section: .identity, write: .int(\.tag)) { .int(Int64($0.tag)) },
             .init("contentMode", .enumeration, write: .enumeration(\.contentMode)) {
                 Outputs.enumeration($0.contentMode.rawValue, names: Outputs.contentModeNames)
             },
@@ -107,42 +125,53 @@ struct AttributeCatalog {
                 $0.tintColor,
                 in: $0
             ) },
-            .init("layoutMargins", .insets, write: .insets(\.layoutMargins)) { Outputs.insets($0.layoutMargins) },
+            .init("layoutMargins", .insets, section: .layout, write: .insets(\.layoutMargins)) {
+                Outputs.insets($0.layoutMargins)
+            },
             // Protocol 0.4 (S-ATTR-07).
             .init(
                 "contentHuggingPriority.horizontal",
                 .double,
+                section: .layout,
+                limits: Limits.priority,
                 write: .priority { $0.setContentHuggingPriority($1, for: .horizontal) }
             ) { Outputs.double($0.contentHuggingPriority(for: .horizontal).rawValue) },
             .init(
                 "contentHuggingPriority.vertical",
                 .double,
+                section: .layout,
+                limits: Limits.priority,
                 write: .priority { $0.setContentHuggingPriority($1, for: .vertical) }
             ) { Outputs.double($0.contentHuggingPriority(for: .vertical).rawValue) },
             .init(
                 "contentCompressionResistancePriority.horizontal",
                 .double,
+                section: .layout,
+                limits: Limits.priority,
                 write: .priority { $0.setContentCompressionResistancePriority($1, for: .horizontal) }
             ) { Outputs.double($0.contentCompressionResistancePriority(for: .horizontal).rawValue) },
             .init(
                 "contentCompressionResistancePriority.vertical",
                 .double,
+                section: .layout,
+                limits: Limits.priority,
                 write: .priority { $0.setContentCompressionResistancePriority($1, for: .vertical) }
             ) { Outputs.double($0.contentCompressionResistancePriority(for: .vertical).rawValue) },
             // Worked out by the view from its content.
-            .init("intrinsicContentSize.width", .double, write: nil) {
+            .init("intrinsicContentSize.width", .double, section: .layout, write: nil) {
                 Outputs.intrinsicDimension($0.intrinsicContentSize.width)
             },
-            .init("intrinsicContentSize.height", .double, write: nil) {
+            .init("intrinsicContentSize.height", .double, section: .layout, write: nil) {
                 Outputs.intrinsicDimension($0.intrinsicContentSize.height)
             },
             .init(
                 "translatesAutoresizingMaskIntoConstraints",
                 .bool,
+                section: .layout,
                 write: .bool(\.translatesAutoresizingMaskIntoConstraints)
             ) { .bool($0.translatesAutoresizingMaskIntoConstraints) },
             // Worked out by Auto Layout.
-            .init("hasAmbiguousLayout", .bool, write: nil) { .bool($0.hasAmbiguousLayout) }
+            .init("hasAmbiguousLayout", .bool, section: .layout, write: nil) { .bool($0.hasAmbiguousLayout) }
         ] as [AttributeDefinition<UIView>]
     )
 
@@ -160,15 +189,18 @@ struct AttributeCatalog {
         "scrollView",
         subject: { (_: CALayer, view: UIView?) in view as? UIScrollView },
         [
-            .init("contentOffset", .point, write: AttributeWriter { view, value in
+            .init("contentOffset", .point, section: .layout, write: AttributeWriter { view, value in
                 guard case .point(let point)? = value else { return .failure(.otherKind) }
                 return .success { view.setContentOffset(CGPoint(point), animated: false) }
             }) { Outputs.point($0.contentOffset) },
-            .init("contentSize", .size, write: .size(\.contentSize, nonNegative: true)) { Outputs.size($0.contentSize)
+            .init("contentSize", .size, section: .layout, limits: Limits.nonNegative, write: .size(\.contentSize)) {
+                Outputs.size($0.contentSize)
             },
-            .init("contentInset", .insets, write: .insets(\.contentInset)) { Outputs.insets($0.contentInset) },
+            .init("contentInset", .insets, section: .layout, write: .insets(\.contentInset)) {
+                Outputs.insets($0.contentInset)
+            },
             // contentInset plus the safe area.
-            .init("adjustedContentInset", .insets, write: nil) {
+            .init("adjustedContentInset", .insets, section: .layout, write: nil) {
                 Outputs.insets($0.adjustedContentInset)
             },
             .init("isScrollEnabled", .bool, write: .bool(\.isScrollEnabled)) { .bool($0.isScrollEnabled) },
@@ -182,7 +214,9 @@ struct AttributeCatalog {
         [
             .init("text", .string, acceptsNil: true, write: .string(\.text)) { $0.text.map { .string($0) } },
             .init("fontName", .string, write: .fontName(\.font)) { $0.font.map { .string($0.fontName) } },
-            .init("fontSize", .double, write: .fontSize(\.font)) { $0.font.map { Outputs.double($0.pointSize) } },
+            .init("fontSize", .double, limits: Limits.positive, write: .fontSize(\.font)) {
+                $0.font.map { Outputs.double($0.pointSize) }
+            },
             .init("textColor", .color, acceptsNil: true, write: .uiColor(\.textColor)) { Outputs.color(
                 $0.textColor,
                 in: $0
@@ -190,7 +224,7 @@ struct AttributeCatalog {
             .init("textAlignment", .enumeration, write: .enumeration(\.textAlignment)) {
                 Outputs.enumeration($0.textAlignment.rawValue, names: Outputs.textAlignmentNames)
             },
-            .init("numberOfLines", .int, write: .int(\.numberOfLines, nonNegative: true)) {
+            .init("numberOfLines", .int, limits: Limits.nonNegative, write: .int(\.numberOfLines)) {
                 .int(Int64($0.numberOfLines))
             },
             .init("lineBreakMode", .enumeration, write: .enumeration(\.lineBreakMode)) {
@@ -230,17 +264,17 @@ struct AttributeCatalog {
         "stackView",
         subject: { (_: CALayer, view: UIView?) in view as? UIStackView },
         [
-            .init("axis", .enumeration, write: .enumeration(\.axis)) { Outputs.enumeration(
+            .init("axis", .enumeration, section: .layout, write: .enumeration(\.axis)) { Outputs.enumeration(
                 $0.axis.rawValue,
                 names: Outputs.axisNames
             ) },
-            .init("alignment", .enumeration, write: .enumeration(\.alignment)) {
+            .init("alignment", .enumeration, section: .layout, write: .enumeration(\.alignment)) {
                 Outputs.enumeration($0.alignment.rawValue, names: Outputs.stackAlignmentNames(axis: $0.axis))
             },
-            .init("distribution", .enumeration, write: .enumeration(\.distribution)) {
+            .init("distribution", .enumeration, section: .layout, write: .enumeration(\.distribution)) {
                 Outputs.enumeration($0.distribution.rawValue, names: Outputs.distributionNames)
             },
-            .init("spacing", .double, write: .number(\.spacing)) { Outputs.double($0.spacing) }
+            .init("spacing", .double, section: .layout, write: .number(\.spacing)) { Outputs.double($0.spacing) }
         ] as [AttributeDefinition<UIStackView>]
     )
 
@@ -253,7 +287,9 @@ struct AttributeCatalog {
                 $0.placeholder.map { .string($0) }
             },
             .init("fontName", .string, write: .fontName(\.font)) { $0.font.map { .string($0.fontName) } },
-            .init("fontSize", .double, write: .fontSize(\.font)) { $0.font.map { Outputs.double($0.pointSize) } },
+            .init("fontSize", .double, limits: Limits.positive, write: .fontSize(\.font)) {
+                $0.font.map { Outputs.double($0.pointSize) }
+            },
             .init("textColor", .color, acceptsNil: true, write: .uiColor(\.textColor)) { Outputs.color(
                 $0.textColor,
                 in: $0
@@ -267,7 +303,9 @@ struct AttributeCatalog {
         [
             .init("text", .string, write: .string(\.text)) { $0.text.map { .string($0) } },
             .init("fontName", .string, write: .fontName(\.font)) { $0.font.map { .string($0.fontName) } },
-            .init("fontSize", .double, write: .fontSize(\.font)) { $0.font.map { Outputs.double($0.pointSize) } },
+            .init("fontSize", .double, limits: Limits.positive, write: .fontSize(\.font)) {
+                $0.font.map { Outputs.double($0.pointSize) }
+            },
             .init("textColor", .color, acceptsNil: true, write: .uiColor(\.textColor)) { Outputs.color(
                 $0.textColor,
                 in: $0

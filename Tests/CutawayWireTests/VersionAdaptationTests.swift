@@ -56,9 +56,10 @@ final class VersionAdaptationTests: XCTestCase {
 
     func test_S_CONN_12_negotiatedVersionIsTheLowerMinor() {
         let current = ProtocolVersion.current
-        XCTAssertEqual(current, version(0))
+        XCTAssertEqual(current, version(1))
         XCTAssertEqual(current.negotiated(with: version(0)), version(0))
-        XCTAssertEqual(current.negotiated(with: version(1)), version(0))
+        XCTAssertEqual(current.negotiated(with: version(1)), version(1))
+        XCTAssertEqual(current.negotiated(with: version(2)), version(1))
         XCTAssertEqual(version(2).negotiated(with: version(1)), version(1))
         XCTAssertEqual(version(1).negotiated(with: version(3)), version(1))
     }
@@ -81,5 +82,52 @@ final class VersionAdaptationTests: XCTestCase {
 
         let plain = LayerDetail(layerID: 3, status: .layerNotFound)
         XCTAssertEqual(plain.adapted(to: version(0)), plain)
+    }
+
+    func test_S_CONN_12_everySectionHasItsMinorVersion() {
+        // Protocol 1.1 added every section but the default (P-ATTR-08).
+        XCTAssertEqual(AttributeSection.unspecified.minorVersion, 0)
+        for section in AttributeSection.allCases where section != .unspecified {
+            XCTAssertEqual(section.minorVersion, 1, "\(section)")
+        }
+    }
+
+    /// One attribute of each section, with limits.
+    private var sectionedGroups: [AttributeGroup] {
+        let limits = [NumberLimit(minimum: 0)]
+        return [
+            AttributeGroup(
+                id: "view",
+                title: "View",
+                attributes: AttributeSection.allCases.map { section in
+                    Attribute(
+                        id: "view.tag",
+                        title: "Tag",
+                        value: .int(0),
+                        editable: true,
+                        valueKind: .int,
+                        section: section,
+                        limits: limits
+                    )
+                }
+            )
+        ]
+    }
+
+    func test_S_ATTR_08_aProtocol1_0PeerGetsUnspecifiedSections() {
+        let detail = LayerDetail(layerID: 9, status: .ok, attributeGroups: sectionedGroups)
+        let result = SetAttributeResult(layerID: 9, attributeGroups: sectionedGroups)
+
+        // 1.0 has no sections: every one becomes unspecified; the limits stay.
+        for groups in [detail.adapted(to: version(0)).attributeGroups, result.adapted(to: version(0)).attributeGroups] {
+            let attributes = groups.flatMap(\.attributes)
+            XCTAssertEqual(attributes.map(\.section), Array(repeating: .unspecified, count: 4))
+            XCTAssertEqual(attributes.map(\.limits), Array(repeating: [NumberLimit(minimum: 0)], count: 4))
+        }
+        // 1.1 and later get them as they are.
+        for minor: UInt16 in [1, 2] {
+            XCTAssertEqual(detail.adapted(to: version(minor)), detail, "1.\(minor)")
+            XCTAssertEqual(result.adapted(to: version(minor)), result, "1.\(minor)")
+        }
     }
 }

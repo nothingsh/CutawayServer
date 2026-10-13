@@ -176,8 +176,18 @@ enum HierarchyCapture {
             opacity: WireGeometry.finite(layer.opacity),
             masksToBounds: layer.masksToBounds,
             viewControllerClassName: controllerNames?.runtime,
-            viewControllerDisplayClassName: controllerNames?.display
+            viewControllerDisplayClassName: controllerNames?.display,
+            // P-HIER-14: of the objects the names come from, so given exactly when they are.
+            layerAddress: address(of: layer),
+            viewAddress: view.map(address(of:)),
+            viewControllerAddress: controller.map(address(of:))
         )
+    }
+
+    /// Where the object lies in the app's memory, for display only (P-HIER-15). Neither retains
+    /// the object nor reads anything of it.
+    private static func address(of object: AnyObject) -> UInt64 {
+        UInt64(UInt(bitPattern: ObjectIdentifier(object)))
     }
 }
 #endif

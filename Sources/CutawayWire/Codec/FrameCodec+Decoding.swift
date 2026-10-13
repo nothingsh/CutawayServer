@@ -155,7 +155,10 @@ extension FrameCodec {
                     ownerDisplayClassName: reference.ownerDisplayClassName ?? "",
                     name: reference.name ?? ""
                 )
-            }
+            },
+            layerAddress: node.layerAddress,
+            viewAddress: node.viewAddress == 0 ? nil : node.viewAddress,
+            viewControllerAddress: node.viewControllerAddress == 0 ? nil : node.viewControllerAddress
         )
     }
 
@@ -258,7 +261,16 @@ extension FrameCodec {
                     value: try attributeValue(of: attribute),
                     editable: attribute.editable,
                     acceptsNil: attribute.acceptsNil,
-                    valueKind: AttributeValueKind(attribute.valueKind)
+                    valueKind: AttributeValueKind(attribute.valueKind),
+                    section: AttributeSection(attribute.section),
+                    limits: attribute.limits.map { limit in
+                        NumberLimit(
+                            minimum: limit.hasMinimum ? limit.minimum : nil,
+                            minimumIsExclusive: limit.minimumExclusive,
+                            maximum: limit.hasMaximum ? limit.maximum : nil,
+                            maximumIsExclusive: limit.maximumExclusive
+                        )
+                    }
                 )
             }
         )

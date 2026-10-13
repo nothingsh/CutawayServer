@@ -376,8 +376,10 @@ final class AttributeEditingTests: CaptureTestCase {
                 "scrollView.contentSize"
             ]
             let signs: [Double] = refusesNegative.contains(id) ? [1] : [1, -1]
-            // Priorities are refused outside 1...1000: the extremes are the ends of the range.
+            // Priorities are refused outside 1...1000, fractions outside 0...1 (S-SET-06): the
+            // extremes are the ends of the range.
             if id.contains("Priority") { return [.double(1), .double(1000)] }
+            if ["layer.opacity", "layer.shadowOpacity", "view.alpha"].contains(id) { return [.double(0), .double(1)] }
             switch value {
             case .double: return signs.map { .double($0 * big) }
             case .int: return signs.map { .int($0 > 0 ? .max : .min) }
@@ -648,20 +650,26 @@ final class AttributeEditingTests: CaptureTestCase {
 
     // MARK: - S-SET-03
 
-    func test_S_SET_03_fractionsAndChannelsAreClamped() throws {
+    func test_S_SET_03_fractionsAreRejectedAndChannelsClamped() throws {
         let specimens = try makeSpecimens()
+        // Since 1.1 a fraction outside 0...1 is outside its limits, and refused (S-SET-06).
         for (id, layer) in [
             ("layer.opacity", specimens.layer),
             ("view.alpha", specimens.view.layer),
             ("layer.shadowOpacity", specimens.layer)
         ] {
-            for (written, read) in [(1.5, 1.0), (-0.5, 0.0)] {
-                let answer = try apply(id, .double(written), on: layer, in: specimens.window).get()
-                let attribute = answer.attributeGroups.flatMap(\.attributes).first { $0.id == id }
-                XCTAssertEqual(attribute?.value, .double(read), "\(id) = \(written)")
-                XCTAssertEqual(attributes(of: layer)[id]?.value, .double(read), "\(id) = \(written)")
+            for written in [1.5, -0.5] {
+                try assertRejected(
+                    id,
+                    .double(written),
+                    on: layer,
+                    in: specimens,
+                    code: .invalidAttributeValue,
+                    message: "\(id) must be between 0 and 1"
+                )
             }
         }
+        // A colour has no limits: its channels are still clamped (P-ATTR-04, P-SET-04).
         let answer = try apply(
             "layer.backgroundColor",
             color(1.5, -0.5, 0.25, 2),
@@ -675,6 +683,156 @@ final class AttributeEditingTests: CaptureTestCase {
         XCTAssertEqual(AttributeInputs.channel(1.5), 1)
         XCTAssertEqual(AttributeInputs.channel(-0.5), 0)
         XCTAssertEqual(AttributeInputs.channel(0.25), 0.25)
+    }
+
+    // MARK: - S-SET-06
+
+    /// For every attribute with limits: values on the bounds, which are accepted, and values just
+    /// past them, which are refused.
+    private static let limitCases: [(id: String, accepted: [AttributeValue], refused: [AttributeValue])] = {
+        let step = 0.001
+        func numbers(_ accepted: [Double], _ refused: [Double]) -> ([AttributeValue], [AttributeValue]) {
+            (accepted.map { .double($0) }, refused.map { .double($0) })
+        }
+        let atLeastZero = numbers([0, 1e6], [-step])
+        let unit = numbers([0, 1], [-step, 1 + step])
+        let priority = numbers([1, 1000], [1 - step, 1000 + step])
+        // The bound itself is outside an exclusive limit.
+        let positive = numbers([step, 1e3], [0, -step])
+        var cases: [(String, [AttributeValue], [AttributeValue])] = []
+        for id in ["layer.cornerRadius", "layer.borderWidth", "layer.shadowRadius"] {
+            cases.append((id, atLeastZero.0, atLeastZero.1))
+        }
+        for id in ["layer.opacity", "layer.shadowOpacity", "view.alpha"] { cases.append((id, unit.0, unit.1)) }
+        for id in [
+            "view.contentHuggingPriority.horizontal",
+            "view.contentHuggingPriority.vertical",
+            "view.contentCompressionResistancePriority.horizontal",
+            "view.contentCompressionResistancePriority.vertical"
+        ] {
+            cases.append((id, priority.0, priority.1))
+        }
+        for id in ["label.fontSize", "textField.fontSize", "textView.fontSize"] {
+            cases.append((id, positive.0, positive.1))
+        }
+        cases.append(("label.numberOfLines", [.int(0), .int(3)], [.int(-1)]))
+        // x and y are free; width and height are not.
+        cases.append((
+            "layer.bounds",
+            [
+                .rect(WireRect(x: -20, y: -20, width: 0, height: 0)),
+                .rect(WireRect(x: 5, y: -1e6, width: 10, height: 0))
+            ],
+            [
+                .rect(WireRect(x: 0, y: 0, width: -step, height: 10)),
+                .rect(WireRect(x: 0, y: 0, width: 10, height: -step))
+            ]
+        ))
+        cases.append((
+            "scrollView.contentSize",
+            [.size(WireSize(width: 0, height: 0))],
+            [.size(WireSize(width: -step, height: 0)), .size(WireSize(width: 0, height: -step))]
+        ))
+        return cases
+    }()
+
+    func test_S_SET_06_limitsAcceptTheirBoundsAndRefuseWhatLiesPast() throws {
+        // Every attribute that has limits is here.
+        var limited = Set<String>()
+        let specimens = try makeSpecimens()
+        for layer in [specimens.layer] + specimens.window.subviews.map(\.layer) {
+            for attribute in AttributeCatalog.standard.read(layer).flatMap(\.attributes)
+                where !attribute.limits.isEmpty {
+                limited.insert(attribute.id)
+            }
+        }
+        XCTAssertEqual(Set(Self.limitCases.map(\.id)), limited)
+
+        for (id, accepted, refused) in Self.limitCases {
+            for value in refused {
+                let specimens = try makeSpecimens()
+                try assertRejected(id, value, on: specimens.target(of: id), in: specimens, code: .invalidAttributeValue)
+            }
+            for value in accepted {
+                let specimens = try makeSpecimens()
+                let layer = specimens.target(of: id)
+                XCTAssertNoThrow(try apply(id, value, on: layer, in: specimens.window).get(), "\(id) = \(value)")
+            }
+        }
+    }
+
+    func test_S_SET_06_refusalsNameTheBoundAndTheComponent() throws {
+        let specimens = try makeSpecimens()
+        try assertRejected(
+            "layer.cornerRadius",
+            .double(-1),
+            on: specimens.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "layer.cornerRadius cannot be negative"
+        )
+        try assertRejected(
+            "label.fontSize",
+            .double(0),
+            on: specimens.label.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "label.fontSize must be greater than 0"
+        )
+        try assertRejected(
+            "view.contentHuggingPriority.vertical",
+            .double(1001),
+            on: specimens.view.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "view.contentHuggingPriority.vertical must be between 1 and 1000"
+        )
+        try assertRejected(
+            "layer.bounds",
+            .rect(WireRect(x: -20, y: 0, width: -20, height: 24)),
+            on: specimens.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "layer.bounds width cannot be negative"
+        )
+        try assertRejected(
+            "scrollView.contentSize",
+            .size(WireSize(width: 1, height: -1)),
+            on: specimens.scrollView.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "scrollView.contentSize height cannot be negative"
+        )
+    }
+
+    func test_S_SET_06_aValueTheAppSetOutsideTheLimitsCannotBeKept() throws {
+        let specimens = try makeSpecimens()
+        let scrollView = specimens.scrollView
+        // The app may set what a client may not (P-SET-07): it is shown as it is. (A layer's
+        // bounds cannot be set so: Core Animation makes the size positive.)
+        scrollView.contentSize = CGSize(width: -10, height: 20)
+        XCTAssertEqual(
+            attributes(of: scrollView.layer)["scrollView.contentSize"]?.value,
+            .size(WireSize(width: -10, height: 20))
+        )
+        // A change that keeps the width is refused like any other value outside the limits.
+        try assertRejected(
+            "scrollView.contentSize",
+            .size(WireSize(width: -10, height: 40)),
+            on: scrollView.layer,
+            in: specimens,
+            code: .invalidAttributeValue,
+            message: "scrollView.contentSize width cannot be negative"
+        )
+        // One that brings it back within them is accepted.
+        XCTAssertNoThrow(
+            try apply(
+                "scrollView.contentSize",
+                .size(WireSize(width: 10, height: 40)),
+                on: scrollView.layer,
+                in: specimens.window
+            ).get()
+        )
     }
 
     // MARK: - S-SET-04

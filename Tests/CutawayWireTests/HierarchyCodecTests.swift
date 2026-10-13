@@ -123,7 +123,9 @@ final class HierarchyCodecTests: XCTestCase {
                 zPosition: 0,
                 isHidden: false,
                 opacity: 1,
-                masksToBounds: false
+                masksToBounds: false,
+                layerAddress: 0x6000_03B4_C000,
+                viewAddress: 0x1_0380_6A00
             )
         )
 
@@ -273,6 +275,47 @@ final class HierarchyCodecTests: XCTestCase {
                 )
             )
         )
+    }
+
+    func test_S_HIER_13_decodesTheFixtureAddresses() throws {
+        // Protocol 1.1 (Protocol/fixtures/README.md, "Addresses (1.1)").
+        let nodes = try fixtureHierarchy().nodes
+        for node in nodes {
+            XCTAssertEqual(node.layerAddress, 0x6000_03B4_C000 + 0x40 * (node.id - 1), "\(node.id)")
+            // P-HIER-14: exactly when the class names are given.
+            XCTAssertEqual(
+                node.viewAddress,
+                node.viewClassName == nil ? nil : 0x1_0380_6800 + 0x200 * node.id,
+                "\(node.id)"
+            )
+            XCTAssertEqual(node.viewControllerAddress, node.id == 2 ? 0x1_0300_7A00 : nil, "\(node.id)")
+            XCTAssertEqual(node.viewControllerAddress != nil, node.viewControllerClassName != nil, "\(node.id)")
+        }
+        XCTAssertEqual(nodes.filter { $0.viewAddress == nil }.map(\.id), [5, 8])
+    }
+
+    func test_S_HIER_13_addressesRoundTripAndZeroMeansAbsent() throws {
+        let node = LayerNode(
+            id: 7,
+            parentID: 0,
+            className: "CALayer",
+            displayClassName: "CALayer",
+            bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
+            position: WirePoint(x: 0, y: 0),
+            layerAddress: .max,
+            viewAddress: 0x1_0000_0010,
+            viewControllerAddress: 0x1_0000_0020
+        )
+        let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
+        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
+
+        // A 1.0 server sends none: they read as 0 and nil.
+        var plain = node
+        plain.layerAddress = 0
+        plain.viewAddress = nil
+        plain.viewControllerAddress = nil
+        let plainFrame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [plain], keyWindowID: 0)))
+        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(plainFrame)), plainFrame)
     }
 
     func test_S_HIER_12_decodesTheSubtreeNotFoundFixture() throws {

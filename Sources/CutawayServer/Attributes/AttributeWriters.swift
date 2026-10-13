@@ -21,42 +21,18 @@ struct AttributeRejection: Error, Equatable {
 ///
 /// `prepare` only checks and converts; the closure it returns makes the change, so nothing
 /// changes before every check has passed (P-SET-03). `AttributeEditing` has already checked
-/// the member, nil and non-finite numbers: a writer sees a value of its attribute's kind, and
-/// `nil` only where the attribute accepts it.
+/// the member, nil, non-finite numbers and the attribute's limits (P-SET-07): a writer sees a
+/// value of its attribute's kind within its limits, and `nil` only where the attribute
+/// accepts it.
 struct AttributeWriter<Subject> {
     let prepare: (Subject, AttributeValue?) -> Result<() -> Void, AttributeRejection>
-}
-
-/// What a number written to an attribute may be.
-enum AttributeNumberRule {
-    case any
-    /// Negative numbers are refused.
-    case nonNegative
-    /// Numbers that are not above 0 are refused.
-    case positive
-    /// Clamped to 0...1 (P-SET-04).
-    case unit
-    /// A layout priority: numbers outside 1...1000 are refused.
-    case priority
-
-    func apply(_ number: Double) -> Result<Double, AttributeRejection> {
-        switch self {
-        case .any: return .success(number)
-        case .nonNegative: return number < 0 ? .failure(AttributeRejection("cannot be negative")) : .success(number)
-        case .positive: return number <= 0 ? .failure(AttributeRejection("must be greater than 0")) : .success(number)
-        case .unit: return .success(min(max(number, 0), 1))
-        case .priority:
-            return (1...1000).contains(number)
-                ? .success(number) : .failure(AttributeRejection("must be between 1 and 1000"))
-        }
-    }
 }
 
 extension AttributeWriter where Subject: UIView {
     /// A content hugging or compression resistance priority, set with `set`.
     static func priority(_ set: @escaping (Subject, UILayoutPriority) -> Void) -> AttributeWriter {
         AttributeWriter { subject, value in
-            AttributeInputs.number(value, .priority).map { number in
+            AttributeInputs.number(value).map { number in
                 { set(subject, UILayoutPriority(Float(number))) }
             }
         }
@@ -71,31 +47,24 @@ extension AttributeWriter where Subject: AnyObject {
         }
     }
 
-    static func int(_ keyPath: ReferenceWritableKeyPath<Subject, Int>, nonNegative: Bool = false) -> AttributeWriter {
+    static func int(_ keyPath: ReferenceWritableKeyPath<Subject, Int>) -> AttributeWriter {
         AttributeWriter { subject, value in
             guard case .int(let number)? = value, let int = Int(exactly: number) else {
                 return .failure(.otherKind)
             }
-            if nonNegative, int < 0 { return .failure(AttributeRejection("cannot be negative")) }
             return .success { subject[keyPath: keyPath] = int }
         }
     }
 
-    static func number(
-        _ keyPath: ReferenceWritableKeyPath<Subject, CGFloat>,
-        rule: AttributeNumberRule = .any
-    ) -> AttributeWriter {
+    static func number(_ keyPath: ReferenceWritableKeyPath<Subject, CGFloat>) -> AttributeWriter {
         AttributeWriter { subject, value in
-            AttributeInputs.number(value, rule).map { number in { subject[keyPath: keyPath] = CGFloat(number) } }
+            AttributeInputs.number(value).map { number in { subject[keyPath: keyPath] = CGFloat(number) } }
         }
     }
 
-    static func number(
-        _ keyPath: ReferenceWritableKeyPath<Subject, Float>,
-        rule: AttributeNumberRule = .any
-    ) -> AttributeWriter {
+    static func number(_ keyPath: ReferenceWritableKeyPath<Subject, Float>) -> AttributeWriter {
         AttributeWriter { subject, value in
-            AttributeInputs.number(value, rule).map { number in { subject[keyPath: keyPath] = Float(number) } }
+            AttributeInputs.number(value).map { number in { subject[keyPath: keyPath] = Float(number) } }
         }
     }
 
@@ -106,28 +75,16 @@ extension AttributeWriter where Subject: AnyObject {
         }
     }
 
-    static func size(
-        _ keyPath: ReferenceWritableKeyPath<Subject, CGSize>,
-        nonNegative: Bool = false
-    ) -> AttributeWriter {
+    static func size(_ keyPath: ReferenceWritableKeyPath<Subject, CGSize>) -> AttributeWriter {
         AttributeWriter { subject, value in
             guard case .size(let size)? = value else { return .failure(.otherKind) }
-            if nonNegative, size.width < 0 || size.height < 0 {
-                return .failure(AttributeRejection("cannot have a negative width or height"))
-            }
             return .success { subject[keyPath: keyPath] = CGSize(size) }
         }
     }
 
-    static func rect(
-        _ keyPath: ReferenceWritableKeyPath<Subject, CGRect>,
-        nonNegative: Bool = false
-    ) -> AttributeWriter {
+    static func rect(_ keyPath: ReferenceWritableKeyPath<Subject, CGRect>) -> AttributeWriter {
         AttributeWriter { subject, value in
             guard case .rect(let rect)? = value else { return .failure(.otherKind) }
-            if nonNegative, rect.size.width < 0 || rect.size.height < 0 {
-                return .failure(AttributeRejection("cannot have a negative width or height"))
-            }
             return .success { subject[keyPath: keyPath] = CGRect(rect) }
         }
     }
@@ -208,7 +165,7 @@ extension AttributeWriter where Subject: AnyObject {
     /// The current font at that size; the system font when there is no font.
     static func fontSize(_ keyPath: ReferenceWritableKeyPath<Subject, UIFont?>) -> AttributeWriter {
         AttributeWriter { subject, value in
-            AttributeInputs.number(value, .positive).map { number in
+            AttributeInputs.number(value).map { number in
                 let size = CGFloat(number)
                 let font = subject[keyPath: keyPath]?.withSize(size) ?? UIFont.systemFont(ofSize: size)
                 return { subject[keyPath: keyPath] = font }

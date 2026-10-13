@@ -217,4 +217,67 @@ enum ExpectedAttributes {
             entry("textView.isEditable", "Is Editable", .bool)
         ]
     )
+
+    // MARK: - Protocol 1.1
+
+    /// The sections other than `general`, copied by hand (S-ATTR-08). Every attribute not
+    /// named here is `general`.
+    static let sections: [String: AttributeSection] = {
+        var sections: [String: AttributeSection] = ["view.tag": .identity]
+        for id in [
+            "layer.frame",
+            "layer.bounds",
+            "layer.position",
+            "layer.anchorPoint",
+            "layer.zPosition",
+            "layer.transform",
+            "view.layoutMargins",
+            "view.contentHuggingPriority.horizontal",
+            "view.contentHuggingPriority.vertical",
+            "view.contentCompressionResistancePriority.horizontal",
+            "view.contentCompressionResistancePriority.vertical",
+            "view.intrinsicContentSize.width",
+            "view.intrinsicContentSize.height",
+            "view.translatesAutoresizingMaskIntoConstraints",
+            "view.hasAmbiguousLayout",
+            "scrollView.contentOffset",
+            "scrollView.contentSize",
+            "scrollView.contentInset",
+            "scrollView.adjustedContentInset",
+            "stackView.axis",
+            "stackView.alignment",
+            "stackView.distribution",
+            "stackView.spacing"
+        ] {
+            sections[id] = .layout
+        }
+        return sections
+    }()
+
+    /// The limits, copied by hand (S-ATTR-09): the rules that refuse numbers. Every attribute
+    /// not named here has none.
+    static let limits: [String: [NumberLimit]] = {
+        let atLeastZero = [NumberLimit(minimum: 0)]
+        let unit = [NumberLimit(minimum: 0, maximum: 1)]
+        let priority = [NumberLimit(minimum: 1, maximum: 1000)]
+        let positive = [NumberLimit(minimum: 0, minimumIsExclusive: true)]
+        return [
+            "layer.bounds": [.free, .free, NumberLimit(minimum: 0), NumberLimit(minimum: 0)],
+            "layer.opacity": unit,
+            "layer.shadowOpacity": unit,
+            "view.alpha": unit,
+            "layer.cornerRadius": atLeastZero,
+            "layer.borderWidth": atLeastZero,
+            "layer.shadowRadius": atLeastZero,
+            "view.contentHuggingPriority.horizontal": priority,
+            "view.contentHuggingPriority.vertical": priority,
+            "view.contentCompressionResistancePriority.horizontal": priority,
+            "view.contentCompressionResistancePriority.vertical": priority,
+            "label.fontSize": positive,
+            "textField.fontSize": positive,
+            "textView.fontSize": positive,
+            "label.numberOfLines": atLeastZero,
+            "scrollView.contentSize": atLeastZero
+        ]
+    }()
 }

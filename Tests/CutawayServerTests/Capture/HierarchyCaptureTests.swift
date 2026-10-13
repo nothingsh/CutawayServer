@@ -471,7 +471,8 @@ final class HierarchyCaptureTests: CaptureTestCase {
                 zPosition: -3,
                 isHidden: true,
                 opacity: 0.25,
-                masksToBounds: true
+                masksToBounds: true,
+                layerAddress: address(of: layer)
             )
         )
     }
@@ -792,5 +793,86 @@ final class HierarchyCaptureTests: CaptureTestCase {
         let expected = [0, 1, 2].flatMap { zPosition in layers.filter { $0.zPosition == CGFloat(zPosition) } }
         XCTAssertTrue(zip(ordered, expected).allSatisfy { $0 === $1 })
         XCTAssertEqual(ordered.count, layers.count)
+    }
+
+    // MARK: - S-HIER-13
+
+    /// Where the object lies in memory, worked out without the server's code.
+    private func address(of object: AnyObject) -> UInt64 {
+        UInt64(UInt(bitPattern: Unmanaged.passUnretained(object).toOpaque()))
+    }
+
+    func test_S_HIER_13_nodesCarryTheAddressesOfTheirObjects() throws {
+        let window = try makeWindow()
+        let root = ScreenController()
+        window.rootViewController = root
+        let plain = UIView()
+        root.view.addSubview(plain)
+        let bare = CALayer()
+        plain.layer.addSublayer(bare)
+        window.layoutIfNeeded()
+
+        let registry = LayerRegistry()
+        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+
+        // A controller's root view: all three.
+        let rootNode = try node(of: root.view.layer, in: hierarchy, registry: registry)
+        XCTAssertEqual(rootNode.layerAddress, address(of: root.view.layer))
+        XCTAssertEqual(rootNode.viewAddress, address(of: root.view))
+        XCTAssertEqual(rootNode.viewControllerAddress, address(of: root))
+        // A plain view: no controller.
+        let plainNode = try node(of: plain.layer, in: hierarchy, registry: registry)
+        XCTAssertEqual(plainNode.layerAddress, address(of: plain.layer))
+        XCTAssertEqual(plainNode.viewAddress, address(of: plain))
+        XCTAssertNil(plainNode.viewControllerAddress)
+        // A layer of its own: only the layer.
+        let bareNode = try node(of: bare, in: hierarchy, registry: registry)
+        XCTAssertEqual(bareNode.layerAddress, address(of: bare))
+        XCTAssertNil(bareNode.viewAddress)
+        XCTAssertNil(bareNode.viewControllerAddress)
+
+        // P-HIER-14: exactly when the class names are given; the layer's always.
+        for node in hierarchy.nodes {
+            XCTAssertNotEqual(node.layerAddress, 0, "\(node.id)")
+            XCTAssertEqual(node.viewAddress != nil, node.viewClassName != nil, "\(node.id)")
+            XCTAssertEqual(node.viewControllerAddress != nil, node.viewControllerClassName != nil, "\(node.id)")
+        }
+
+        // P-HIER-10: a subtree gives the same addresses.
+        let subtree = try XCTUnwrap(
+            HierarchyCapture.captureSubtree(rootID: rootNode.id, windows: [window], registry: registry)
+        )
+        XCTAssertEqual(subtree.nodes.first, rootNode)
+        XCTAssertEqual(
+            try node(of: bare, in: subtree, registry: registry).layerAddress,
+            address(of: bare)
+        )
+    }
+
+    func test_S_HIER_13_addressesDoNotKeepObjectsAliveOrLoadViews() throws {
+        let window = try makeWindow()
+        let root = ScreenController()
+        window.rootViewController = root
+        let unloaded = DetailController()
+        root.addChild(unloaded)
+        unloaded.didMove(toParent: root)
+        weak var view: UIView?
+        weak var layer: CALayer?
+        autoreleasepool {
+            let strongView = UIView()
+            let strongLayer = CALayer()
+            strongView.layer.addSublayer(strongLayer)
+            root.view.addSubview(strongView)
+            view = strongView
+            layer = strongLayer
+            let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+            XCTAssertTrue(hierarchy.nodes.contains { $0.viewAddress == address(of: strongView) })
+            XCTAssertTrue(hierarchy.nodes.contains { $0.layerAddress == address(of: strongLayer) })
+            strongView.removeFromSuperview()
+        }
+        CATransaction.flush()
+        XCTAssertNil(view, "the capture kept the view alive")
+        XCTAssertNil(layer, "the capture kept the layer alive")
+        XCTAssertFalse(unloaded.isViewLoaded, "the capture loaded a view")
     }
 }

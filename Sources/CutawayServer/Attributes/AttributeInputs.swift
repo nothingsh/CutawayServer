@@ -4,9 +4,10 @@ import UIKit
 
 /// Values from the wire as UIKit and Core Animation take them.
 enum AttributeInputs {
-    static func number(_ value: AttributeValue?, _ rule: AttributeNumberRule) -> Result<Double, AttributeRejection> {
+    /// Limits were checked before: `AttributeEditing` refuses what lies outside them.
+    static func number(_ value: AttributeValue?) -> Result<Double, AttributeRejection> {
         guard case .double(let number)? = value else { return .failure(.otherKind) }
-        return rule.apply(number)
+        return .success(number)
     }
 
     /// In sRGB, each channel clamped to 0...1 (P-ATTR-04, P-SET-04). `nil` stays nil.
@@ -30,28 +31,6 @@ enum AttributeInputs {
         guard let value else { return .success(nil) }
         guard case .string(let text) = value else { return .failure(.otherKind) }
         return .success(text)
-    }
-
-    /// Every number a value holds, for the check that they are finite (P-SET-03).
-    static func numbers(in value: AttributeValue) -> [Double] {
-        switch value {
-        case .bool, .int, .string, .enumeration:
-            return []
-        case .double(let number):
-            return [number]
-        case .color(let color):
-            return [color.red, color.green, color.blue, color.alpha].map(Double.init)
-        case .point(let point):
-            return [point.x, point.y]
-        case .size(let size):
-            return [size.width, size.height]
-        case .rect(let rect):
-            return [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
-        case .insets(let insets):
-            return [insets.top, insets.left, insets.bottom, insets.right]
-        case .transform(let transform):
-            return transform.components
-        }
     }
 }
 #endif

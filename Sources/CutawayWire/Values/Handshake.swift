@@ -14,7 +14,7 @@ public struct ProtocolVersion: Sendable, Equatable {
     }
 
     /// The version this build speaks.
-    public static let current = Self(major: 1, minor: 0)
+    public static let current = Self(major: 1, minor: 1)
 
     /// P-HELLO-04: the lower of the two minor versions. Only meaningful for the same major.
     public func negotiated(with peer: Self) -> Self {

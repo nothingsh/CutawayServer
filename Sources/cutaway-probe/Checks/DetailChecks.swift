@@ -29,7 +29,8 @@ enum DetailChecks {
         _ frames: [Frame],
         answering requestID: UInt32,
         request: GetLayerDetails,
-        hierarchy: Hierarchy
+        hierarchy: Hierarchy,
+        version: ProtocolVersion = .current
     ) throws -> [LayerDetail] {
         let (chunks, streamEnd) = try collect(frames, answering: requestID)
         try check(streamEnd, chunkCount: chunks.count)
@@ -51,7 +52,8 @@ enum DetailChecks {
                 for: item,
                 node: nodes[detail.layerID],
                 hasSublayers: parents.contains(detail.layerID),
-                maxTextureDimension: request.maxTextureDimension
+                maxTextureDimension: request.maxTextureDimension,
+                version: version
             )
             try ConstraintChecks.structure(
                 detail,
@@ -154,11 +156,12 @@ enum DetailChecks {
         for request: LayerDetailRequest,
         node: LayerNode?,
         hasSublayers: Bool,
-        maxTextureDimension: UInt32
+        maxTextureDimension: UInt32,
+        version: ProtocolVersion
     ) throws {
         let name = "the detail of layer \(detail.layerID)"
         let wantsImage = request.wantSolo || request.wantGroup
-        try checkAttributes(of: detail, for: request, name: name)
+        try checkAttributes(of: detail, for: request, name: name, version: version)
         switch detail.status {
         case .layerNotFound:
             guard detail.solo == nil, detail.group == nil else {
@@ -209,7 +212,8 @@ enum DetailChecks {
     private static func checkAttributes(
         of detail: LayerDetail,
         for request: LayerDetailRequest,
-        name: String
+        name: String,
+        version: ProtocolVersion
     ) throws {
         if detail.status == .layerNotFound {
             guard detail.attributeGroups.isEmpty else {
@@ -223,7 +227,7 @@ enum DetailChecks {
             guard !detail.attributeGroups.isEmpty else {
                 throw ProbeFailure("\(name) has no attributes, but the request wanted them")
             }
-            try AttributeChecks.structure(detail.attributeGroups, name: name)
+            try AttributeChecks.structure(detail.attributeGroups, name: name, version: version)
         }
     }
 

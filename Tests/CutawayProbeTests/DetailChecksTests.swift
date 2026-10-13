@@ -150,7 +150,7 @@ final class DetailChecksTests: XCTestCase {
                 captureFailed: 0,
                 notFound: 1,
                 attributeGroups: 3,
-                attributes: 12
+                attributes: 15
             )
         )
 
@@ -331,7 +331,7 @@ final class DetailChecksTests: XCTestCase {
         // The attributes themselves are checked too.
         try assertStreamRejects("layer 3: attribute label.numberOfLines of group view") { frames in
             self.change(&frames[0], detail: 0) {
-                $0.attributeGroups[2].attributes.append($0.attributeGroups[1].attributes[1])
+                $0.attributeGroups[2].attributes.append($0.attributeGroups[1].attributes[2])
             }
         }
 
@@ -609,7 +609,9 @@ final class DetailChecksTests: XCTestCase {
             LayerDetail(layerID: 8, status: .ok, group: Canvas(width: 60, height: 30, Self.orange).image()),
             LayerDetail(layerID: 9, status: .captureFailed)
         ]
-        return (hierarchy, details)
+        var addressed = hierarchy
+        Addresses.add(to: &addressed)
+        return (addressed, details)
     }
 
     /// The pixel check with the nodes the scene would find: the card and its shape, the
