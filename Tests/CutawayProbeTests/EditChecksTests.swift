@@ -75,7 +75,9 @@ final class EditChecksTests: XCTestCase {
                         value: value,
                         editable: entry.editable,
                         acceptsNil: entry.acceptsNil,
-                        valueKind: entry.kind
+                        valueKind: entry.kind,
+                        section: AttributeChecks.sections[id] ?? .general,
+                        limits: entry.editable ? AttributeChecks.limits[id] ?? [] : []
                     )
                 }
             )

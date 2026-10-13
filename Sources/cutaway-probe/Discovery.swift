@@ -8,6 +8,8 @@ struct FoundServer {
     var connection: ProbeConnection
     var port: UInt16
     var app: AppInfo
+    /// The version both sides work at (P-HELLO-04).
+    var version: ProtocolVersion
 }
 
 enum ScanResult {
@@ -65,7 +67,8 @@ func scan(_ options: Options) throws -> ScanResult {
             if let bundleID = options.bundleID, app.bundleID != bundleID {
                 continue  // Another app's server; closing the connection frees it.
             }
-            return .found(FoundServer(connection: connection, port: port, app: app))
+            let version = Checks.negotiatedVersion(first)
+            return .found(FoundServer(connection: connection, port: port, app: app, version: version))
         } catch let failure as ProbeFailure {
             if options.port != nil { throw failure }
             notes.append("port \(port): \(failure)")

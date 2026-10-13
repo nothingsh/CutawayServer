@@ -48,6 +48,14 @@ public struct LayerNode: Sendable, Equatable {
     public var viewControllerDisplayClassName: String?
     /// Nearest holder first (P-HIER-08). Empty when absent on the wire.
     public var memberReferences: [MemberReference]
+    /// Addresses in the app's process when the hierarchy was captured, for display only: an
+    /// address may be reused once its object is released (P-HIER-14, P-HIER-15, protocol 1.1).
+    /// 0 when absent on the wire.
+    public var layerAddress: UInt64
+    /// Set exactly when `viewClassName` is. 0 on the wire reads as nil.
+    public var viewAddress: UInt64?
+    /// Set exactly when `viewControllerClassName` is. 0 on the wire reads as nil.
+    public var viewControllerAddress: UInt64?
 
     public init(
         id: UInt64,
@@ -66,7 +74,10 @@ public struct LayerNode: Sendable, Equatable {
         masksToBounds: Bool = false,
         viewControllerClassName: String? = nil,
         viewControllerDisplayClassName: String? = nil,
-        memberReferences: [MemberReference] = []
+        memberReferences: [MemberReference] = [],
+        layerAddress: UInt64 = 0,
+        viewAddress: UInt64? = nil,
+        viewControllerAddress: UInt64? = nil
     ) {
         self.id = id
         self.parentID = parentID
@@ -85,6 +96,9 @@ public struct LayerNode: Sendable, Equatable {
         self.viewControllerClassName = viewControllerClassName
         self.viewControllerDisplayClassName = viewControllerDisplayClassName
         self.memberReferences = memberReferences
+        self.layerAddress = layerAddress
+        self.viewAddress = viewAddress
+        self.viewControllerAddress = viewControllerAddress
     }
 }
 

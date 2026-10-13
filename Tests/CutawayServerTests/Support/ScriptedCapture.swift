@@ -22,6 +22,8 @@ final class ScriptedCapture: @unchecked Sendable {
     /// Layers whose capture gives `nil` although the stop flag is not set, which the real
     /// capture never does.
     let givesNil: Set<UInt64>
+    /// The attributes of each layer that is found.
+    let attributeGroups: (UInt64) -> [AttributeGroup]
     private var compressedIDs: [UInt64] = []
 
     init(
@@ -29,8 +31,10 @@ final class ScriptedCapture: @unchecked Sendable {
         side: @escaping (UInt64) -> Int = { _ in 2 },
         constraints: @escaping (UInt64) -> [LayoutConstraint] = { _ in [] },
         incompressible: Bool = false,
-        givesNil: Set<UInt64> = []
+        givesNil: Set<UInt64> = [],
+        attributeGroups: @escaping (UInt64) -> [AttributeGroup] = { _ in [] }
     ) {
+        self.attributeGroups = attributeGroups
         self.missing = missing
         self.side = side
         self.constraints = constraints
@@ -114,7 +118,7 @@ final class ScriptedCapture: @unchecked Sendable {
             status: .ok,
             solo: nil,
             group: image,
-            attributeGroups: [],
+            attributeGroups: attributeGroups(layerID),
             constraints: constraints(layerID)
         )
     }

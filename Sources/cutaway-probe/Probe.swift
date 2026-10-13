@@ -52,7 +52,8 @@ func check(_ options: Options) throws {
 /// the scene is what the later demo checks work on.
 private func checkHierarchy(on server: FoundServer, options: Options) throws -> (Hierarchy, DemoScene?) {
     let hierarchy = try HierarchyChecks.hierarchy(
-        try request(.getHierarchy, id: ProbeRequestID.hierarchy, on: server.connection)
+        try request(.getHierarchy, id: ProbeRequestID.hierarchy, on: server.connection),
+        version: server.version
     )
     let windows = hierarchy.nodes.filter { $0.parentID == 0 }.count
     let controllers = hierarchy.nodes.filter { $0.viewControllerClassName != nil }.count
@@ -108,7 +109,8 @@ private func checkLayerDetails(
         frames,
         answering: ProbeRequestID.layerDetails,
         request: wanted,
-        hierarchy: hierarchy
+        hierarchy: hierarchy,
+        version: server.version
     )
     let summary = DetailChecks.summary(of: details, chunks: frames.count - 1)
     print(
@@ -116,6 +118,15 @@ private func checkLayerDetails(
             + "\(summary.attributeGroups) attribute groups with \(summary.attributes) attributes, "
             + "\(summary.captureFailed) capture failed, \(summary.notFound) not found"
     )
+    // P-SET-07: the app may have set them itself, so they are only reported.
+    let outside = details.flatMap {
+        AttributeChecks.valuesOutsideLimits($0.attributeGroups, name: "layer \($0.layerID)")
+    }
+    if !outside.isEmpty {
+        print(
+            "attributes: \(outside.count) values outside their limits, set by the app: \(outside.prefix(3).joined(separator: "; "))"
+        )
+    }
     let constraints = ConstraintChecks.summary(of: details)
     print(
         "constraints: \(constraints.total) on \(constraints.layers) layers, \(constraints.distinct) distinct: "

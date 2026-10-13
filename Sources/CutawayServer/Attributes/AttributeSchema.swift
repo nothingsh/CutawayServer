@@ -41,6 +41,12 @@ extension AttributeCatalog {
         let kind: AttributeValueKind
         /// May be set to nil. Whether it may read as nil is up to `read`.
         let acceptsNil: Bool
+        /// Where an inspector shows it (P-ATTR-08).
+        let section: AttributeSection
+        /// The values a change may have (P-ATTR-09, 10). They are sent, and `AttributeEditing`
+        /// refuses what lies outside them (P-SET-07): one list for both, so that the two cannot
+        /// drift apart. Writers check nothing of the kind.
+        let limits: [NumberLimit]
         /// `nil` for an attribute that cannot be changed.
         let write: AttributeWriter<Subject>?
         let read: (Subject) -> AttributeValue?
@@ -51,12 +57,16 @@ extension AttributeCatalog {
             _ name: String,
             _ kind: AttributeValueKind,
             acceptsNil: Bool = false,
+            section: AttributeSection = .general,
+            limits: [NumberLimit] = [],
             write: AttributeWriter<Subject>?,
             read: @escaping (Subject) -> AttributeValue?
         ) {
             self.name = name
             self.kind = kind
             self.acceptsNil = acceptsNil
+            self.section = section
+            self.limits = limits
             self.write = write
             self.read = read
         }
@@ -133,7 +143,8 @@ extension AttributeCatalog {
 
     /// P-ATTR-06: the kind is the declared one, also for nil. A value that fell back to a
     /// `StringValue` (P-ATTR-03) is of another kind; that reading is sent as read-only, with
-    /// the kind it has. Nil is only offered for an attribute that can be changed.
+    /// the kind it has, and so without limits (P-ATTR-09). Nil is only offered for an attribute
+    /// that can be changed. The section is the attribute's whatever its value (P-ATTR-08).
     nonisolated static func attribute<Subject>(
         id: String,
         title: String,
@@ -141,15 +152,18 @@ extension AttributeCatalog {
         definition: AttributeDefinition<Subject>
     ) -> Attribute {
         if let value, value.kind != definition.kind {
-            return Attribute(id: id, title: title, value: value, valueKind: value.kind)
+            return Attribute(id: id, title: title, value: value, valueKind: value.kind, section: definition.section)
         }
+        let editable = definition.isEditable
         return Attribute(
             id: id,
             title: title,
             value: value,
-            editable: definition.isEditable,
-            acceptsNil: definition.isEditable && definition.acceptsNil,
-            valueKind: definition.kind
+            editable: editable,
+            acceptsNil: editable && definition.acceptsNil,
+            valueKind: definition.kind,
+            section: definition.section,
+            limits: editable && definition.kind.isNumeric ? definition.limits : []
         )
     }
 }

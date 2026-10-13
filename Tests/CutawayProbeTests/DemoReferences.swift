@@ -59,3 +59,21 @@ enum DemoReferences {
         }
     }
 }
+
+/// What a server of protocol 1.1 adds to the hierarchies the tests make up.
+enum Addresses {
+    /// Gives every node a layer address, and a view's and a view controller's address exactly
+    /// where it names their classes (P-HIER-14). Call it again after changing a hierarchy.
+    static func add(to hierarchy: inout Hierarchy) {
+        for index in hierarchy.nodes.indices {
+            let id = hierarchy.nodes[index].id
+            hierarchy.nodes[index].layerAddress = 0x6000_0000_0000 + 0x40 * id
+            hierarchy.nodes[index].viewAddress = hierarchy.nodes[index].viewClassName.map { _ in
+                0x1_0000_0000 + 0x200 * id
+            }
+            hierarchy.nodes[index].viewControllerAddress = hierarchy.nodes[index].viewControllerClassName.map { _ in
+                0x1_1000_0000 + 0x200 * id
+            }
+        }
+    }
+}
