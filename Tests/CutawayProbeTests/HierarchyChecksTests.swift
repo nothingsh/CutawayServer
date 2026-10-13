@@ -261,10 +261,41 @@ final class HierarchyChecksTests: XCTestCase {
                 displayClassName: "UIWindowLayer",
                 bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
                 position: WirePoint(x: 0, y: 0),
-                zPosition: -1
+                zPosition: -1,
+                layerAddress: 0x6000_0000_1000
             )
         )
         XCTAssertNoThrow(try HierarchyChecks.structure(windows))
+    }
+
+    func test_S_PROBE_05_structureChecksRequireAddresses() throws {
+        // The fixture has them (P-HIER-14).
+        XCTAssertNoThrow(try HierarchyChecks.structure(try fixtureHierarchy()))
+        try assertStructureRejects("Hierarchy.nodes[0] (id 1) has no layer_address (P-HIER-14)") {
+            $0.nodes[0].layerAddress = 0
+        }
+        try assertStructureRejects("(id 2) has no view_address but a view_class_name (P-HIER-14)") {
+            $0.nodes[1].viewAddress = nil
+        }
+        try assertStructureRejects("(id 5) has a view_address but no view_class_name (P-HIER-14)") {
+            $0.nodes[4].viewAddress = 0x1000
+        }
+        try assertStructureRejects(
+            "(id 3) has a view_controller_address but no view_controller_class_name (P-HIER-14)"
+        ) { $0.nodes[2].viewControllerAddress = 0x1000 }
+        try assertStructureRejects(
+            "(id 2) has no view_controller_address but a view_controller_class_name (P-HIER-14)"
+        ) { $0.nodes[1].viewControllerAddress = nil }
+
+        // A 1.0 server sends none.
+        var plain = try fixtureHierarchy()
+        for index in plain.nodes.indices {
+            plain.nodes[index].layerAddress = 0
+            plain.nodes[index].viewAddress = nil
+            plain.nodes[index].viewControllerAddress = nil
+        }
+        XCTAssertNoThrow(try HierarchyChecks.structure(plain, version: ProtocolVersion(major: 1, minor: 0)))
+        XCTAssertThrowsError(try HierarchyChecks.structure(plain))
     }
 
     // MARK: - The demo app's screen
@@ -386,6 +417,7 @@ final class HierarchyChecksTests: XCTestCase {
                 autoresizedDot: 24
             )
         )
+        Addresses.add(to: &hierarchy)
         return hierarchy
     }
 
@@ -397,6 +429,7 @@ final class HierarchyChecksTests: XCTestCase {
     ) {
         var hierarchy = demoHierarchy()
         change(&hierarchy)
+        Addresses.add(to: &hierarchy)
         // The change leaves a well-formed hierarchy: only the demo check may object.
         XCTAssertNoThrow(try HierarchyChecks.structure(hierarchy), file: file, line: line)
         assertRejects(expected, file: file, line: line) { _ = try HierarchyChecks.demoScene(hierarchy) }

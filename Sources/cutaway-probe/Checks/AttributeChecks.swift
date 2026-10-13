@@ -7,7 +7,7 @@ enum AttributeChecks {
     /// What holds for the attributes of any app (PROTOCOL.md, "Attributes"). A member of the
     /// `AttributeValue` union that protocol 0.3 does not have cannot get this far: it fails
     /// verification when the frame is decoded (P-REQ-07).
-    static func structure(_ groups: [AttributeGroup], name: String) throws {
+    static func structure(_ groups: [AttributeGroup], name: String, version: ProtocolVersion = .current) throws {
         var groupIDs = Set<String>()
         for group in groups {
             guard !group.id.isEmpty else { throw ProbeFailure("\(name) has a group with an empty id") }
@@ -32,6 +32,13 @@ enum AttributeChecks {
                 guard attribute.valueKind != .none else {
                     throw ProbeFailure("\(label) has no value_kind (P-ATTR-06)")
                 }
+                // P-ATTR-08: no section the negotiated version does not have.
+                if version.minor < 1, attribute.section != .unspecified {
+                    throw ProbeFailure(
+                        "\(label) has the section \(attribute.section), which protocol 1.\(version.minor) does not have (P-ATTR-08)"
+                    )
+                }
+                try checkLimits(of: attribute, name: label)
                 if let value = attribute.value {
                     guard value.kind == attribute.valueKind else {
                         throw ProbeFailure(
@@ -84,6 +91,65 @@ enum AttributeChecks {
         }
         guard numbers.allSatisfy(\.isFinite) else {
             throw ProbeFailure("\(name) has a number that is not finite")
+        }
+    }
+
+    /// The number of components of a value of each kind that may have limits (P-ATTR-09).
+    private static let componentCounts: [AttributeValueKind: Int] = [
+        .int: 1,
+        .double: 1,
+        .point: 2,
+        .size: 2,
+        .rect: 4,
+        .insets: 4,
+        .transform: 16
+    ]
+
+    /// P-ATTR-09, 10: limits only on what can be changed and is a number, as many as the value has
+    /// components or one, each with finite bounds that leave some value between them.
+    private static func checkLimits(of attribute: Attribute, name: String) throws {
+        guard !attribute.limits.isEmpty else { return }
+        guard attribute.editable, let count = componentCounts[attribute.valueKind] else {
+            throw ProbeFailure(
+                "\(name) has limits, but is \(attribute.editable ? "a \(attribute.valueKind) value" : "read-only") (P-ATTR-09)"
+            )
+        }
+        guard [1, count].contains(attribute.limits.count) else {
+            throw ProbeFailure(
+                "\(name) has \(attribute.limits.count) limits for a value of \(count) components (P-ATTR-09)"
+            )
+        }
+        for (index, limit) in attribute.limits.enumerated() {
+            let label = "\(name): limit \(index)"
+            guard limit.minimum != nil || !limit.minimumIsExclusive,
+                  limit.maximum != nil || !limit.maximumIsExclusive else {
+                throw ProbeFailure("\(label) is exclusive on a side it does not bound (P-ATTR-10)")
+            }
+            let bounds = [limit.minimum, limit.maximum].compactMap { $0 }
+            guard bounds.allSatisfy(\.isFinite)
+            else { throw ProbeFailure("\(label) has a bound that is not finite (P-ATTR-10)") }
+            if attribute.valueKind == .int, !bounds.allSatisfy({ $0.rounded() == $0 }) {
+                throw ProbeFailure("\(label) bounds an integer by a fraction (P-ATTR-10)")
+            }
+            if let minimum = limit.minimum, let maximum = limit.maximum {
+                let open = limit.minimumIsExclusive || limit.maximumIsExclusive
+                guard open ? minimum < maximum : minimum <= maximum else {
+                    throw ProbeFailure("\(label) leaves no value between \(minimum) and \(maximum) (P-ATTR-10)")
+                }
+            }
+        }
+    }
+
+    /// The attributes whose value lies outside their own limits. Not a failure: the app may
+    /// have set such a value itself (P-SET-07). Described one per line.
+    static func valuesOutsideLimits(_ groups: [AttributeGroup], name: String) -> [String] {
+        groups.flatMap(\.attributes).compactMap { attribute in
+            guard let value = attribute.value else { return nil }
+            let components = value.components
+            guard let limits = NumberLimit.perComponent(attribute.limits, count: components.count),
+                  let index = components.indices.first(where: { !limits[$0].admits(components[$0]) })
+            else { return nil }
+            return "\(name): \(attribute.id) has \(components[index]) as component \(index), outside its limits"
         }
     }
 
@@ -201,9 +267,11 @@ enum AttributeChecks {
     }()
 
     /// Fails unless the group has exactly the attributes of the list, in its order, with its
-    /// kinds of values, nil only where the list allows it, and its flags (P-ATTR-06). A value
-    /// that fell back to a `StringValue` (P-ATTR-03) has to be read-only, of its own kind.
-    static func matchesList(_ group: AttributeGroup, name: String) throws {
+    /// kinds of values, nil only where the list allows it, and its flags (P-ATTR-06); from a
+    /// server at 1.1 or later also with its sections and limits (P-ATTR-08, 09). A value that
+    /// fell back to a `StringValue` (P-ATTR-03) has to be read-only, of its own kind, without
+    /// limits.
+    static func matchesList(_ group: AttributeGroup, name: String, version: ProtocolVersion = .current) throws {
         guard let entries = list[group.id] else {
             throw ProbeFailure(
                 "\(name) has the group \(group.id), which the attribute list of version 0.1 does not have"
@@ -241,8 +309,77 @@ enum AttributeChecks {
                         + "\(expected.acceptsNil) (P-ATTR-06)"
                 )
             }
+            // Protocol 1.1: the section whatever the value; limits only while it can be changed.
+            guard version.minor >= 1 else { continue }
+            let section = sections[attribute.id] ?? .general
+            guard attribute.section == section else {
+                throw ProbeFailure(
+                    "\(name): attribute \(attribute.id) has the section \(attribute.section); the list says \(section) (P-ATTR-08)"
+                )
+            }
+            let limits = expected.editable ? self.limits[attribute.id] ?? [] : []
+            guard attribute.limits == limits else {
+                throw ProbeFailure(
+                    "\(name): attribute \(attribute.id) has the limits \(attribute.limits); the list says \(limits) (P-ATTR-09)"
+                )
+            }
         }
     }
+
+    /// The sections other than `general`, copied by hand like `list` (protocol 1.1, P-ATTR-08).
+    static let sections: [String: AttributeSection] = {
+        var sections: [String: AttributeSection] = ["view.tag": .identity]
+        for id in [
+            "layer.frame",
+            "layer.bounds",
+            "layer.position",
+            "layer.anchorPoint",
+            "layer.zPosition",
+            "layer.transform",
+            "view.layoutMargins",
+            "view.contentHuggingPriority.horizontal",
+            "view.contentHuggingPriority.vertical",
+            "view.contentCompressionResistancePriority.horizontal",
+            "view.contentCompressionResistancePriority.vertical",
+            "view.intrinsicContentSize.width",
+            "view.intrinsicContentSize.height",
+            "view.translatesAutoresizingMaskIntoConstraints",
+            "view.hasAmbiguousLayout",
+            "scrollView.contentOffset",
+            "scrollView.contentSize",
+            "scrollView.contentInset",
+            "scrollView.adjustedContentInset",
+            "stackView.axis",
+            "stackView.alignment",
+            "stackView.distribution",
+            "stackView.spacing"
+        ] {
+            sections[id] = .layout
+        }
+        return sections
+    }()
+
+    /// The limits, copied by hand like `list` (protocol 1.1, P-ATTR-09); none for every other
+    /// attribute.
+    static let limits: [String: [NumberLimit]] = {
+        let atLeastZero = [NumberLimit(minimum: 0)]
+        let unit = [NumberLimit(minimum: 0, maximum: 1)]
+        let priority = [NumberLimit(minimum: 1, maximum: 1000)]
+        let positive = [NumberLimit(minimum: 0, minimumIsExclusive: true)]
+        var limits: [String: [NumberLimit]] = [
+            "layer.bounds": [.free, .free, NumberLimit(minimum: 0), NumberLimit(minimum: 0)],
+            "label.numberOfLines": atLeastZero,
+            "scrollView.contentSize": atLeastZero
+        ]
+        for id in ["layer.opacity", "layer.shadowOpacity", "view.alpha"] { limits[id] = unit }
+        for id in ["layer.cornerRadius", "layer.borderWidth", "layer.shadowRadius"] { limits[id] = atLeastZero }
+        for id in ["label.fontSize", "textField.fontSize", "textView.fontSize"] { limits[id] = positive }
+        for axis in ["horizontal", "vertical"] {
+            limits["view.contentHuggingPriority.\(axis)"] = priority
+            limits["view.contentCompressionResistancePriority.\(axis)"] = priority
+        }
+        return limits
+    }()
 
     /// The value of the attribute `id` (with its group's prefix); `nil` when it is nil or absent.
     static func value(_ id: String, in groups: [AttributeGroup]) -> AttributeValue? {

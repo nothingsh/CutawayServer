@@ -60,8 +60,9 @@ enum AttributeEditing {
         )
     }
 
-    /// P-SET-02, P-SET-03: what holds for every attribute. The attribute's own rules are its
-    /// writer's.
+    /// P-SET-02, P-SET-03, P-SET-07: what holds for every attribute, its limits included. The
+    /// attribute is the one read just now, whose limits are the ones a client is sent; the
+    /// writer only has rules that are not limits (a font's name).
     static func check(_ value: AttributeValue?, against attribute: Attribute) -> AttributeRejection? {
         guard let value else {
             return attribute.acceptsNil ? nil : AttributeRejection("cannot be nil")
@@ -69,18 +70,65 @@ enum AttributeEditing {
         guard value.kind == attribute.valueKind else {
             return AttributeRejection("takes a \(attribute.valueKind.schemaName)")
         }
-        guard AttributeInputs.numbers(in: value).allSatisfy(\.isFinite) else {
+        let components = value.components
+        guard components.allSatisfy(\.isFinite) else {
             return AttributeRejection("takes finite numbers only")
         }
         if case .enumeration(let raw, _, _, _) = value,
            case .enumeration(_, _, _, let caseValues)? = attribute.value, !caseValues.contains(raw) {
             return AttributeRejection("has no case with the value \(raw)")
         }
+        if let limits = NumberLimit.perComponent(attribute.limits, count: components.count),
+           let index = components.indices.first(where: { !limits[$0].admits(components[$0]) }) {
+            let names = value.componentNames
+            let reason = limits[index].reason
+            return AttributeRejection(names.count > 1 ? "\(names[index]) \(reason)" : reason)
+        }
         return nil
     }
 
     private static func error(_ code: ErrorCode, _ message: String) -> WireError {
         WireError(code: code, message: message)
+    }
+}
+
+extension AttributeValue {
+    /// The name of each of `components`, for a message.
+    var componentNames: [String] {
+        switch self {
+        case .point: return ["x", "y"]
+        case .size: return ["width", "height"]
+        case .rect: return ["x", "y", "width", "height"]
+        case .insets: return ["top", "left", "bottom", "right"]
+        case .transform: return (1...4).flatMap { row in (1...4).map { "m\(row)\($0)" } }
+        case .bool, .int, .double, .string, .color, .enumeration: return components.map { _ in "value" }
+        }
+    }
+}
+
+extension NumberLimit {
+    /// What a value outside the limit must be, completing a sentence that begins with what it
+    /// limits: "cannot be negative", "must be between 0 and 1".
+    var reason: String {
+        func number(_ value: Double) -> String {
+            value.rounded() == value && abs(value) < 1e15 ? String(Int64(value)) : "\(value)"
+        }
+        switch (minimum, maximum) {
+        case let (minimum?, nil) where minimum == 0 && !minimumIsExclusive:
+            return "cannot be negative"
+        case let (minimum?, nil):
+            return minimumIsExclusive ? "must be greater than \(number(minimum))" : "must be at least \(number(minimum))"
+        case let (nil, maximum?):
+            return maximumIsExclusive ? "must be less than \(number(maximum))" : "must be at most \(number(maximum))"
+        case let (minimum?, maximum?) where !minimumIsExclusive && !maximumIsExclusive:
+            return "must be between \(number(minimum)) and \(number(maximum))"
+        case let (minimum?, maximum?):
+            let lower = minimumIsExclusive ? "greater than" : "at least"
+            let upper = maximumIsExclusive ? "less than" : "at most"
+            return "must be \(lower) \(number(minimum)) and \(upper) \(number(maximum))"
+        case (nil, nil):
+            return "is outside its limits"
+        }
     }
 }
 

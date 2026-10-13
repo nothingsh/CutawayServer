@@ -93,7 +93,9 @@ final class DetailsCodecTests: XCTestCase {
         XCTAssertEqual(groups.map(\.id), ["layer", "label", "view"])
         XCTAssertEqual(groups.map(\.title), ["Layer", "Label", "View"])
 
-        // P-ATTR-06: every attribute says what it takes and whether it can be changed.
+        // P-ATTR-06: every attribute says what it takes and whether it can be changed;
+        // P-ATTR-08 to 10 (1.1): where it is shown, and the values a change may have.
+        let atLeastZero = NumberLimit(minimum: 0)
         XCTAssertEqual(
             groups[0].attributes,
             [
@@ -101,35 +103,51 @@ final class DetailsCodecTests: XCTestCase {
                     id: "layer.frame",
                     title: "Frame",
                     value: .rect(WireRect(x: 96.5, y: 108, width: 200, height: 24)),
-                    valueKind: .rect
+                    valueKind: .rect,
+                    section: .layout
+                ),
+                // One limit per component: x and y are free (P-ATTR-09).
+                Attribute(
+                    id: "layer.bounds",
+                    title: "Bounds",
+                    value: .rect(WireRect(x: 0, y: 0, width: 200, height: 24)),
+                    editable: true,
+                    valueKind: .rect,
+                    section: .layout,
+                    limits: [.free, .free, atLeastZero, atLeastZero]
                 ),
                 Attribute(
                     id: "layer.position",
                     title: "Position",
                     value: .point(WirePoint(x: 196.5, y: 120)),
                     editable: true,
-                    valueKind: .point
+                    valueKind: .point,
+                    section: .layout
                 ),
                 Attribute(
                     id: "layer.shadowOffset",
                     title: "Shadow Offset",
                     value: .size(WireSize(width: 0, height: -3)),
                     editable: true,
-                    valueKind: .size
+                    valueKind: .size,
+                    section: .general
                 ),
                 Attribute(
                     id: "layer.opacity",
                     title: "Opacity",
                     value: .double(1),
                     editable: true,
-                    valueKind: .double
+                    valueKind: .double,
+                    section: .general,
+                    limits: [NumberLimit(minimum: 0, maximum: 1)]
                 ),
                 Attribute(
                     id: "layer.hidden",
                     title: "Hidden",
                     value: .bool(false),
                     editable: true,
-                    valueKind: .bool
+                    valueKind: .bool,
+                    section: .general
                 ),
                 // P-ATTR-02: no value means nil; the attribute is still there, with its kind.
                 Attribute(
@@ -138,7 +156,8 @@ final class DetailsCodecTests: XCTestCase {
                     value: nil,
                     editable: true,
                     acceptsNil: true,
-                    valueKind: .color
+                    valueKind: .color,
+                    section: .general
                 ),
                 Attribute(
                     id: "layer.borderColor",
@@ -146,14 +165,16 @@ final class DetailsCodecTests: XCTestCase {
                     value: .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1)),
                     editable: true,
                     acceptsNil: true,
-                    valueKind: .color
+                    valueKind: .color,
+                    section: .general
                 ),
                 Attribute(
                     id: "layer.transform",
                     title: "Transform",
                     value: .transform(.identity),
                     editable: true,
-                    valueKind: .transform
+                    valueKind: .transform,
+                    section: .layout
                 )
             ]
         )
@@ -166,14 +187,27 @@ final class DetailsCodecTests: XCTestCase {
                     value: .string("Hello"),
                     editable: true,
                     acceptsNil: true,
-                    valueKind: .string
+                    valueKind: .string,
+                    section: .general
+                ),
+                // An exclusive bound (P-ATTR-10).
+                Attribute(
+                    id: "label.fontSize",
+                    title: "Font Size",
+                    value: .double(17),
+                    editable: true,
+                    valueKind: .double,
+                    section: .general,
+                    limits: [NumberLimit(minimum: 0, minimumIsExclusive: true)]
                 ),
                 Attribute(
                     id: "label.numberOfLines",
                     title: "Number Of Lines",
                     value: .int(1),
                     editable: true,
-                    valueKind: .int
+                    valueKind: .int,
+                    section: .general,
+                    limits: [atLeastZero]
                 ),
                 // P-ATTR-07: the raw value of each case.
                 Attribute(
@@ -186,7 +220,8 @@ final class DetailsCodecTests: XCTestCase {
                         caseValues: [0, 1, 2, 3, 4]
                     ),
                     editable: true,
-                    valueKind: .enumeration
+                    valueKind: .enumeration,
+                    section: .general
                 )
             ]
         )
@@ -194,11 +229,20 @@ final class DetailsCodecTests: XCTestCase {
             groups[2].attributes,
             [
                 Attribute(
+                    id: "view.tag",
+                    title: "Tag",
+                    value: .int(0),
+                    editable: true,
+                    valueKind: .int,
+                    section: .identity
+                ),
+                Attribute(
                     id: "view.layoutMargins",
                     title: "Layout Margins",
                     value: .insets(WireInsets(top: 8, left: 8, bottom: 8, right: 8)),
                     editable: true,
-                    valueKind: .insets
+                    valueKind: .insets,
+                    section: .layout
                 )
             ]
         )
@@ -262,7 +306,8 @@ final class DetailsCodecTests: XCTestCase {
                 value: .string("Welcome back"),
                 editable: true,
                 acceptsNil: true,
-                valueKind: .string
+                valueKind: .string,
+                section: .general
             )
         )
 
@@ -284,7 +329,8 @@ final class DetailsCodecTests: XCTestCase {
                 value: nil,
                 editable: true,
                 acceptsNil: true,
-                valueKind: .color
+                valueKind: .color,
+                section: .general
             )
         )
     }
@@ -412,14 +458,16 @@ final class DetailsCodecTests: XCTestCase {
                                 id: "layer.frame",
                                 title: "Frame",
                                 value: .rect(WireRect(x: 300, y: 700, width: 0, height: 0)),
-                                valueKind: .rect
+                                valueKind: .rect,
+                                section: .layout
                             ),
                             Attribute(
                                 id: "layer.hidden",
                                 title: "Hidden",
                                 value: .bool(false),
                                 editable: true,
-                                valueKind: .bool
+                                valueKind: .bool,
+                                section: .general
                             )
                         ]
                     )
@@ -829,5 +877,76 @@ final class DetailsCodecTests: XCTestCase {
         // 0.5 (P-LAYOUT-07).
         XCTAssertEqual(LayoutAttribute.minX.rawValue, 32)
         XCTAssertEqual(LayoutAttribute.maxY.rawValue, 37)
+    }
+
+    func test_S_ATTR_09_numberLimitAdmitsByItsBounds() {
+        let unit = NumberLimit(minimum: 0, maximum: 1)
+        XCTAssertTrue(unit.admits(0))
+        XCTAssertTrue(unit.admits(1))
+        XCTAssertFalse(unit.admits(-0.000_001))
+        XCTAssertFalse(unit.admits(1.000_001))
+
+        let positive = NumberLimit(minimum: 0, minimumIsExclusive: true)
+        XCTAssertFalse(positive.admits(0))
+        XCTAssertTrue(positive.admits(0.000_001))
+        XCTAssertTrue(positive.admits(1e300))
+
+        let belowTen = NumberLimit(maximum: 10, maximumIsExclusive: true)
+        XCTAssertTrue(belowTen.admits(-1e300))
+        XCTAssertFalse(belowTen.admits(10))
+
+        XCTAssertTrue(NumberLimit.free.admits(-1e300))
+        XCTAssertTrue(NumberLimit.free.admits(1e300))
+    }
+
+    func test_S_ATTR_09_limitsApplyToEveryComponentOrOneEach() {
+        let atLeastZero = NumberLimit(minimum: 0)
+        // P-ATTR-09: one entry for every component; one per component; any other count is none.
+        XCTAssertEqual(NumberLimit.perComponent([atLeastZero], count: 4), Array(repeating: atLeastZero, count: 4))
+        XCTAssertEqual(
+            NumberLimit.perComponent([.free, .free, atLeastZero, atLeastZero], count: 4),
+            [.free, .free, atLeastZero, atLeastZero]
+        )
+        XCTAssertNil(NumberLimit.perComponent([], count: 4))
+        XCTAssertNil(NumberLimit.perComponent([atLeastZero, atLeastZero], count: 4))
+        XCTAssertNil(NumberLimit.perComponent([atLeastZero, atLeastZero], count: 1))
+    }
+
+    func test_S_ATTR_09_componentsFollowTheOrderOfTheFields() {
+        XCTAssertEqual(AttributeValue.int(3).components, [3])
+        XCTAssertEqual(AttributeValue.point(WirePoint(x: 1, y: 2)).components, [1, 2])
+        XCTAssertEqual(AttributeValue.size(WireSize(width: 1, height: 2)).components, [1, 2])
+        XCTAssertEqual(AttributeValue.rect(WireRect(x: 1, y: 2, width: 3, height: 4)).components, [1, 2, 3, 4])
+        XCTAssertEqual(
+            AttributeValue.insets(WireInsets(top: 1, left: 2, bottom: 3, right: 4)).components,
+            [1, 2, 3, 4]
+        )
+        XCTAssertEqual(AttributeValue.transform(.identity).components.count, 16)
+        XCTAssertEqual(AttributeValue.bool(true).components, [])
+        XCTAssertEqual(AttributeValue.string("1").components, [])
+    }
+
+    func test_S_ATTR_08_sectionsAndLimitsRoundTrip() throws {
+        let attributes = AttributeSection.allCases.map { section in
+            Attribute(
+                id: "layer.zPosition",
+                title: "Z Position",
+                value: .double(0),
+                editable: true,
+                valueKind: .double,
+                section: section,
+                limits: [NumberLimit(minimum: -1, minimumIsExclusive: true, maximum: 1, maximumIsExclusive: true)]
+            )
+        }
+        let frame = Frame(
+            requestID: 2,
+            body: .setAttributeResult(
+                SetAttributeResult(
+                    layerID: 1,
+                    attributeGroups: [AttributeGroup(id: "layer", title: "Layer", attributes: attributes)]
+                )
+            )
+        )
+        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
     }
 }

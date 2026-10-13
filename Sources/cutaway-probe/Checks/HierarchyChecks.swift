@@ -4,12 +4,12 @@ import Foundation
 /// What a `Hierarchy` has to look like. Every function throws a `ProbeFailure` naming the
 /// first thing that is wrong.
 enum HierarchyChecks {
-    /// The response to `GetHierarchy`.
-    static func hierarchy(_ frame: Frame) throws -> Hierarchy {
+    /// The response to `GetHierarchy`, from a server working at `version`.
+    static func hierarchy(_ frame: Frame, version: ProtocolVersion = .current) throws -> Hierarchy {
         guard case .hierarchy(let hierarchy)? = frame.body else {
             throw ProbeFailure("expected Hierarchy, got \(Checks.describe(frame)) (P-HIER-01)")
         }
-        try structure(hierarchy)
+        try structure(hierarchy, version: version)
         return hierarchy
     }
 
@@ -54,8 +54,8 @@ enum HierarchyChecks {
         return subtree
     }
 
-    /// The checks that hold for every app.
-    static func structure(_ hierarchy: Hierarchy) throws {
+    /// The checks that hold for every app, from a server working at `version`.
+    static func structure(_ hierarchy: Hierarchy, version: ProtocolVersion = .current) throws {
         guard !hierarchy.nodes.isEmpty else {
             throw ProbeFailure("Hierarchy has no nodes: an active app shows at least one window")
         }
@@ -91,6 +91,7 @@ enum HierarchyChecks {
             ancestors.append(node.id)
 
             try checkClassNames(of: node, name: name)
+            try checkAddresses(of: node, name: name, version: version)
             try checkMemberReferences(of: node, name: name)
             guard numbers(of: node).allSatisfy(\.isFinite) else {
                 throw ProbeFailure("\(name) (id \(node.id)) has a number that is not finite (P-HIER-05)")
@@ -110,6 +111,26 @@ enum HierarchyChecks {
         guard hierarchy.keyWindowID == 0 || roots.contains(hierarchy.keyWindowID) else {
             throw ProbeFailure(
                 "Hierarchy.key_window_id \(hierarchy.keyWindowID) is not the id of a root node"
+            )
+        }
+    }
+
+    /// P-HIER-14 (protocol 1.1): the layer's address always; the view's and the view
+    /// controller's exactly when their class names are given. A 1.0 server sends none.
+    private static func checkAddresses(of node: LayerNode, name: String, version: ProtocolVersion) throws {
+        guard version.minor >= 1 else { return }
+        let label = "\(name) (id \(node.id))"
+        guard node.layerAddress != 0 else { throw ProbeFailure("\(label) has no layer_address (P-HIER-14)") }
+        guard (node.viewAddress != nil) == (node.viewClassName != nil) else {
+            throw ProbeFailure(
+                "\(label) has \(node.viewAddress == nil ? "no " : "a ")view_address but "
+                    + "\(node.viewClassName == nil ? "no " : "a ")view_class_name (P-HIER-14)"
+            )
+        }
+        guard (node.viewControllerAddress != nil) == (node.viewControllerClassName != nil) else {
+            throw ProbeFailure(
+                "\(label) has \(node.viewControllerAddress == nil ? "no " : "a ")view_controller_address but "
+                    + "\(node.viewControllerClassName == nil ? "no " : "a ")view_controller_class_name (P-HIER-14)"
             )
         }
     }

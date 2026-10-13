@@ -4,6 +4,12 @@ import Foundation
 /// What each frame of the server has to look like. Every function throws a `ProbeFailure`
 /// naming the first thing that is wrong.
 enum Checks {
+    /// P-HELLO-04: the lower of the two minor versions, for a hello `serverHello` accepted.
+    static func negotiatedVersion(_ frame: Frame?) -> ProtocolVersion {
+        guard case .hello(let hello)? = frame?.body, let version = hello.version else { return .current }
+        return ProtocolVersion.current.negotiated(with: version)
+    }
+
     static func serverHello(_ frame: Frame?) throws -> AppInfo {
         guard let frame else { throw ProbeFailure("the server closed the connection before its Hello") }
         guard case .hello(let hello)? = frame.body else {

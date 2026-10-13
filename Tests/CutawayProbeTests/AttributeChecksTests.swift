@@ -24,7 +24,9 @@ final class AttributeChecksTests: XCTestCase {
         return try XCTUnwrap(chunk.details.first { $0.layerID == layerID }).attributeGroups
     }
 
-    /// Layer 3 of `layer-details`: three groups that use all eleven kinds of value and a nil.
+    /// Layer 3 of `layer-details`: three groups that use all eleven kinds of value and a nil, with
+    /// sections and limits (1.1). In the `layer` group, `opacity` is at 4, `backgroundColor` at 6
+    /// and `borderColor` at 7; in the `label` group, `textAlignment` is at 3.
     private func layer3() throws -> [AttributeGroup] {
         try fixtureGroups("layer-details/02-s2c-chunk-0.bin", layer: 3)
     }
@@ -97,16 +99,16 @@ final class AttributeChecksTests: XCTestCase {
         }
         try assertStructureRejects("attribute label.text has an empty title") { $0[1].attributes[0].title = "" }
         try assertStructureRejects("attribute layer.opacity has a number that is not finite") {
-            $0[0].attributes[3].value = .double(.nan)
+            $0[0].attributes[4].value = .double(.nan)
         }
         try assertStructureRejects("attribute layer.frame has a number that is not finite") {
             $0[0].attributes[0].value = .rect(WireRect(x: 0, y: .infinity, width: 1, height: 1))
         }
         try assertStructureRejects("attribute layer.borderColor has a number that is not finite") {
-            $0[0].attributes[6].value = .color(WireColor(red: .nan, green: 0, blue: 0, alpha: 1))
+            $0[0].attributes[7].value = .color(WireColor(red: .nan, green: 0, blue: 0, alpha: 1))
         }
         try assertStructureRejects("attribute label.textAlignment is the case \"middle\"") {
-            $0[1].attributes[2].value = .enumeration(
+            $0[1].attributes[3].value = .enumeration(
                 value: 1,
                 cases: ["left", "center"],
                 caseName: "middle",
@@ -114,12 +116,12 @@ final class AttributeChecksTests: XCTestCase {
             )
         }
         try assertStructureRejects("attribute label.textAlignment is an enumeration with no cases") {
-            $0[1].attributes[2].value = .enumeration(value: 0, cases: [], caseName: "", caseValues: [])
+            $0[1].attributes[3].value = .enumeration(value: 0, cases: [], caseName: "", caseValues: [])
         }
         try assertStructureRejects(
             "attribute label.textAlignment is an enumeration with no cases, or a case without a name"
         ) {
-            $0[1].attributes[2].value = .enumeration(
+            $0[1].attributes[3].value = .enumeration(
                 value: 0,
                 cases: ["", "center"],
                 caseName: "center",
@@ -130,15 +132,15 @@ final class AttributeChecksTests: XCTestCase {
 
     func test_S_ATTR_05_attributeChecksRequireAValueKindThatFits() throws {
         try assertStructureRejects("attribute layer.opacity has no value_kind (P-ATTR-06)") {
-            $0[0].attributes[3].valueKind = .none
+            $0[0].attributes[4].valueKind = .none
         }
         try assertStructureRejects("attribute layer.backgroundColor has no value_kind (P-ATTR-06)") {
             // Nil, so only its value_kind says what it takes.
-            $0[0].attributes[5].valueKind = .none
+            $0[0].attributes[6].valueKind = .none
         }
         try assertStructureRejects(
             "attribute layer.opacity is a double value, but its value_kind is int (P-ATTR-06)"
-        ) { $0[0].attributes[3].valueKind = .int }
+        ) { $0[0].attributes[4].valueKind = .int }
     }
 
     func test_S_ATTR_06_attributeChecksRequireCaseValuesThatPair() throws {
@@ -151,21 +153,118 @@ final class AttributeChecksTests: XCTestCase {
             )
         }
         try assertStructureRejects("they must be as many, each once (P-ATTR-07)") {
-            $0[1].attributes[2].value = alignment(1, "center", [0, 1])
+            $0[1].attributes[3].value = alignment(1, "center", [0, 1])
         }
         try assertStructureRejects("they must be as many, each once (P-ATTR-07)") {
-            $0[1].attributes[2].value = alignment(1, "center", [0, 1, 1])
+            $0[1].attributes[3].value = alignment(1, "center", [0, 1, 1])
         }
         try assertStructureRejects("has the value 7 and the case \"center\"") {
-            $0[1].attributes[2].value = alignment(7, "center", [0, 1, 2])
+            $0[1].attributes[3].value = alignment(7, "center", [0, 1, 2])
         }
         try assertStructureRejects("has the value 2 and the case \"center\"") {
-            $0[1].attributes[2].value = alignment(2, "center", [0, 1, 2])
+            $0[1].attributes[3].value = alignment(2, "center", [0, 1, 2])
         }
         // Raw values need not start at 0 or be in order.
         var groups = try layer3()
-        groups[1].attributes[2].value = alignment(-3, "right", [10, 4, -3])
+        groups[1].attributes[3].value = alignment(-3, "right", [10, 4, -3])
         XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
+    }
+
+    // MARK: - Protocol 1.1
+
+    func test_S_PROBE_05_attributeChecksKeepToTheSectionsOfTheVersion() throws {
+        let groups = try layer3()
+        let old = ProtocolVersion(major: 1, minor: 0)
+        // P-ATTR-08: a 1.0 peer gets no section 1.0 does not have.
+        assertRejects("attribute layer.frame has the section layout, which protocol 1.0 does not have (P-ATTR-08)") {
+            try AttributeChecks.structure(groups, name: "layer 3", version: old)
+        }
+        var unspecified = groups
+        for group in unspecified.indices {
+            for attribute in unspecified[group].attributes.indices {
+                unspecified[group].attributes[attribute].section = .unspecified
+            }
+        }
+        XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3", version: old))
+        XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3"))
+    }
+
+    func test_S_PROBE_05_attributeChecksRequireLimitsOfTheProtocolsShape() throws {
+        let atLeastZero = NumberLimit(minimum: 0)
+        // Layer 3: layer.frame is read-only, layer.bounds a rectangle, layer.hidden a boolean,
+        // label.numberOfLines an integer, layer.opacity a number.
+        try assertStructureRejects("attribute layer.frame has limits, but is read-only (P-ATTR-09)") {
+            $0[0].attributes[0].limits = [atLeastZero]
+        }
+        try assertStructureRejects("attribute layer.hidden has limits, but is a bool value (P-ATTR-09)") {
+            $0[0].attributes[5].limits = [atLeastZero]
+        }
+        try assertStructureRejects("attribute layer.bounds has 3 limits for a value of 4 components (P-ATTR-09)") {
+            $0[0].attributes[1].limits = [.free, .free, atLeastZero]
+        }
+        try assertStructureRejects("limit 0 is exclusive on a side it does not bound (P-ATTR-10)") {
+            $0[0].attributes[4].limits = [NumberLimit(maximumIsExclusive: true)]
+        }
+        try assertStructureRejects("limit 0 has a bound that is not finite (P-ATTR-10)") {
+            $0[0].attributes[4].limits = [NumberLimit(maximum: .infinity)]
+        }
+        try assertStructureRejects("limit 0 leaves no value between 1.0 and 0.0 (P-ATTR-10)") {
+            $0[0].attributes[4].limits = [NumberLimit(minimum: 1, maximum: 0)]
+        }
+        try assertStructureRejects("limit 0 leaves no value between 1.0 and 1.0 (P-ATTR-10)") {
+            $0[0].attributes[4].limits = [NumberLimit(minimum: 1, minimumIsExclusive: true, maximum: 1)]
+        }
+        try assertStructureRejects(
+            "attribute label.numberOfLines: limit 0 bounds an integer by a fraction (P-ATTR-10)"
+        ) {
+            $0[1].attributes[2].limits = [NumberLimit(minimum: 0.5)]
+        }
+        // A single value between equal bounds is fine.
+        var groups = try layer3()
+        groups[0].attributes[4].limits = [NumberLimit(minimum: 1, maximum: 1)]
+        XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
+    }
+
+    func test_S_PROBE_05_valuesOutsideTheirLimitsAreOnlyReported() throws {
+        var groups = try layer3()
+        XCTAssertEqual(AttributeChecks.valuesOutsideLimits(groups, name: "layer 3"), [])
+        // The app set them itself (P-SET-07): not a failure.
+        groups[0].attributes[4].value = .double(1.5)
+        groups[0].attributes[1].value = .rect(WireRect(x: -5, y: 0, width: -10, height: 24))
+        XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
+        XCTAssertEqual(
+            AttributeChecks.valuesOutsideLimits(groups, name: "layer 3"),
+            [
+                "layer 3: layer.bounds has -10.0 as component 2, outside its limits",
+                "layer 3: layer.opacity has 1.5 as component 0, outside its limits"
+            ]
+        )
+    }
+
+    func test_S_PROBE_05_theListAgreesWithTheFixture() throws {
+        // The fixture's assignment is an example (Protocol/fixtures/README.md), but it is the
+        // standard catalog's, and so the list's.
+        for attribute in try layer3().flatMap(\.attributes) {
+            XCTAssertEqual(attribute.section, AttributeChecks.sections[attribute.id] ?? .general, attribute.id)
+            let limits = attribute.editable ? AttributeChecks.limits[attribute.id] ?? [] : []
+            XCTAssertEqual(attribute.limits, limits, attribute.id)
+        }
+    }
+
+    func test_S_PROBE_05_demoAttributeChecksRequireTheSectionsAndLimits() {
+        assertDemoRejects("attribute view.tag has the section general; the list says identity (P-ATTR-08)", layer: 2) {
+            for group in $0.indices {
+                for index in $0[group].attributes.indices where $0[group].attributes[index].id == "view.tag" {
+                    $0[group].attributes[index].section = .general
+                }
+            }
+        }
+        assertDemoRejects("attribute layer.opacity has the limits []; the list says", layer: 2) {
+            $0[0].attributes[7].limits = []
+        }
+        assertDemoRejects("attribute layer.bounds has the limits", layer: 2) {
+            $0[0].attributes[1].limits = [NumberLimit(minimum: 0)]
+        }
     }
 
     // MARK: - The attribute list
@@ -259,7 +358,9 @@ final class AttributeChecksTests: XCTestCase {
                         value: known[id] ?? placeholder(entry.kind),
                         editable: entry.editable,
                         acceptsNil: entry.acceptsNil,
-                        valueKind: entry.kind
+                        valueKind: entry.kind,
+                        section: AttributeChecks.sections[id] ?? .general,
+                        limits: entry.editable ? AttributeChecks.limits[id] ?? [] : []
                     )
                 }
             )
@@ -437,7 +538,9 @@ final class AttributeChecksTests: XCTestCase {
                 LayerDetail(layerID: 22, status: .ok, attributeGroups: groups(["layer", "view"], for: box)),
                 LayerDetail(layerID: 23, status: .ok, attributeGroups: groups(["layer", "view"], for: dot))
             ]
-        return (hierarchy, details)
+        var addressed = hierarchy
+        Addresses.add(to: &addressed)
+        return (addressed, details)
     }
 
     /// Changes the attributes of the layer `layerID` and expects the demo check to object.
@@ -498,7 +601,8 @@ final class AttributeChecksTests: XCTestCase {
             id: "view.contentMode",
             title: "contentMode",
             value: .string("99"),
-            valueKind: .string
+            valueKind: .string,
+            section: .general
         )
         XCTAssertNoThrow(try AttributeChecks.demo(fallback, hierarchy: hierarchy, scene: scene))
     }

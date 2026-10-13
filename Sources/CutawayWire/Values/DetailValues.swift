@@ -105,6 +105,33 @@ public enum AttributeValue: Sendable, Equatable {
         case .enumeration: return .enumeration
         }
     }
+
+    /// Every number the value holds, in the order of its fields (P-ATTR-09): x, y; width,
+    /// height; origin x, origin y, width, height; top, left, bottom, right; m11 to m44. A
+    /// colour's channels are included, for the check that numbers are finite (P-SET-03); a
+    /// colour has no limits.
+    public var components: [Double] {
+        switch self {
+        case .bool, .string, .enumeration:
+            return []
+        case .int(let number):
+            return [Double(number)]
+        case .double(let number):
+            return [number]
+        case .color(let color):
+            return [color.red, color.green, color.blue, color.alpha].map(Double.init)
+        case .point(let point):
+            return [point.x, point.y]
+        case .size(let size):
+            return [size.width, size.height]
+        case .rect(let rect):
+            return [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
+        case .insets(let insets):
+            return [insets.top, insets.left, insets.bottom, insets.right]
+        case .transform(let transform):
+            return transform.components
+        }
+    }
 }
 
 /// Names the members of `AttributeValue`; `none` names no member (P-ATTR-06).
@@ -121,6 +148,76 @@ public enum AttributeValueKind: Sendable, Equatable {
     case insets
     case transform
     case enumeration
+
+    /// The kinds that may carry limits (P-ATTR-09).
+    public var isNumeric: Bool {
+        switch self {
+        case .int, .double, .point, .size, .rect, .insets, .transform: return true
+        case .none, .bool, .string, .color, .enumeration: return false
+        }
+    }
+}
+
+/// The part of an inspector an attribute belongs on (P-ATTR-08, protocol 1.1).
+public enum AttributeSection: Sendable, Equatable, CaseIterable {
+    case unspecified
+    case identity
+    case general
+    case layout
+
+    /// The minor version of protocol 1 that named this value. No `default`, so that a value
+    /// added later cannot reach every peer by accident (P-HELLO-04).
+    public var minorVersion: UInt16 {
+        switch self {
+        case .unspecified: return 0
+        case .identity, .general, .layout: return 1
+        }
+    }
+
+    /// P-ATTR-08: a section the peer's version does not have is sent as `unspecified`.
+    func adapted(to version: ProtocolVersion) -> Self {
+        minorVersion <= version.minor ? self : .unspecified
+    }
+}
+
+/// The values `SetAttribute` accepts for one numeric component (P-ATTR-10, protocol 1.1).
+/// `nil` leaves that side unbounded; its exclusive flag then means nothing and should be false.
+public struct NumberLimit: Sendable, Equatable {
+    public var minimum: Double?
+    /// The component must be greater than `minimum`, not equal to it.
+    public var minimumIsExclusive: Bool
+    public var maximum: Double?
+    /// The component must be less than `maximum`, not equal to it.
+    public var maximumIsExclusive: Bool
+
+    public init(
+        minimum: Double? = nil,
+        minimumIsExclusive: Bool = false,
+        maximum: Double? = nil,
+        maximumIsExclusive: Bool = false
+    ) {
+        self.minimum = minimum
+        self.minimumIsExclusive = minimumIsExclusive
+        self.maximum = maximum
+        self.maximumIsExclusive = maximumIsExclusive
+    }
+
+    /// No bound on either side.
+    public static let free = Self()
+
+    public func admits(_ value: Double) -> Bool {
+        if let minimum, minimumIsExclusive ? value <= minimum : value < minimum { return false }
+        if let maximum, maximumIsExclusive ? value >= maximum : value > maximum { return false }
+        return true
+    }
+
+    /// P-ATTR-09: the limit of each of `count` components. One entry applies to every
+    /// component; as many entries as components apply one each; any other number of entries
+    /// states no limits, and gives `nil`.
+    public static func perComponent(_ limits: [Self], count: Int) -> [Self]? {
+        if limits.count == 1 { return Array(repeating: limits[0], count: count) }
+        return limits.count == count && count > 0 ? limits : nil
+    }
 }
 
 public struct Attribute: Sendable, Equatable {
@@ -135,6 +232,11 @@ public struct Attribute: Sendable, Equatable {
     public var acceptsNil: Bool
     /// The member `value` uses, also when `value` is nil.
     public var valueKind: AttributeValueKind
+    /// Where an inspector shows it (P-ATTR-08, protocol 1.1).
+    public var section: AttributeSection
+    /// The values `SetAttribute` accepts: one entry for every component, or one per component
+    /// (P-ATTR-09, protocol 1.1). Empty states no limits.
+    public var limits: [NumberLimit]
 
     public init(
         id: String,
@@ -142,7 +244,9 @@ public struct Attribute: Sendable, Equatable {
         value: AttributeValue?,
         editable: Bool = false,
         acceptsNil: Bool = false,
-        valueKind: AttributeValueKind = .none
+        valueKind: AttributeValueKind = .none,
+        section: AttributeSection = .unspecified,
+        limits: [NumberLimit] = []
     ) {
         self.id = id
         self.title = title
@@ -150,6 +254,8 @@ public struct Attribute: Sendable, Equatable {
         self.editable = editable
         self.acceptsNil = acceptsNil
         self.valueKind = valueKind
+        self.section = section
+        self.limits = limits
     }
 }
 
@@ -196,13 +302,25 @@ public struct LayerDetail: Sendable, Equatable {
 }
 
 extension LayerDetail {
-    /// P-HELLO-04, P-LAYOUT-08: the detail as a peer working at `version` may receive it.
-    /// Every layout attribute that `version` does not name becomes `notAnAttribute`; nothing
-    /// else changes.
+    /// P-HELLO-04, P-LAYOUT-08, P-ATTR-08: the detail as a peer working at `version` may
+    /// receive it. Every layout attribute that `version` does not name becomes `notAnAttribute`
+    /// and every section it does not have `unspecified`; nothing else changes.
     public func adapted(to version: ProtocolVersion) -> LayerDetail {
         var detail = self
+        detail.attributeGroups = attributeGroups.map { $0.adapted(to: version) }
         detail.constraints = constraints.map { $0.adapted(to: version) }
         return detail
+    }
+}
+
+extension AttributeGroup {
+    /// P-ATTR-08: each section the peer's version does not have becomes `unspecified`.
+    func adapted(to version: ProtocolVersion) -> AttributeGroup {
+        var group = self
+        for index in group.attributes.indices {
+            group.attributes[index].section = attributes[index].section.adapted(to: version)
+        }
+        return group
     }
 }
 
@@ -240,6 +358,14 @@ public struct SetAttributeResult: Sendable, Equatable {
     public init(layerID: UInt64, attributeGroups: [AttributeGroup]) {
         self.layerID = layerID
         self.attributeGroups = attributeGroups
+    }
+}
+
+extension SetAttributeResult {
+    /// P-HELLO-04, P-ATTR-08: the result as a peer working at `version` may receive it, by the
+    /// rules of `LayerDetail.adapted(to:)`.
+    public func adapted(to version: ProtocolVersion) -> SetAttributeResult {
+        SetAttributeResult(layerID: layerID, attributeGroups: attributeGroups.map { $0.adapted(to: version) })
     }
 }
 

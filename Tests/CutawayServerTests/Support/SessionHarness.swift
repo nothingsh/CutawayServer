@@ -151,7 +151,7 @@ final class SessionHarness: @unchecked Sendable {
     }
 
     /// The answer the harness gives a change: the layer's attributes, or `LayerNotFound` for the
-    /// IDs from 90 on.
+    /// IDs from 90 on. The attribute has a section and limits, as of protocol 1.1.
     static func result(of change: SetAttribute) -> Result<SetAttributeResult, WireError> {
         guard change.layerID < 90 else {
             return .failure(WireError(code: .layerNotFound, message: "no layer with id \(change.layerID)"))
@@ -161,7 +161,9 @@ final class SessionHarness: @unchecked Sendable {
             title: "Changed",
             value: change.value,
             editable: true,
-            valueKind: change.value?.kind ?? .string
+            valueKind: change.value?.kind ?? .string,
+            section: .layout,
+            limits: [NumberLimit(minimum: 0)]
         )
         return .success(
             SetAttributeResult(

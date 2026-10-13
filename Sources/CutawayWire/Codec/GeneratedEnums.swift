@@ -34,6 +34,26 @@ extension ErrorCode {
     }
 }
 
+extension AttributeSection {
+    init(_ generated: Cutaway_Wire_AttributeSection) {
+        switch generated {
+        case .unspecified: self = .unspecified
+        case .identity: self = .identity
+        case .general: self = .general
+        case .layout: self = .layout
+        }
+    }
+
+    var generated: Cutaway_Wire_AttributeSection {
+        switch self {
+        case .unspecified: return .unspecified
+        case .identity: return .identity
+        case .general: return .general
+        case .layout: return .layout
+        }
+    }
+}
+
 extension StreamStatus {
     init(_ generated: Cutaway_Wire_StreamStatus) {
         switch generated {

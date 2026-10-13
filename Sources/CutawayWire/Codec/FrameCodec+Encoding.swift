@@ -125,6 +125,9 @@ extension FrameCodec {
             referenceObject.name = reference.name
             return referenceObject
         }
+        object.layerAddress = node.layerAddress
+        object.viewAddress = node.viewAddress ?? 0
+        object.viewControllerAddress = node.viewControllerAddress ?? 0
         return object
     }
 
@@ -194,6 +197,18 @@ extension FrameCodec {
             attributeObject.editable = attribute.editable
             attributeObject.acceptsNil = attribute.acceptsNil
             attributeObject.valueKind = attribute.valueKind.generated
+            attributeObject.section = attribute.section.generated
+            attributeObject.limits = attribute.limits.map { limit in
+                // An unused side keeps its defaults (P-ATTR-10).
+                let limitObject = Cutaway_Wire_NumberLimitT()
+                limitObject.minimum = limit.minimum ?? 0
+                limitObject.hasMinimum = limit.minimum != nil
+                limitObject.minimumExclusive = limit.minimumIsExclusive
+                limitObject.maximum = limit.maximum ?? 0
+                limitObject.hasMaximum = limit.maximum != nil
+                limitObject.maximumExclusive = limit.maximumIsExclusive
+                return limitObject
+            }
             return attributeObject
         }
         return object

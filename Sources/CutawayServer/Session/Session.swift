@@ -294,11 +294,12 @@ final class Session: @unchecked Sendable {
                 requestID,
                 requiresActiveApp: true,
                 onMain: { app, registry in app.setAttribute(change, registry: registry) },
-                reply: { _, result in
+                reply: { session, result in
                     // Unlike a hierarchy, the answer is sent whatever the state is now: the change
                     // may have been made, and the main thread checked the state before making it.
                     switch result {
-                    case .success(let answer): return .setAttributeResult(answer)
+                    // P-ATTR-08: only the sections the negotiated version has.
+                    case .success(let answer): return .setAttributeResult(answer.adapted(to: session.version))
                     case .failure(let error): return .error(error)
                     }
                 }
