@@ -226,9 +226,9 @@ final class ExtremeRequestTests: CaptureTestCase {
         let bounds = layer.bounds
         let margins = view.layoutMargins
         let responses = try await exchange([
-            set(1, viewID, "layer.opacity", .double(.nan)),
-            set(2, viewID, "layer.opacity", .double(.infinity)),
-            set(3, viewID, "layer.opacity", .double(-.infinity)),
+            set(1, viewID, "view.alpha", .double(.nan)),
+            set(2, viewID, "view.alpha", .double(.infinity)),
+            set(3, viewID, "view.alpha", .double(-.infinity)),
             set(4, layerID, "layer.bounds", .rect(WireRect(x: 0, y: 0, width: .nan, height: 10))),
             set(5, layerID, "layer.bounds", .rect(WireRect(x: -.infinity, y: 0, width: 10, height: 10))),
             set(6, viewID, "view.layoutMargins", .insets(WireInsets(top: .infinity, left: 0, bottom: 0, right: 0)))
@@ -269,9 +269,9 @@ final class ExtremeRequestTests: CaptureTestCase {
     func test_S_CONN_15_valuesOfTheWrongKindAreRejected() async throws {
         let viewID = id(of: view.layer)
         let responses = try await exchange([
-            set(1, viewID, "layer.opacity", .string("1")),
+            set(1, viewID, "view.alpha", .string("1")),
             set(2, viewID, "view.tag", .double(1)),
-            set(3, viewID, "layer.opacity", nil),
+            set(3, viewID, "view.alpha", nil),
             set(4, viewID, "view.contentMode", .enumeration(value: 1_000_000, cases: [], caseName: "", caseValues: []))
         ])
         XCTAssertEqual(responses.count, 4)

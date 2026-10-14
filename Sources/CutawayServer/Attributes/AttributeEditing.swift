@@ -28,6 +28,14 @@ enum AttributeEditing {
         }
         let id = request.attributeID
         guard let edit = catalog.attributeForEditing(id, of: layer) else {
+            // P-ATTR-11: the layer's side of a pair is left out when the layer backs a view.
+            if let pair = AttributeTables.pairs.first(where: { $0.layer == id }),
+               LayerTopology.backingView(of: layer) != nil {
+                return .failure(error(
+                    .attributeNotEditable,
+                    "layer \(request.layerID) backs a view; set \(pair.view) instead of \(id)"
+                ))
+            }
             return .failure(error(.attributeNotEditable, "\(id) is not an attribute of this layer"))
         }
         // As it reads now: a value that fell back to text is read-only (P-ATTR-06).
