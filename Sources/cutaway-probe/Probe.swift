@@ -118,15 +118,7 @@ private func checkLayerDetails(
             + "\(summary.attributeGroups) attribute groups with \(summary.attributes) attributes, "
             + "\(summary.captureFailed) capture failed, \(summary.notFound) not found"
     )
-    // P-SET-07: the app may have set them itself, so they are only reported.
-    let outside = details.flatMap {
-        AttributeChecks.valuesOutsideLimits($0.attributeGroups, name: "layer \($0.layerID)")
-    }
-    if !outside.isEmpty {
-        print(
-            "attributes: \(outside.count) values outside their limits, set by the app: \(outside.prefix(3).joined(separator: "; "))"
-        )
-    }
+    reportAttributeNotes(of: details)
     let constraints = ConstraintChecks.summary(of: details)
     print(
         "constraints: \(constraints.total) on \(constraints.layers) layers, \(constraints.distinct) distinct: "
@@ -180,4 +172,26 @@ func run(arguments: [String]) -> Int32 {
     }
     print("cutaway-probe: OK")
     return 0
+}
+
+/// What is only reported about attributes, not counted as a failure.
+private func reportAttributeNotes(of details: [LayerDetail]) {
+    // P-SET-07: the app may have set them itself, so they are only reported.
+    let outside = details.flatMap {
+        AttributeChecks.valuesOutsideLimits($0.attributeGroups, name: "layer \($0.layerID)")
+    }
+    // P-ATTR-12: a cluster the protocol does not name is shown attribute by attribute.
+    let unknownClusters = details.flatMap {
+        AttributeChecks.unknownClusters($0.attributeGroups, name: "layer \($0.layerID)")
+    }
+    if !unknownClusters.isEmpty {
+        print(
+            "attributes: \(unknownClusters.count) in clusters the protocol does not name: \(unknownClusters.prefix(3).joined(separator: "; "))"
+        )
+    }
+    if !outside.isEmpty {
+        print(
+            "attributes: \(outside.count) values outside their limits, set by the app: \(outside.prefix(3).joined(separator: "; "))"
+        )
+    }
 }

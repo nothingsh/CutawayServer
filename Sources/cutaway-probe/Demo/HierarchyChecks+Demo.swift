@@ -12,7 +12,39 @@ extension HierarchyChecks {
         try checkCardRotation(scene.card)
         try checkContainers(of: scene, in: hierarchy.nodes)
         try checkDrawingOrder(of: scene.blocks)
+        try checkClassFacts(of: scene)
         return scene
+    }
+
+    /// Protocol 1.1: the demo's own classes are the app's and UIKit's the system's (P-HIER-16);
+    /// a label's base class is `UILabel`, the window's `UIWindow` (P-HIER-17); the screen's
+    /// controller and the controller inside the navigation controller are shown (P-HIER-18).
+    private static func checkClassFacts(of scene: DemoScene) throws {
+        func expect<T: Equatable>(_ what: String, _ field: String, _ actual: T, _ wanted: T) throws {
+            guard actual == wanted else {
+                throw ProbeFailure("demo: \(what) has \(field) \(actual), expected \(wanted)")
+            }
+        }
+        try expect("the screen's view", "view_controller_class_origin", scene.screen.viewControllerClassOrigin, .app)
+        try expect("the screen's view", "view_controller_visibility", scene.screen.viewControllerVisibility, .shown)
+        try expect("the screen's view", "view_class_origin", scene.screen.viewClassOrigin, .system)
+        try expect("CardView", "view_class_origin", scene.card.viewClassOrigin, .app)
+        try expect("the title label", "view_class_origin", scene.titleLabel.viewClassOrigin, .system)
+        try expect("the title label", "view_base_class_name", scene.titleLabel.viewBaseClassName, "UILabel")
+        try expect("the key window", "view_base_class_name", scene.window.viewBaseClassName, "UIWindow")
+        try expect("the badge", "layer_base_class_name", scene.badge.layerBaseClassName, "CAShapeLayer")
+        try expect(
+            "the navigation controller's view",
+            "view_controller_class_origin",
+            scene.navigation.viewControllerClassOrigin,
+            .system
+        )
+        try expect(
+            "the detail controller's view",
+            "view_controller_visibility",
+            scene.detail.viewControllerVisibility,
+            .shown
+        )
     }
 
     // MARK: - What each thing looks like

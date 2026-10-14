@@ -90,7 +90,8 @@ final class ConstraintChecksTests: XCTestCase {
         className: "UILayoutGuide",
         displayClassName: "UILayoutGuide",
         identifier: "UIViewSafeAreaLayoutGuide",
-        guideFrame: WireRect(x: 0, y: 2, width: 10, height: 8)
+        guideFrame: WireRect(x: 0, y: 2, width: 10, height: 8),
+        guideKind: .safeArea
     )
 
     private static func view(_ layerID: UInt64) -> LayoutItem { LayoutItem(kind: .view, layerID: layerID) }
@@ -117,7 +118,9 @@ final class ConstraintChecksTests: XCTestCase {
             multiplier: 1,
             constant: constant,
             priority: priority,
-            status: status
+            status: status,
+            origin: ["NSAutoresizingMaskLayoutConstraint", "NSContentSizeLayoutConstraint"]
+                .contains(className) ? .system : .app
         )
     }
 
@@ -195,6 +198,46 @@ final class ConstraintChecksTests: XCTestCase {
                     line: line
                 )
             }
+        }
+    }
+
+    func test_S_PROBE_06_constraintsHaveOriginsAndGuidesKinds() {
+        assertStructureRejects("constraint 1 of layer 2 has no origin (P-LAYOUT-09)") {
+            $0.constraints[0].origin = .unknown
+        }
+        assertStructureRejects("layout guide 50 has no guide_kind (P-LAYOUT-04)") {
+            $0.constraints[1].secondItem?.guideKind = .unknown
+        }
+        assertStructureRejects("an item of kind other has guide_kind safeArea (P-LAYOUT-04)") {
+            $0.constraints[3].secondItem?.guideKind = .safeArea
+        }
+        // A 1.0 peer: no origins needed, and a guide is `Other` or absent.
+        var old = detail
+        for index in old.constraints.indices { old.constraints[index].origin = .unknown }
+        old.constraints[1].secondItem?.guideKind = .other
+        var tables = ConstraintChecks.Tables()
+        let version10 = ProtocolVersion(major: 1, minor: 0)
+        XCTAssertNoThrow(
+            try ConstraintChecks.structure(
+                old,
+                for: Self.wantConstraints,
+                node: nodes[2],
+                nodes: nodes,
+                tables: &tables,
+                version: version10
+            )
+        )
+        old.constraints[1].secondItem?.guideKind = .safeArea
+        tables = ConstraintChecks.Tables()
+        assertRejects("guide_kind safeArea, which protocol 1.0 does not have (P-LAYOUT-04)") {
+            try ConstraintChecks.structure(
+                old,
+                for: Self.wantConstraints,
+                node: self.nodes[2],
+                nodes: self.nodes,
+                tables: &tables,
+                version: version10
+            )
         }
     }
 
@@ -360,7 +403,8 @@ final class ConstraintChecksTests: XCTestCase {
             className: "UILayoutGuide",
             displayClassName: "UILayoutGuide",
             identifier: "UIViewSafeAreaLayoutGuide",
-            guideFrame: WireRect(x: 0, y: 62, width: 402, height: 778)
+            guideFrame: WireRect(x: 0, y: 62, width: 402, height: 778),
+            guideKind: .safeArea
         )
         let top = Self.constraint(59, Self.view(Self.labelID), .top, safeArea, .top, constant: 8)
         let trailing = Self.constraint(61, Self.view(Self.labelID), .trailing, safeArea, .trailing, constant: -16)
@@ -488,6 +532,20 @@ final class ConstraintChecksTests: XCTestCase {
         var reversed = details
         for index in reversed.indices { reversed[index].constraints.reverse() }
         XCTAssertNoThrow(try Self.demo(reversed, hierarchy: hierarchy))
+    }
+
+    func test_S_PROBE_06_demoChecksRequireOriginsAndTheSafeAreasKind() {
+        // The guide is the safe area by its kind too (P-LAYOUT-04).
+        assertDemoRejects("top") { _, details in
+            edit(&details, layer: Self.labelID, constraint: 59) { $0.secondItem?.guideKind = .other }
+        }
+        // The demo's own constraint is the app's, UIKit's for the mask the system's (P-LAYOUT-09).
+        assertDemoRejects("top") { _, details in
+            edit(&details, layer: Self.labelID, constraint: 59) { $0.origin = .system }
+        }
+        assertDemoRejects("autoresizing mask constraints") { _, details in
+            edit(&details, layer: Self.boxID, constraint: 144) { $0.origin = .app }
+        }
     }
 
     func test_S_PROBE_04_demoChecksRejectOtherConstraints() {

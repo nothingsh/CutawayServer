@@ -41,6 +41,9 @@ extension AttributeSection {
         case .identity: self = .identity
         case .general: self = .general
         case .layout: self = .layout
+        case .content: self = .content
+        case .appearance: self = .appearance
+        case .behavior: self = .behavior
         }
     }
 
@@ -50,6 +53,87 @@ extension AttributeSection {
         case .identity: return .identity
         case .general: return .general
         case .layout: return .layout
+        case .content: return .content
+        case .appearance: return .appearance
+        case .behavior: return .behavior
+        }
+    }
+}
+
+extension AttributeUnit {
+    init(_ generated: Cutaway_Wire_AttributeUnit) {
+        switch generated {
+        case .unspecified: self = .unspecified
+        case .points: self = .points
+        case .fraction: self = .fraction
+        }
+    }
+
+    var generated: Cutaway_Wire_AttributeUnit {
+        switch self {
+        case .unspecified: return .unspecified
+        case .points: return .points
+        case .fraction: return .fraction
+        }
+    }
+}
+
+extension Origin {
+    init(_ generated: Cutaway_Wire_Origin) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .system: self = .system
+        case .app: self = .app
+        }
+    }
+
+    var generated: Cutaway_Wire_Origin {
+        switch self {
+        case .unknown: return .unknown
+        case .system: return .system
+        case .app: return .app
+        }
+    }
+}
+
+extension ViewControllerVisibility {
+    init(_ generated: Cutaway_Wire_ViewControllerVisibility) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .shown: self = .shown
+        case .notshown: self = .notShown
+        }
+    }
+
+    var generated: Cutaway_Wire_ViewControllerVisibility {
+        switch self {
+        case .unknown: return .unknown
+        case .shown: return .shown
+        case .notShown: return .notshown
+        }
+    }
+}
+
+extension LayoutGuideKind {
+    init(_ generated: Cutaway_Wire_LayoutGuideKind) {
+        switch generated {
+        case .unknown: self = .unknown
+        case .other: self = .other
+        case .safearea: self = .safeArea
+        case .layoutmargins: self = .layoutMargins
+        case .readablecontent: self = .readableContent
+        case .keyboard: self = .keyboard
+        }
+    }
+
+    var generated: Cutaway_Wire_LayoutGuideKind {
+        switch self {
+        case .unknown: return .unknown
+        case .other: return .other
+        case .safeArea: return .safearea
+        case .layoutMargins: return .layoutmargins
+        case .readableContent: return .readablecontent
+        case .keyboard: return .keyboard
         }
     }
 }

@@ -33,11 +33,12 @@ enum AttributeChecks {
                     throw ProbeFailure("\(label) has no value_kind (P-ATTR-06)")
                 }
                 // P-ATTR-08: no section the negotiated version does not have.
-                if version.minor < 1, attribute.section != .unspecified {
+                if attribute.section.minorVersion > version.minor {
                     throw ProbeFailure(
                         "\(label) has the section \(attribute.section), which protocol 1.\(version.minor) does not have (P-ATTR-08)"
                     )
                 }
+                try checkUnit(of: attribute, name: label, version: version)
                 try checkLimits(of: attribute, name: label)
                 if let value = attribute.value {
                     guard value.kind == attribute.valueKind else {
@@ -49,6 +50,87 @@ enum AttributeChecks {
                 }
             }
         }
+        try checkLayer(groups, name: name, version: version)
+    }
+
+    /// The value kinds a unit may go with (P-ATTR-14).
+    private static let kindsWithUnits: Set<AttributeValueKind> = [.int, .double, .point, .size, .rect, .insets]
+
+    /// P-ATTR-14 (protocol 1.1): units only on numbers, and of the negotiated version.
+    private static func checkUnit(of attribute: Attribute, name: String, version: ProtocolVersion) throws {
+        guard attribute.unit != .unspecified else { return }
+        guard attribute.unit.minorVersion <= version.minor else {
+            throw ProbeFailure(
+                "\(name) has the unit \(attribute.unit), which protocol 1.\(version.minor) does not have (P-ATTR-14)"
+            )
+        }
+        guard kindsWithUnits.contains(attribute.valueKind) else {
+            throw ProbeFailure(
+                "\(name) has the unit \(attribute.unit), but is a \(attribute.valueKind) value (P-ATTR-14)"
+            )
+        }
+    }
+
+    /// The attributes whose value is a `CGColor`: never named (P-ATTR-15).
+    private static let cgColorAttributes: Set<String> = [
+        "layer.backgroundColor",
+        "layer.borderColor",
+        "layer.shadowColor"
+    ]
+
+    /// What holds across one layer's groups (protocol 1.1): the class names of the groups
+    /// (P-ATTR-16), one attribute of each pair (P-ATTR-11), clusters (P-ATTR-12), inactive
+    /// causes (P-ATTR-13) and system color names (P-ATTR-15).
+    private static func checkLayer(_ groups: [AttributeGroup], name: String, version: ProtocolVersion) throws {
+        let attributes = groups.flatMap(\.attributes)
+        let ids = Set(attributes.map(\.id))
+        for pair in AttributeTables.pairs where ids.contains(pair.view) && ids.contains(pair.layer) {
+            throw ProbeFailure("\(name) has both \(pair.view) and \(pair.layer) (P-ATTR-11)")
+        }
+        var slots: [String: String] = [:]
+        var sections: [String: AttributeSection] = [:]
+        for attribute in attributes {
+            let label = "\(name): attribute \(attribute.id)"
+            guard (attribute.cluster == nil) == (attribute.slot == nil) else {
+                throw ProbeFailure("\(label) has a cluster without a slot, or a slot without a cluster (P-ATTR-12)")
+            }
+            if let cluster = attribute.cluster, let slot = attribute.slot {
+                if let other = slots.updateValue(attribute.id, forKey: "\(cluster).\(slot)") {
+                    throw ProbeFailure(
+                        "\(label) and \(other) are both the \(slot) of the cluster \(cluster) (P-ATTR-12)"
+                    )
+                }
+                if let section = sections.updateValue(attribute.section, forKey: cluster),
+                   section != attribute.section {
+                    throw ProbeFailure(
+                        "\(label) is in the section \(attribute.section), another attribute of the cluster \(cluster) in \(section) (P-ATTR-12)"
+                    )
+                }
+            }
+            if let cause = attribute.inactiveCause, !ids.contains(cause) {
+                throw ProbeFailure(
+                    "\(label) has no effect because of \(cause), which the layer does not have (P-ATTR-13)"
+                )
+            }
+            if case .color(_, let systemName?)? = attribute.value, cgColorAttributes.contains(attribute.id) {
+                throw ProbeFailure("\(label) is a CGColor, but has the system name \(systemName) (P-ATTR-15)")
+            }
+        }
+        guard version.minor >= 1 else { return }
+        for group in groups where group.className?.isEmpty != false {
+            throw ProbeFailure("\(name): group \(group.id) has no class_name (P-ATTR-16)")
+        }
+    }
+
+    /// The clusters and slots outside the protocol's table. Not a failure: a later version of
+    /// the server may know more, and a client shows them attribute by attribute (P-ATTR-12).
+    static func unknownClusters(_ groups: [AttributeGroup], name: String) -> [String] {
+        groups.flatMap(\.attributes).compactMap { attribute in
+            guard let cluster = attribute.cluster, let slot = attribute.slot,
+                  AttributeTables.clusters[cluster]?.contains(slot) != true
+            else { return nil }
+            return "\(name): \(attribute.id) is the \(slot) of the cluster \(cluster), which the protocol does not name"
+        }
     }
 
     private static func check(_ value: AttributeValue, name: String) throws {
@@ -58,7 +140,7 @@ enum AttributeChecks {
             numbers = []
         case .double(let number):
             numbers = [number]
-        case .color(let color):
+        case .color(let color, _):
             numbers = [color.red, color.green, color.blue, color.alpha].map(Double.init)
         case .point(let point):
             numbers = [point.x, point.y]
@@ -155,128 +237,26 @@ enum AttributeChecks {
 
     // MARK: - The attribute list
 
-    struct Entry: Equatable {
-        /// The part of the id after the group's id and the dot.
-        var name: String
-        var kind: AttributeValueKind
-        /// May read as nil.
-        var nullable: Bool
-        var editable: Bool
-        /// May be set to nil.
-        var acceptsNil: Bool
-    }
-
-    /// The expected attributes and which of them can be changed, copied by hand: the probe
-    /// checks the server against it and does not share code with the server.
-    static let list: [String: [Entry]] = {
-        func entry(
-            _ name: String,
-            _ kind: AttributeValueKind,
-            nullable: Bool = false,
-            editable: Bool = true,
-            acceptsNil: Bool = false
-        ) -> Entry {
-            Entry(name: name, kind: kind, nullable: nullable, editable: editable, acceptsNil: acceptsNil)
-        }
-        return [
-            "layer": [
-                entry("frame", .rect, editable: false),
-                entry("bounds", .rect),
-                entry("position", .point),
-                entry("anchorPoint", .point),
-                entry("zPosition", .double),
-                entry("transform", .transform),
-                entry("hidden", .bool),
-                entry("opacity", .double),
-                entry("masksToBounds", .bool),
-                entry("cornerRadius", .double),
-                entry("backgroundColor", .color, nullable: true, acceptsNil: true),
-                entry("borderWidth", .double),
-                entry("borderColor", .color, nullable: true, acceptsNil: true),
-                entry("shadowColor", .color, nullable: true, acceptsNil: true),
-                entry("shadowOpacity", .double),
-                entry("shadowRadius", .double),
-                entry("shadowOffset", .size)
-            ],
-            "view": [
-                entry("alpha", .double),
-                entry("isHidden", .bool),
-                entry("isOpaque", .bool),
-                entry("clipsToBounds", .bool),
-                entry("isUserInteractionEnabled", .bool),
-                entry("tag", .int),
-                entry("contentMode", .enumeration),
-                entry("tintColor", .color, nullable: true, acceptsNil: true),
-                entry("layoutMargins", .insets),
-                entry("contentHuggingPriority.horizontal", .double),
-                entry("contentHuggingPriority.vertical", .double),
-                entry("contentCompressionResistancePriority.horizontal", .double),
-                entry("contentCompressionResistancePriority.vertical", .double),
-                entry("intrinsicContentSize.width", .double, nullable: true, editable: false),
-                entry("intrinsicContentSize.height", .double, nullable: true, editable: false),
-                entry("translatesAutoresizingMaskIntoConstraints", .bool),
-                entry("hasAmbiguousLayout", .bool, editable: false)
-            ],
-            "label": [
-                entry("text", .string, nullable: true, acceptsNil: true),
-                entry("fontName", .string),
-                entry("fontSize", .double),
-                entry("textColor", .color, nullable: true, acceptsNil: true),
-                entry("textAlignment", .enumeration),
-                entry("numberOfLines", .int),
-                entry("lineBreakMode", .enumeration)
-            ],
-            "imageView": [
-                entry("imageSize", .size, nullable: true, editable: false),
-                entry("isHighlighted", .bool)
-            ],
-            "control": [entry("isEnabled", .bool), entry("isSelected", .bool), entry("isHighlighted", .bool)],
-            "button": [
-                entry("currentTitle", .string, nullable: true, acceptsNil: true),
-                entry("currentTitleColor", .color, nullable: true, acceptsNil: true)
-            ],
-            "scrollView": [
-                entry("contentOffset", .point),
-                entry("contentSize", .size),
-                entry("contentInset", .insets),
-                entry("adjustedContentInset", .insets, editable: false),
-                entry("isScrollEnabled", .bool),
-                entry("isPagingEnabled", .bool)
-            ],
-            "stackView": [
-                entry("axis", .enumeration),
-                entry("alignment", .enumeration),
-                entry("distribution", .enumeration),
-                entry("spacing", .double)
-            ],
-            "textField": [
-                entry("text", .string, nullable: true, acceptsNil: true),
-                entry("placeholder", .string, nullable: true, acceptsNil: true),
-                entry("fontName", .string, nullable: true),
-                entry("fontSize", .double, nullable: true),
-                entry("textColor", .color, nullable: true, acceptsNil: true)
-            ],
-            "textView": [
-                entry("text", .string),
-                entry("fontName", .string, nullable: true),
-                entry("fontSize", .double, nullable: true),
-                entry("textColor", .color, nullable: true, acceptsNil: true),
-                entry("isEditable", .bool)
-            ]
-        ]
-    }()
-
     /// Fails unless the group has exactly the attributes of the list, in its order, with its
     /// kinds of values, nil only where the list allows it, and its flags (P-ATTR-06); from a
-    /// server at 1.1 or later also with its sections and limits (P-ATTR-08, 09). A value that
-    /// fell back to a `StringValue` (P-ATTR-03) has to be read-only, of its own kind, without
-    /// limits.
-    static func matchesList(_ group: AttributeGroup, name: String, version: ProtocolVersion = .current) throws {
-        guard let entries = list[group.id] else {
+    /// server at 1.1 or later also with its sections, limits, titles, clusters, units and class
+    /// name (P-ATTR-08, 09, 12, 14, 16). A value that fell back to a `StringValue` (P-ATTR-03)
+    /// has to be read-only, of its own kind, without limits or a unit.
+    ///
+    /// - Parameter backsView: Whether the group's layer backs a view: its `layer` group then
+    ///   leaves out the layer's side of each pair (P-ATTR-11).
+    static func matchesList(
+        _ group: AttributeGroup,
+        name: String,
+        backsView: Bool,
+        version: ProtocolVersion = .current
+    ) throws {
+        guard let listed = list[group.id] else {
             throw ProbeFailure(
                 "\(name) has the group \(group.id), which the attribute list of version 0.1 does not have"
             )
         }
+        let entries = backsView ? listed.filter { !$0.onlyWithoutView } : listed
         let expected = entries.map { "\(group.id).\($0.name)" }
         let actual = group.attributes.map(\.id)
         guard actual == expected else {
@@ -284,11 +264,18 @@ enum AttributeChecks {
                 "\(name): group \(group.id) has the attributes \(actual), expected \(expected)"
             )
         }
+        if version.minor >= 1, group.className != classNames[group.id] {
+            throw ProbeFailure(
+                "\(name): group \(group.id) has the class_name \(group.className ?? "nil"); the list says \(classNames[group.id] ?? "nil") (P-ATTR-16)"
+            )
+        }
         for (attribute, entry) in zip(group.attributes, entries) {
             var expected = (kind: entry.kind, editable: entry.editable, acceptsNil: entry.acceptsNil)
+            var unit = entry.unit
             if let value = attribute.value {
                 if value.kind == .string, entry.kind != .string {
                     expected = (.string, false, false)
+                    unit = .unspecified
                 } else {
                     guard value.kind == entry.kind else {
                         throw ProbeFailure(
@@ -311,75 +298,42 @@ enum AttributeChecks {
             }
             // Protocol 1.1: the section whatever the value; limits only while it can be changed.
             guard version.minor >= 1 else { continue }
-            let section = sections[attribute.id] ?? .general
-            guard attribute.section == section else {
-                throw ProbeFailure(
-                    "\(name): attribute \(attribute.id) has the section \(attribute.section); the list says \(section) (P-ATTR-08)"
-                )
-            }
-            let limits = expected.editable ? self.limits[attribute.id] ?? [] : []
-            guard attribute.limits == limits else {
-                throw ProbeFailure(
-                    "\(name): attribute \(attribute.id) has the limits \(attribute.limits); the list says \(limits) (P-ATTR-09)"
-                )
-            }
+            try checkFieldsOf11(attribute, entry: entry, editable: expected.editable, unit: unit, name: name)
         }
     }
 
-    /// The sections other than `general`, copied by hand like `list` (protocol 1.1, P-ATTR-08).
-    static let sections: [String: AttributeSection] = {
-        var sections: [String: AttributeSection] = ["view.tag": .identity]
-        for id in [
-            "layer.frame",
-            "layer.bounds",
-            "layer.position",
-            "layer.anchorPoint",
-            "layer.zPosition",
-            "layer.transform",
-            "view.layoutMargins",
-            "view.contentHuggingPriority.horizontal",
-            "view.contentHuggingPriority.vertical",
-            "view.contentCompressionResistancePriority.horizontal",
-            "view.contentCompressionResistancePriority.vertical",
-            "view.intrinsicContentSize.width",
-            "view.intrinsicContentSize.height",
-            "view.translatesAutoresizingMaskIntoConstraints",
-            "view.hasAmbiguousLayout",
-            "scrollView.contentOffset",
-            "scrollView.contentSize",
-            "scrollView.contentInset",
-            "scrollView.adjustedContentInset",
-            "stackView.axis",
-            "stackView.alignment",
-            "stackView.distribution",
-            "stackView.spacing"
-        ] {
-            sections[id] = .layout
+    /// The fields of protocol 1.1 the list gives: the section, the limits while the attribute can
+    /// be changed, the title, the cluster and the unit (P-ATTR-08, 09, 12, 14).
+    private static func checkFieldsOf11(
+        _ attribute: Attribute,
+        entry: Entry,
+        editable: Bool,
+        unit: AttributeUnit,
+        name: String
+    ) throws {
+        let label = "\(name): attribute \(attribute.id)"
+        guard attribute.section == entry.section else {
+            throw ProbeFailure(
+                "\(label) has the section \(attribute.section); the list says \(entry.section) (P-ATTR-08)"
+            )
         }
-        return sections
-    }()
-
-    /// The limits, copied by hand like `list` (protocol 1.1, P-ATTR-09); none for every other
-    /// attribute.
-    static let limits: [String: [NumberLimit]] = {
-        let atLeastZero = [NumberLimit(minimum: 0)]
-        let unit = [NumberLimit(minimum: 0, maximum: 1)]
-        let priority = [NumberLimit(minimum: 1, maximum: 1000)]
-        let positive = [NumberLimit(minimum: 0, minimumIsExclusive: true)]
-        var limits: [String: [NumberLimit]] = [
-            "layer.bounds": [.free, .free, NumberLimit(minimum: 0), NumberLimit(minimum: 0)],
-            "label.numberOfLines": atLeastZero,
-            "scrollView.contentSize": atLeastZero
-        ]
-        for id in ["layer.opacity", "layer.shadowOpacity", "view.alpha"] { limits[id] = unit }
-        for id in ["layer.cornerRadius", "layer.borderWidth", "layer.shadowRadius"] { limits[id] = atLeastZero }
-        for id in ["label.fontSize", "textField.fontSize", "textView.fontSize"] { limits[id] = positive }
-        for axis in ["horizontal", "vertical"] {
-            limits["view.contentHuggingPriority.\(axis)"] = priority
-            limits["view.contentCompressionResistancePriority.\(axis)"] = priority
+        let limits = editable ? self.limits[attribute.id] ?? [] : []
+        guard attribute.limits == limits else {
+            throw ProbeFailure("\(label) has the limits \(attribute.limits); the list says \(limits) (P-ATTR-09)")
         }
-        return limits
-    }()
+        guard attribute.title == entry.title else {
+            throw ProbeFailure("\(label) has the title \"\(attribute.title)\"; the list says \"\(entry.title)\"")
+        }
+        guard attribute.cluster == entry.cluster, attribute.slot == entry.slot else {
+            throw ProbeFailure(
+                "\(label) is the \(attribute.slot ?? "nil") of the cluster \(attribute.cluster ?? "nil"); "
+                    + "the list says the \(entry.slot ?? "nil") of \(entry.cluster ?? "nil") (P-ATTR-12)"
+            )
+        }
+        guard attribute.unit == unit else {
+            throw ProbeFailure("\(label) has the unit \(attribute.unit); the list says \(unit) (P-ATTR-14)")
+        }
+    }
 
     /// The value of the attribute `id` (with its group's prefix); `nil` when it is nil or absent.
     static func value(_ id: String, in groups: [AttributeGroup]) -> AttributeValue? {

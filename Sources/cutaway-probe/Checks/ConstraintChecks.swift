@@ -22,7 +22,8 @@ enum ConstraintChecks {
         for request: LayerDetailRequest,
         node: LayerNode?,
         nodes: [UInt64: LayerNode],
-        tables: inout Tables
+        tables: inout Tables,
+        version: ProtocolVersion = .current
     ) throws {
         let layer = "layer \(detail.layerID)"
         guard !detail.constraints.isEmpty else { return }
@@ -38,7 +39,7 @@ enum ConstraintChecks {
             throw ProbeFailure("the detail of \(layer) has constraints, but the layer backs no view (P-LAYOUT-01)")
         }
         for constraint in detail.constraints {
-            try check(constraint, of: detail.layerID, nodes: nodes, tables: &tables)
+            try check(constraint, of: detail.layerID, nodes: nodes, tables: &tables, version: version)
         }
     }
 
@@ -46,9 +47,13 @@ enum ConstraintChecks {
         _ constraint: LayoutConstraint,
         of layerID: UInt64,
         nodes: [UInt64: LayerNode],
-        tables: inout Tables
+        tables: inout Tables,
+        version: ProtocolVersion
     ) throws {
         let name = "constraint \(constraint.id) of layer \(layerID)"
+        if version.minor >= 1, constraint.origin == .unknown {
+            throw ProbeFailure("\(name) has no origin (P-LAYOUT-09)")
+        }
         guard constraint.id != 0 else { throw ProbeFailure("\(name): id is 0 (P-LAYOUT-03)") }
         guard constraint.className?.isEmpty == false else {
             throw ProbeFailure("\(name) has no class_name (P-LAYOUT-02)")
@@ -88,6 +93,7 @@ enum ConstraintChecks {
         let items = [first] + (constraint.secondItem.map { [$0] } ?? [])
         for item in items {
             try check(item, in: name, nodes: nodes, tables: &tables)
+            try checkGuideKind(of: item, in: name, version: version)
         }
         // P-LAYOUT-01: the layer's view, or a guide the view owns.
         guard items.contains(where: { $0.kind != .other && $0.layerID == layerID }) else {
@@ -153,6 +159,28 @@ enum ConstraintChecks {
                     "\(name): an item of kind Other has class_name and display_class_name, and nothing else (P-LAYOUT-04)"
                 )
             }
+        }
+    }
+
+    /// P-LAYOUT-04 (protocol 1.1): a guide's kind is given, of the negotiated version; other
+    /// items have none.
+    private static func checkGuideKind(of item: LayoutItem, in name: String, version: ProtocolVersion) throws {
+        if item.kind != .layoutGuide {
+            guard item.guideKind == .unknown else {
+                throw ProbeFailure(
+                    "\(name): an item of kind \(item.kind) has guide_kind \(item.guideKind) (P-LAYOUT-04)"
+                )
+            }
+            return
+        }
+        // `Other` stands in for a kind the version does not have, so any version may get it.
+        guard item.guideKind == .other || item.guideKind.minorVersion <= version.minor else {
+            throw ProbeFailure(
+                "\(name): layout guide \(item.guideID) has guide_kind \(item.guideKind), which protocol 1.\(version.minor) does not have (P-LAYOUT-04)"
+            )
+        }
+        if version.minor >= 1, item.guideKind == .unknown {
+            throw ProbeFailure("\(name): layout guide \(item.guideID) has no guide_kind (P-LAYOUT-04)")
         }
     }
 

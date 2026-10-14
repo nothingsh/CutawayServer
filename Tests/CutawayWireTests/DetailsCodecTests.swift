@@ -90,159 +90,237 @@ final class DetailsCodecTests: XCTestCase {
 
     func test_S_SHOT_06_decodesEveryKindOfAttributeValue() throws {
         let groups = try chunk("layer-details/02-s2c-chunk-0.bin").details[0].attributeGroups
-        XCTAssertEqual(groups.map(\.id), ["layer", "label", "view"])
-        XCTAssertEqual(groups.map(\.title), ["Layer", "Label", "View"])
-
         // P-ATTR-06: every attribute says what it takes and whether it can be changed;
-        // P-ATTR-08 to 10 (1.1): where it is shown, and the values a change may have.
-        let atLeastZero = NumberLimit(minimum: 0)
+        // P-ATTR-08 to 10 (1.1): where it is shown, and the values a change may have; P-ATTR-12
+        // to 16 (1.1): its cluster, unit and inactive cause, a system color's name, and the
+        // class that declares each group. P-ATTR-02: no value means nil (the background).
         XCTAssertEqual(
-            groups[0].attributes,
+            groups,
             [
-                Attribute(
-                    id: "layer.frame",
-                    title: "Frame",
-                    value: .rect(WireRect(x: 96.5, y: 108, width: 200, height: 24)),
-                    valueKind: .rect,
-                    section: .layout
+                AttributeGroup(
+                    id: "layer",
+                    title: "Layer",
+                    attributes: [
+                        Attribute(
+                            id: "layer.frame",
+                            title: "Frame",
+                            value: .rect(WireRect(x: 96.5, y: 108, width: 200, height: 24)),
+                            valueKind: .rect,
+                            section: .layout,
+                            cluster: "geometry",
+                            slot: "frame",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "layer.bounds",
+                            title: "Bounds",
+                            value: .rect(WireRect(x: 0, y: 0, width: 200, height: 24)),
+                            editable: true,
+                            valueKind: .rect,
+                            section: .layout,
+                            limits: [.free, .free, NumberLimit(minimum: 0), NumberLimit(minimum: 0)],
+                            cluster: "geometry",
+                            slot: "bounds",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "layer.position",
+                            title: "Position",
+                            value: .point(WirePoint(x: 196.5, y: 120)),
+                            editable: true,
+                            valueKind: .point,
+                            section: .layout,
+                            cluster: "geometry",
+                            slot: "position",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "layer.shadowOpacity",
+                            title: "Shadow Opacity",
+                            value: .double(0),
+                            editable: true,
+                            valueKind: .double,
+                            section: .appearance,
+                            limits: [NumberLimit(minimum: 0, maximum: 1)],
+                            cluster: "shadow",
+                            slot: "opacity",
+                            unit: .fraction
+                        ),
+                        Attribute(
+                            id: "layer.shadowOffset",
+                            title: "Shadow Offset",
+                            value: .size(WireSize(width: 0, height: -3)),
+                            editable: true,
+                            valueKind: .size,
+                            section: .appearance,
+                            cluster: "shadow",
+                            slot: "offset",
+                            inactiveCause: "layer.shadowOpacity",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "layer.borderWidth",
+                            title: "Border Width",
+                            value: .double(0),
+                            editable: true,
+                            valueKind: .double,
+                            section: .appearance,
+                            limits: [NumberLimit(minimum: 0)],
+                            cluster: "border",
+                            slot: "width",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "layer.borderColor",
+                            title: "Border Color",
+                            value: .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1)),
+                            editable: true,
+                            acceptsNil: true,
+                            valueKind: .color,
+                            section: .appearance,
+                            cluster: "border",
+                            slot: "color",
+                            inactiveCause: "layer.borderWidth"
+                        ),
+                        Attribute(
+                            id: "layer.transform",
+                            title: "Transform",
+                            value: .transform(.identity),
+                            editable: true,
+                            valueKind: .transform,
+                            section: .layout,
+                            cluster: "geometry",
+                            slot: "transform"
+                        )
+                    ],
+                    className: "CALayer"
                 ),
-                // One limit per component: x and y are free (P-ATTR-09).
-                Attribute(
-                    id: "layer.bounds",
-                    title: "Bounds",
-                    value: .rect(WireRect(x: 0, y: 0, width: 200, height: 24)),
-                    editable: true,
-                    valueKind: .rect,
-                    section: .layout,
-                    limits: [.free, .free, atLeastZero, atLeastZero]
+                AttributeGroup(
+                    id: "label",
+                    title: "Label",
+                    attributes: [
+                        Attribute(
+                            id: "label.text",
+                            title: "Text",
+                            value: .string("Hello"),
+                            editable: true,
+                            acceptsNil: true,
+                            valueKind: .string,
+                            section: .content
+                        ),
+                        Attribute(
+                            id: "label.fontSize",
+                            title: "Font Size",
+                            value: .double(17),
+                            editable: true,
+                            valueKind: .double,
+                            section: .content,
+                            limits: [NumberLimit(minimum: 0, minimumIsExclusive: true)],
+                            cluster: "font",
+                            slot: "size",
+                            unit: .points
+                        ),
+                        Attribute(
+                            id: "label.numberOfLines",
+                            title: "Lines",
+                            value: .int(1),
+                            editable: true,
+                            valueKind: .int,
+                            section: .content,
+                            limits: [NumberLimit(minimum: 0)],
+                            cluster: "lines",
+                            slot: "count"
+                        ),
+                        Attribute(
+                            id: "label.textAlignment",
+                            title: "Text Alignment",
+                            value: .enumeration(
+                                value: 1,
+                                cases: ["left", "center", "right", "justified", "natural"],
+                                caseName: "center",
+                                caseValues: [0, 1, 2, 3, 4]
+                            ),
+                            editable: true,
+                            valueKind: .enumeration,
+                            section: .content
+                        )
+                    ],
+                    className: "UILabel"
                 ),
-                Attribute(
-                    id: "layer.position",
-                    title: "Position",
-                    value: .point(WirePoint(x: 196.5, y: 120)),
-                    editable: true,
-                    valueKind: .point,
-                    section: .layout
-                ),
-                Attribute(
-                    id: "layer.shadowOffset",
-                    title: "Shadow Offset",
-                    value: .size(WireSize(width: 0, height: -3)),
-                    editable: true,
-                    valueKind: .size,
-                    section: .general
-                ),
-                Attribute(
-                    id: "layer.opacity",
-                    title: "Opacity",
-                    value: .double(1),
-                    editable: true,
-                    valueKind: .double,
-                    section: .general,
-                    limits: [NumberLimit(minimum: 0, maximum: 1)]
-                ),
-                Attribute(
-                    id: "layer.hidden",
-                    title: "Hidden",
-                    value: .bool(false),
-                    editable: true,
-                    valueKind: .bool,
-                    section: .general
-                ),
-                // P-ATTR-02: no value means nil; the attribute is still there, with its kind.
-                Attribute(
-                    id: "layer.backgroundColor",
-                    title: "Background Color",
-                    value: nil,
-                    editable: true,
-                    acceptsNil: true,
-                    valueKind: .color,
-                    section: .general
-                ),
-                Attribute(
-                    id: "layer.borderColor",
-                    title: "Border Color",
-                    value: .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1)),
-                    editable: true,
-                    acceptsNil: true,
-                    valueKind: .color,
-                    section: .general
-                ),
-                Attribute(
-                    id: "layer.transform",
-                    title: "Transform",
-                    value: .transform(.identity),
-                    editable: true,
-                    valueKind: .transform,
-                    section: .layout
-                )
-            ]
-        )
-        XCTAssertEqual(
-            groups[1].attributes,
-            [
-                Attribute(
-                    id: "label.text",
-                    title: "Text",
-                    value: .string("Hello"),
-                    editable: true,
-                    acceptsNil: true,
-                    valueKind: .string,
-                    section: .general
-                ),
-                // An exclusive bound (P-ATTR-10).
-                Attribute(
-                    id: "label.fontSize",
-                    title: "Font Size",
-                    value: .double(17),
-                    editable: true,
-                    valueKind: .double,
-                    section: .general,
-                    limits: [NumberLimit(minimum: 0, minimumIsExclusive: true)]
-                ),
-                Attribute(
-                    id: "label.numberOfLines",
-                    title: "Number Of Lines",
-                    value: .int(1),
-                    editable: true,
-                    valueKind: .int,
-                    section: .general,
-                    limits: [atLeastZero]
-                ),
-                // P-ATTR-07: the raw value of each case.
-                Attribute(
-                    id: "label.textAlignment",
-                    title: "Text Alignment",
-                    value: .enumeration(
-                        value: 1,
-                        cases: ["left", "center", "right", "justified", "natural"],
-                        caseName: "center",
-                        caseValues: [0, 1, 2, 3, 4]
-                    ),
-                    editable: true,
-                    valueKind: .enumeration,
-                    section: .general
-                )
-            ]
-        )
-        XCTAssertEqual(
-            groups[2].attributes,
-            [
-                Attribute(
-                    id: "view.tag",
-                    title: "Tag",
-                    value: .int(0),
-                    editable: true,
-                    valueKind: .int,
-                    section: .identity
-                ),
-                Attribute(
-                    id: "view.layoutMargins",
-                    title: "Layout Margins",
-                    value: .insets(WireInsets(top: 8, left: 8, bottom: 8, right: 8)),
-                    editable: true,
-                    valueKind: .insets,
-                    section: .layout
+                AttributeGroup(
+                    id: "view",
+                    title: "View",
+                    attributes: [
+                        Attribute(
+                            id: "view.tag",
+                            title: "Tag",
+                            value: .int(0),
+                            editable: true,
+                            valueKind: .int,
+                            section: .identity
+                        ),
+                        Attribute(
+                            id: "view.isHidden",
+                            title: "Hidden",
+                            value: .bool(false),
+                            editable: true,
+                            valueKind: .bool,
+                            section: .appearance,
+                            cluster: "visibility",
+                            slot: "hidden"
+                        ),
+                        Attribute(
+                            id: "view.alpha",
+                            title: "Opacity",
+                            value: .double(1),
+                            editable: true,
+                            valueKind: .double,
+                            section: .appearance,
+                            limits: [NumberLimit(minimum: 0, maximum: 1)],
+                            cluster: "visibility",
+                            slot: "opacity",
+                            unit: .fraction
+                        ),
+                        Attribute(
+                            id: "view.backgroundColor",
+                            title: "Background",
+                            value: nil,
+                            editable: true,
+                            acceptsNil: true,
+                            valueKind: .color,
+                            section: .appearance
+                        ),
+                        Attribute(
+                            id: "view.tintColor",
+                            title: "Tint",
+                            value: .color(
+                                WireColor(red: 0, green: 0.47843137, blue: 1, alpha: 1),
+                                systemName: "systemBlue"
+                            ),
+                            editable: true,
+                            acceptsNil: true,
+                            valueKind: .color,
+                            section: .appearance
+                        ),
+                        Attribute(
+                            id: "view.isUserInteractionEnabled",
+                            title: "User Interaction",
+                            value: .bool(false),
+                            editable: true,
+                            valueKind: .bool,
+                            section: .behavior
+                        ),
+                        Attribute(
+                            id: "view.layoutMargins",
+                            title: "Layout Margins",
+                            value: .insets(WireInsets(top: 8, left: 8, bottom: 8, right: 8)),
+                            editable: true,
+                            valueKind: .insets,
+                            section: .layout,
+                            unit: .points
+                        )
+                    ],
+                    className: "UIView"
                 )
             ]
         )
@@ -280,7 +358,7 @@ final class DetailsCodecTests: XCTestCase {
             Frame(
                 requestID: 3,
                 body: .setAttribute(
-                    SetAttribute(layerID: 4, attributeID: "layer.backgroundColor", value: color(0.2, 0.4, 0.8))
+                    SetAttribute(layerID: 4, attributeID: "view.backgroundColor", value: color(0.2, 0.4, 0.8))
                 )
             )
         )
@@ -289,7 +367,7 @@ final class DetailsCodecTests: XCTestCase {
             try fixture("set-attribute/09-c2s-clear-background.bin"),
             Frame(
                 requestID: 5,
-                body: .setAttribute(SetAttribute(layerID: 4, attributeID: "layer.backgroundColor", value: nil))
+                body: .setAttribute(SetAttribute(layerID: 4, attributeID: "view.backgroundColor", value: nil))
             )
         )
 
@@ -307,30 +385,39 @@ final class DetailsCodecTests: XCTestCase {
                 editable: true,
                 acceptsNil: true,
                 valueKind: .string,
-                section: .general
+                section: .content
             )
         )
 
+        // P-ATTR-11 (1.1): layer 4 backs a view, so it has the view's side of each pair.
         guard case .setAttributeResult(let alpha)? = try fixture("set-attribute/08-s2c-result.bin").body
         else { return XCTFail("expected SetAttributeResult") }
-        let opacity = alpha.attributeGroups.flatMap(\.attributes).first { $0.id == "layer.opacity" }
-        XCTAssertEqual(opacity?.value, .double(0.5))
+        let attributes = alpha.attributeGroups.flatMap(\.attributes)
+        XCTAssertEqual(attributes.first { $0.id == "view.alpha" }?.value, .double(0.5))
+        XCTAssertFalse(attributes.contains { $0.id == "layer.opacity" })
+        XCTAssertEqual(attributes.first { $0.id == "view.backgroundColor" }?.value, color(0.2, 0.4, 0.8))
+        XCTAssertFalse(attributes.contains { $0.id == "layer.backgroundColor" })
+        // P-ATTR-12 (1.1): one cluster across two groups.
+        XCTAssertEqual(
+            attributes.filter { $0.cluster == "corners" }.map { [$0.id, $0.slot] },
+            [["layer.cornerRadius", "radius"], ["view.clipsToBounds", "clip"]]
+        )
 
         guard case .setAttributeResult(let cleared)? = try fixture("set-attribute/10-s2c-result.bin").body
         else { return XCTFail("expected SetAttributeResult") }
         let background = cleared.attributeGroups.flatMap(\.attributes).first {
-            $0.id == "layer.backgroundColor"
+            $0.id == "view.backgroundColor"
         }
         XCTAssertEqual(
             background,
             Attribute(
-                id: "layer.backgroundColor",
-                title: "Background Color",
+                id: "view.backgroundColor",
+                title: "Background",
                 value: nil,
                 editable: true,
                 acceptsNil: true,
                 valueKind: .color,
-                section: .general
+                section: .appearance
             )
         )
     }
@@ -340,7 +427,11 @@ final class DetailsCodecTests: XCTestCase {
             ("02-s2c-error.bin", .layerNotFound),
             ("04-s2c-error.bin", .attributeNotEditable),
             ("06-s2c-error.bin", .invalidAttributeValue),
-            ("08-s2c-error.bin", .invalidAttributeValue)
+            ("08-s2c-error.bin", .invalidAttributeValue),
+            ("10-s2c-error.bin", .invalidAttributeValue),
+            ("12-s2c-error.bin", .invalidAttributeValue),
+            // P-ATTR-11 (1.1): the attribute of a pair that is left out.
+            ("14-s2c-error.bin", .attributeNotEditable)
         ]
         for (file, code) in expected {
             guard case .error(let error)? = try fixture("set-attribute-rejected/\(file)").body else {
@@ -351,6 +442,10 @@ final class DetailsCodecTests: XCTestCase {
         XCTAssertEqual(
             try fixture("set-attribute-rejected/07-c2s-set-nil.bin").body,
             .setAttribute(SetAttribute(layerID: 3, attributeID: "label.numberOfLines", value: nil))
+        )
+        XCTAssertEqual(
+            try fixture("set-attribute-rejected/13-c2s-set-paired-layer-attribute.bin").body,
+            .setAttribute(SetAttribute(layerID: 3, attributeID: "layer.opacity", value: .double(0.5)))
         )
     }
 
@@ -417,7 +512,7 @@ final class DetailsCodecTests: XCTestCase {
                     GetLayerDetails(
                         requests: [
                             request(3, solo: true),
-                            request(8),
+                            request(8, attributes: true),
                             request(9, attributes: true),
                             request(7, group: false)
                         ],
@@ -442,6 +537,41 @@ final class DetailsCodecTests: XCTestCase {
         XCTAssertEqual(bytes.count, 256 * 30)
         XCTAssertEqual(Array(bytes[0..<4]), [0x00, 0x80, 0xFF, 0xFF])
         XCTAssertEqual(Array(bytes[240..<256]), [UInt8](repeating: 0xAA, count: 16))
+        // A layer that backs no view: its own attributes of the pairs (P-ATTR-11, 1.1).
+        XCTAssertEqual(
+            details[1].attributeGroups,
+            [
+                AttributeGroup(
+                    id: "layer",
+                    title: "Layer",
+                    attributes: [
+                        Attribute(
+                            id: "layer.hidden",
+                            title: "Hidden",
+                            value: .bool(false),
+                            editable: true,
+                            valueKind: .bool,
+                            section: .appearance,
+                            cluster: "visibility",
+                            slot: "hidden"
+                        ),
+                        Attribute(
+                            id: "layer.opacity",
+                            title: "Opacity",
+                            value: .double(1),
+                            editable: true,
+                            valueKind: .double,
+                            section: .appearance,
+                            limits: [NumberLimit(minimum: 0, maximum: 1)],
+                            cluster: "visibility",
+                            slot: "opacity",
+                            unit: .fraction
+                        )
+                    ],
+                    className: "CALayer"
+                )
+            ]
+        )
 
         // Layer 9 has no size: no image, but the attributes that were asked for (P-DET-03).
         XCTAssertEqual(
@@ -459,17 +589,30 @@ final class DetailsCodecTests: XCTestCase {
                                 title: "Frame",
                                 value: .rect(WireRect(x: 300, y: 700, width: 0, height: 0)),
                                 valueKind: .rect,
-                                section: .layout
-                            ),
+                                section: .layout,
+                                cluster: "geometry",
+                                slot: "frame",
+                                unit: .points
+                            )
+                        ],
+                        className: "CALayer"
+                    ),
+                    AttributeGroup(
+                        id: "view",
+                        title: "View",
+                        attributes: [
                             Attribute(
-                                id: "layer.hidden",
+                                id: "view.isHidden",
                                 title: "Hidden",
                                 value: .bool(false),
                                 editable: true,
                                 valueKind: .bool,
-                                section: .general
+                                section: .appearance,
+                                cluster: "visibility",
+                                slot: "hidden"
                             )
-                        ]
+                        ],
+                        className: "UIView"
                     )
                 ]
             )
@@ -669,6 +812,8 @@ final class DetailsCodecTests: XCTestCase {
             className: String = "NSLayoutConstraint",
             identifier: String? = nil
         ) -> LayoutConstraint {
+            // P-LAYOUT-09 (1.1): the constraints UIKit generates for an autoresizing mask are the
+            // system's; the others the app's.
             LayoutConstraint(
                 id: id,
                 className: className,
@@ -681,7 +826,8 @@ final class DetailsCodecTests: XCTestCase {
                 multiplier: 1,
                 constant: constant,
                 priority: priority,
-                status: status
+                status: status,
+                origin: className == "NSAutoresizingMaskLayoutConstraint" ? .system : .app
             )
         }
         let safeArea = LayoutItem(
@@ -694,7 +840,8 @@ final class DetailsCodecTests: XCTestCase {
             guideFrame: WireRect(
                 origin: WirePoint(x: 0, y: 59),
                 size: WireSize(width: 393, height: 759)
-            )
+            ),
+            guideKind: .safeArea
         )
         let shared = constraint(4, 4, .top, view(3), .bottom, constant: 78)
         let autoresizing = "NSAutoresizingMaskLayoutConstraint"
