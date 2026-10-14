@@ -9,9 +9,15 @@ import UIKit
 /// of one moment.
 @MainActor
 enum HierarchyCapture {
-    /// - Parameter windows: back to front; each becomes a root node.
-    static func capture(windows: [UIWindow], registry: LayerRegistry) -> Hierarchy {
-        var walk = Walk()
+    /// - Parameters:
+    ///   - windows: back to front; each becomes a root node.
+    ///   - version: The negotiated version, whose tables of known classes apply (P-HIER-17).
+    static func capture(
+        windows: [UIWindow],
+        registry: LayerRegistry,
+        version: ProtocolVersion = .current
+    ) -> Hierarchy {
+        var walk = Walk(version: version)
         for window in windows {
             appendTree(of: window.layer, parentID: 0, registry: registry, to: &walk)
         }
@@ -24,7 +30,8 @@ enum HierarchyCapture {
     static func captureSubtree(
         rootID: UInt64,
         windows: [UIWindow],
-        registry: LayerRegistry
+        registry: LayerRegistry,
+        version: ProtocolVersion = .current
     ) -> Hierarchy? {
         guard let root = registry.layer(for: rootID),
               let ancestors = LayerTopology.ancestors(of: root, in: windows) else {
@@ -33,7 +40,7 @@ enum HierarchyCapture {
         // P-HIER-08: the holders are the views of the ancestors, and some of those lie above the
         // root. The chain of ancestors goes in front as nodes, each the parent of the next, so
         // that every one of them sees the whole subtree below it; their entries are dropped.
-        var walk = Walk()
+        var walk = Walk(version: version)
         var parentID: UInt64 = 0
         for ancestor in ancestors {
             let id = registry.register(ancestor)
@@ -53,21 +60,27 @@ enum HierarchyCapture {
         var views: [UIView?] = []
         var controllers: [UIViewController?] = []
         var classNames = ClassNames.Cache()
+        var classFacts: ClassFactsCache
+        var visibility = ControllerVisibility()
+
+        @MainActor
+        init(version: ProtocolVersion) {
+            classFacts = ClassFactsCache(version: version)
+        }
 
         @MainActor
         mutating func append(_ layer: CALayer, id: UInt64, parentID: UInt64) {
             let view = LayerTopology.backingView(of: layer)
             let controller = view.flatMap(LayerTopology.controller(ofRootView:))
-            nodes.append(
-                HierarchyCapture.node(
-                    for: layer,
-                    id: id,
-                    parentID: parentID,
-                    view: view,
-                    controller: controller,
-                    classNames: &classNames
-                )
+            let node = HierarchyCapture.node(
+                for: layer,
+                id: id,
+                parentID: parentID,
+                view: view,
+                controller: controller,
+                walk: &self
             )
+            nodes.append(node)
             layers.append(layer)
             views.append(view)
             controllers.append(controller)
@@ -155,11 +168,14 @@ enum HierarchyCapture {
         parentID: UInt64,
         view: UIView?,
         controller: UIViewController?,
-        classNames: inout ClassNames.Cache
+        walk: inout Walk
     ) -> LayerNode {
-        let layerNames = classNames.names(of: type(of: layer))
-        let viewNames = view.map { classNames.names(of: type(of: $0)) }
-        let controllerNames = controller.map { classNames.names(of: type(of: $0)) }
+        let layerType: AnyClass = type(of: layer)
+        let viewType: AnyClass? = view.map { type(of: $0) }
+        let controllerType: AnyClass? = controller.map { type(of: $0) }
+        let layerNames = walk.classNames.names(of: layerType)
+        let viewNames = viewType.map { walk.classNames.names(of: $0) }
+        let controllerNames = controllerType.map { walk.classNames.names(of: $0) }
         return LayerNode(
             id: id,
             parentID: parentID,
@@ -180,7 +196,14 @@ enum HierarchyCapture {
             // P-HIER-14: of the objects the names come from, so given exactly when they are.
             layerAddress: address(of: layer),
             viewAddress: view.map(address(of:)),
-            viewControllerAddress: controller.map(address(of:))
+            viewControllerAddress: controller.map(address(of:)),
+            // P-HIER-16 to 18: each given exactly when its class name is.
+            layerClassOrigin: walk.classFacts.origin(of: layerType),
+            viewClassOrigin: viewType.map { walk.classFacts.origin(of: $0) } ?? .unknown,
+            viewControllerClassOrigin: controllerType.map { walk.classFacts.origin(of: $0) } ?? .unknown,
+            layerBaseClassName: walk.classFacts.layerBaseName(of: layerType),
+            viewBaseClassName: viewType.flatMap { walk.classFacts.viewBaseName(of: $0) },
+            viewControllerVisibility: controller.map { walk.visibility.visibility(of: $0) } ?? .unknown
         )
     }
 

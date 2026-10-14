@@ -23,12 +23,12 @@ final class MainThreadClock: @unchecked Sendable {
     func configuration(_ base: ServerConfiguration = ServerConfiguration()) -> ServerConfiguration {
         var configuration = base
         var app = TestHostApp(base.hostApp)
-        app.captureHierarchy = { registry in
-            self.time("the hierarchy") { base.hostApp.captureHierarchy(registry: registry) }
+        app.captureHierarchy = { registry, version in
+            self.time("the hierarchy") { base.hostApp.captureHierarchy(registry: registry, version: version) }
         }
-        app.captureSubtree = { rootID, registry in
+        app.captureSubtree = { rootID, registry, version in
             self.time("the subtree of layer \(rootID)") {
-                base.hostApp.captureSubtree(of: rootID, registry: registry)
+                base.hostApp.captureSubtree(of: rootID, registry: registry, version: version)
             }
         }
         app.setAttribute = { request, registry in
