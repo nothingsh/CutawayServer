@@ -17,6 +17,8 @@ final class SessionHarness: @unchecked Sendable {
         // Touched on the session's queue only.
         var endedCount = 0
         var subtreeRoots: [UInt64] = []
+        /// The version each hierarchy and subtree was read for.
+        var captureVersions: [ProtocolVersion] = []
         var changes: [SetAttribute] = []
         var leavesActiveStateWhileReading = false
         weak var session: Session?
@@ -44,15 +46,18 @@ final class SessionHarness: @unchecked Sendable {
         }
 
         @MainActor
-        func captureHierarchy(registry: LayerRegistry) -> Hierarchy {
-            SessionHarness.hierarchy
+        func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
+            let state = self.state
+            queue.async { state.captureVersions.append(version) }
+            return SessionHarness.hierarchy
         }
 
         @MainActor
-        func captureSubtree(of rootID: UInt64, registry: LayerRegistry) -> Hierarchy? {
+        func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
             let state = self.state
             queue.async {
                 state.subtreeRoots.append(rootID)
+                state.captureVersions.append(version)
                 if state.leavesActiveStateWhileReading {
                     // As the server controller does: the session is told the state changed before
                     // the subtree that was being read arrives.
@@ -250,6 +255,9 @@ final class SessionHarness: @unchecked Sendable {
 
     /// The roots of the subtrees the session asked the host for, in order.
     var subtreeRoots: [UInt64] { queue.sync { state.subtreeRoots } }
+
+    /// The versions the hierarchies and subtrees were read for, in order.
+    var captureVersions: [ProtocolVersion] { queue.sync { state.captureVersions } }
 
     /// From now on the app leaves the active state while a subtree is being read.
     func leaveActiveStateWhileReadingSubtrees() {

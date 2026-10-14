@@ -40,7 +40,7 @@ final class BackpressureConnectionTests: ServerTestCase {
                     attributeGroups: []
                 )
             }
-            app.captureHierarchy = { _ in Hierarchy(nodes: [], keyWindowID: 0) }
+            app.captureHierarchy = { _, _ in Hierarchy(nodes: [], keyWindowID: 0) }
             configuration.hostApp = app
         }
     }

@@ -152,7 +152,7 @@ final class HierarchyRequestTests: ServerTestCase {
         let captures = CaptureCounter()
         let server = makeServer { configuration in
             var app = TestHostApp()
-            app.captureHierarchy = { registry in
+            app.captureHierarchy = { registry, _ in
                 captures.count += 1
                 return HierarchyCapture.capture(windows: HostWindows.all(), registry: registry)
             }
@@ -199,7 +199,7 @@ final class HierarchyRequestTests: ServerTestCase {
         let server = makeServer { configuration in
             let center = configuration.notificationCenter
             var app = TestHostApp()
-            app.captureHierarchy = { registry in
+            app.captureHierarchy = { registry, _ in
                 let hierarchy = HierarchyCapture.capture(windows: HostWindows.all(), registry: registry)
                 // The app resigns while the layers are being read. Posted on the main thread, the
                 // notification has reached the server's observer when `post` returns.

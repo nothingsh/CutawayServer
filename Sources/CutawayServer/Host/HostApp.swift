@@ -10,11 +10,13 @@ protocol HostApp: Sendable {
     @MainActor func appInfo() -> AppInfo
     /// The primary icon; `nil` when the app has none that can be drawn.
     @MainActor func iconImage() -> UIImage?
-    /// Reads the layer hierarchy for one `GetHierarchy`, with the connection's registry.
-    @MainActor func captureHierarchy(registry: LayerRegistry) -> Hierarchy
-    /// Reads the subtree for one `GetSubtree`, with the connection's registry; `nil` when the
+    /// Reads the layer hierarchy for one `GetHierarchy`, with the connection's registry, for a
+    /// client working at the negotiated `version` (PROTOCOL.md, P-HIER-17).
+    @MainActor func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy
+    /// Reads the subtree for one `GetSubtree`, as `captureHierarchy` does; `nil` when the
     /// layer does not exist (PROTOCOL.md, P-HIER-11).
-    @MainActor func captureSubtree(of rootID: UInt64, registry: LayerRegistry) -> Hierarchy?
+    @MainActor func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion)
+        -> Hierarchy?
     /// Carries out one `SetAttribute` with the connection's registry (PROTOCOL.md, P-SET-01).
     @MainActor func setAttribute(_ change: SetAttribute, registry: LayerRegistry)
         -> Result<SetAttributeResult, WireError>
@@ -75,13 +77,18 @@ struct LiveHostApp: HostApp {
     }
 
     @MainActor
-    func captureHierarchy(registry: LayerRegistry) -> Hierarchy {
-        HierarchyCapture.capture(windows: HostWindows.all(), registry: registry)
+    func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
+        HierarchyCapture.capture(windows: HostWindows.all(), registry: registry, version: version)
     }
 
     @MainActor
-    func captureSubtree(of rootID: UInt64, registry: LayerRegistry) -> Hierarchy? {
-        HierarchyCapture.captureSubtree(rootID: rootID, windows: HostWindows.all(), registry: registry)
+    func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
+        HierarchyCapture.captureSubtree(
+            rootID: rootID,
+            windows: HostWindows.all(),
+            registry: registry,
+            version: version
+        )
     }
 
     @MainActor
