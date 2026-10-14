@@ -161,7 +161,9 @@ final class AutoresizingConstraintTests: CaptureTestCase {
                 multiplier: 2,
                 constant: 7,
                 priority: 750,
-                status: .unknown
+                status: .unknown,
+                // A subclass of the app's (P-LAYOUT-09).
+                origin: .app
             )
         )
     }
