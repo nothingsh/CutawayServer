@@ -99,14 +99,14 @@ final class LayoutAttributeTests: CaptureTestCase {
         XCTAssertEqual(
             group.attributes.suffix(8).map(\.title),
             [
-                "Content Hugging Priority Horizontal",
-                "Content Hugging Priority Vertical",
-                "Content Compression Resistance Priority Horizontal",
-                "Content Compression Resistance Priority Vertical",
-                "Intrinsic Content Size Width",
-                "Intrinsic Content Size Height",
-                "Translates Autoresizing Mask Into Constraints",
-                "Has Ambiguous Layout"
+                "Hugging (Horizontal)",
+                "Hugging (Vertical)",
+                "Compression Resistance (Horizontal)",
+                "Compression Resistance (Vertical)",
+                "Intrinsic Width",
+                "Intrinsic Height",
+                "Autoresizing Mask to Constraints",
+                "Ambiguous Layout"
             ]
         )
         // P-ATTR-06, also for the nil intrinsic sizes of a plain view.

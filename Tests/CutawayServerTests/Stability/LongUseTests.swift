@@ -77,7 +77,7 @@ final class LongUseTests: CaptureTestCase {
         let row = harness.registry.register(tree.rowViews[0].layer)
         let change = SetAttribute(
             layerID: row,
-            attributeID: "layer.opacity",
+            attributeID: "view.alpha",
             value: .double(round.isMultiple(of: 2) ? 0.5 : 1)
         )
         let changed = try await harness.exchange(

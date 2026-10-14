@@ -69,11 +69,14 @@ enum AttributeOutputs {
         Float(min(max(WireGeometry.finite(value), 0), 1))
     }
 
-    /// A dynamic colour is taken as it looks in `view`: in its light or dark appearance.
+    /// A dynamic colour is taken as it looks in `view`: in its light or dark appearance. A
+    /// system colour is named (P-ATTR-15), before resolving, which makes it a colour of its own.
     @MainActor
     static func color(_ color: UIColor?, in view: UIView) -> AttributeValue? {
         guard let color else { return nil }
-        return self.color(color.resolvedColor(with: view.traitCollection).cgColor)
+        let value = self.color(color.resolvedColor(with: view.traitCollection).cgColor)
+        guard case .color(let resolved, _)? = value else { return value }
+        return .color(resolved, systemName: SystemColors.name(of: color))
     }
 
     /// `names` are the enumeration's cases in declaration order; a case's index is its raw

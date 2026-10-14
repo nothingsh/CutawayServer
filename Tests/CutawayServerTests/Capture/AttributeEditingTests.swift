@@ -163,19 +163,22 @@ final class AttributeEditingTests: CaptureTestCase {
             ("layer.masksToBounds", .bool(true), []),
             ("layer.cornerRadius", .double(6), []),
             ("layer.backgroundColor", color(0.2, 0.4, 0.6), []),
-            ("layer.borderWidth", .double(2), []),
+            // P-ATTR-13: the border now shows its color.
+            ("layer.borderWidth", .double(2), ["layer.borderColor"]),
             ("layer.borderColor", color(1, 0, 0), []),
             ("layer.shadowColor", color(0, 0, 1), []),
-            ("layer.shadowOpacity", .double(0.5), []),
+            ("layer.shadowOpacity", .double(0.5), ["layer.shadowColor", "layer.shadowRadius", "layer.shadowOffset"]),
             ("layer.shadowRadius", .double(9), []),
             ("layer.shadowOffset", .size(WireSize(width: 4, height: 5)), []),
-            ("view.alpha", .double(0.5), ["layer.opacity"]),
-            ("view.isHidden", .bool(true), ["layer.hidden"]),
+            // The layer's side of each pair is not among a view's attributes (P-ATTR-11).
+            ("view.alpha", .double(0.5), []),
+            ("view.isHidden", .bool(true), []),
             ("view.isOpaque", .bool(false), []),
-            ("view.clipsToBounds", .bool(true), ["layer.masksToBounds"]),
+            ("view.clipsToBounds", .bool(true), []),
             ("view.isUserInteractionEnabled", .bool(false), []),
             ("view.tag", .int(42), []),
             ("view.contentMode", enumeration(4), []),
+            ("view.backgroundColor", color(1, 0.5, 0), []),
             ("view.tintColor", color(0, 1, 0), []),
             ("view.layoutMargins", .insets(WireInsets(top: 1, left: 2, bottom: 3, right: 4)), []),
             ("view.contentHuggingPriority.horizontal", .double(300), []),
@@ -226,7 +229,7 @@ final class AttributeEditingTests: CaptureTestCase {
         // The table has every attribute the list lets a client change, and no other.
         let editable = ExpectedAttributes.groups.values.flatMap(\.attributes).filter(\.editable).map(\.id)
         XCTAssertEqual(Set(Self.writes.map(\.id)), Set(editable))
-        XCTAssertEqual(Self.writes.count, 62)
+        XCTAssertEqual(Self.writes.count, 63)
 
         for (id, value, alsoChanges) in Self.writes {
             let specimens = try makeSpecimens()
@@ -276,6 +279,7 @@ final class AttributeEditingTests: CaptureTestCase {
             ("layer.backgroundColor", { $0.layer.backgroundColor = nil }),
             ("layer.borderColor", { $0.layer.borderColor = nil }),
             ("layer.shadowColor", { $0.layer.shadowColor = nil }),
+            ("view.backgroundColor", { $0.view.backgroundColor = nil }),
             ("view.tintColor", { $0.view.tintColor = nil }),
             ("label.text", { $0.label.text = nil }),
             ("label.textColor", { $0.label.textColor = nil }),
@@ -646,6 +650,99 @@ final class AttributeEditingTests: CaptureTestCase {
             code: .attributeNotEditable,
             message: "layer.backgroundColor is read-only"
         )
+    }
+
+    // MARK: - Protocol 1.1
+
+    func test_S_ATTR_10_theLayersSideOfAPairIsNotEditableOnAView() throws {
+        let specimens = try makeSpecimens()
+        let registry = LayerRegistry()
+        for pair in AttributeTables.pairs {
+            try assertRejected(
+                pair.layer,
+                pair.layer == "layer.opacity" ? .double(0.5) : .bool(true),
+                on: specimens.view.layer,
+                in: specimens,
+                registry: registry,
+                code: .attributeNotEditable,
+                message: "layer \(registry.register(specimens.view.layer)) backs a view; set \(pair.view) instead of \(pair.layer)"
+            )
+        }
+        // The view's side is written, and the answer holds it alone (P-SET-01, P-ATTR-11).
+        let answer = try apply("view.alpha", .double(0.5), on: specimens.view.layer, in: specimens.window).get()
+        let ids = Set(answer.attributeGroups.flatMap(\.attributes).map(\.id))
+        for pair in AttributeTables.pairs {
+            XCTAssertTrue(ids.contains(pair.view), pair.view)
+            XCTAssertFalse(ids.contains(pair.layer), pair.layer)
+        }
+        XCTAssertEqual(specimens.view.layer.opacity, 0.5)
+        // On a layer of its own, the layer's side is there to be written.
+        _ = try apply("layer.opacity", .double(0.25), on: specimens.layer, in: specimens.window).get()
+        XCTAssertEqual(specimens.layer.opacity, 0.25)
+    }
+
+    func test_S_ATTR_10_aViewsBackgroundIsTheOneItDraws() throws {
+        // A label draws its view's background into its contents, over the layer's; the layer's
+        // stays nil. Its background is the view's, read and written as such.
+        let specimens = try makeSpecimens()
+        let label = specimens.label
+        label.backgroundColor = .white
+        let before = attributes(of: label.layer)
+        XCTAssertNil(before["layer.backgroundColor"])
+        XCTAssertTrue(matches(before["view.backgroundColor"]?.value, color(1, 1, 1)))
+
+        _ = try apply("view.backgroundColor", color(1, 0.5, 0), on: label.layer, in: specimens.window).get()
+        XCTAssertTrue(matches(attributes(of: label.layer)["view.backgroundColor"]?.value, color(1, 0.5, 0)))
+        XCTAssertNil(label.layer.backgroundColor)
+        let registry = LayerRegistry()
+        try assertRejected(
+            "layer.backgroundColor",
+            color(1, 0.5, 0),
+            on: label.layer,
+            in: specimens,
+            registry: registry,
+            code: .attributeNotEditable,
+            message: "layer \(registry.register(label.layer)) backs a view; set view.backgroundColor instead of "
+                + "layer.backgroundColor"
+        )
+    }
+
+    func test_S_ATTR_12_theAnswerToAChangeSaysWhatHasNoEffectNow() throws {
+        let specimens = try makeSpecimens()
+        func cause(of id: String, in answer: SetAttributeResult) -> String? {
+            answer.attributeGroups.flatMap(\.attributes).first { $0.id == id }?.inactiveCause
+        }
+        specimens.layer.borderWidth = 0
+        specimens.layer.shadowOpacity = 0
+        let border = try apply("layer.borderWidth", .double(2), on: specimens.layer, in: specimens.window).get()
+        XCTAssertNil(cause(of: "layer.borderColor", in: border))
+        XCTAssertEqual(cause(of: "layer.shadowColor", in: border), "layer.shadowOpacity")
+        let noBorder = try apply("layer.borderWidth", .double(0), on: specimens.layer, in: specimens.window).get()
+        XCTAssertEqual(cause(of: "layer.borderColor", in: noBorder), "layer.borderWidth")
+        let shadow = try apply("layer.shadowOpacity", .double(0.4), on: specimens.layer, in: specimens.window).get()
+        for id in ["layer.shadowColor", "layer.shadowRadius", "layer.shadowOffset"] {
+            XCTAssertNil(cause(of: id, in: shadow), id)
+        }
+    }
+
+    func test_S_ATTR_14_aSystemColorsNameIsIgnoredWhenWritten() throws {
+        let plain = try makeSpecimens()
+        let named = try makeSpecimens()
+        let blue = WireColor(red: 0, green: 0.5, blue: 1, alpha: 1)
+        let withoutName = try apply("label.textColor", .color(blue), on: plain.label.layer, in: plain.window).get()
+        let withName = try apply(
+            "label.textColor",
+            .color(blue, systemName: "systemRed"),
+            on: named.label.layer,
+            in: named.window
+        ).get()
+        let read = { (answer: SetAttributeResult) in
+            answer.attributeGroups.flatMap(\.attributes).first { $0.id == "label.textColor" }
+        }
+        XCTAssertEqual(read(withName), read(withoutName))
+        // A fixed colour, as written: no name.
+        guard case .color(_, let name)? = read(withName)?.value else { return XCTFail("not a color") }
+        XCTAssertNil(name)
     }
 
     // MARK: - S-SET-03

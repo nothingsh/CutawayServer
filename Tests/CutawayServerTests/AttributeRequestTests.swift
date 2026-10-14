@@ -5,7 +5,7 @@ import XCTest
 
 @testable import CutawayServer
 
-/// A window of the test's own and its label. Touched on the main thread only.
+/// A window of the test's own, its label and a plain view. Touched on the main thread only.
 @MainActor
 private final class LabelBox {
     var window: UIWindow?
@@ -24,10 +24,14 @@ final class AttributeRequestTests: ServerTestCase {
                 UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
             )
             let window = UIWindow(windowScene: scene)
+            // Behind the host's own window, so that it is read first and its layers get the
+            // first IDs: the window 1, the label 2, the plain view 3.
+            window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
             window.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
             let label = UILabel(frame: CGRect(x: 20, y: 40, width: 219, height: 27))
             label.text = "Before"
             window.addSubview(label)
+            window.addSubview(UIView(frame: CGRect(x: 20, y: 100, width: 50, height: 50)))
             window.isHidden = false
             box.window = window
             box.label = label
@@ -78,8 +82,13 @@ final class AttributeRequestTests: ServerTestCase {
         )
 
         // P-SET-03: the first three requests of the `set-attribute-rejected` fixture, byte for byte.
-        // They do not depend on what layer 3 is; this connection has given out that ID.
-        XCTAssertGreaterThanOrEqual(hierarchy.nodes.count, 3)
+        // This connection has given out the ID 3. Since protocol 1.1 the third writes
+        // `view.alpha`, which only a view's layer has (P-ATTR-11): layer 3 is the plain view.
+        XCTAssertEqual(
+            hierarchy.nodes.first { $0.id == 3 }?.viewClassName,
+            "UIView",
+            "05-c2s-set-wrong-kind writes view.alpha on layer 3"
+        )
         for (request, error) in [
             ("01-c2s-set-missing-layer", "02-s2c-error"),
             ("03-c2s-set-read-only", "04-s2c-error"),
