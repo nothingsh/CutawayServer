@@ -44,43 +44,22 @@ final class EditChecksTests: XCTestCase {
     /// The groups of a label as the attribute list has them, with `text`.
     private func labelGroups(text: String) -> [AttributeGroup] {
         ["layer", "view", "label"].map { groupID in
-            AttributeGroup(
-                id: groupID,
-                title: groupID,
-                attributes: AttributeChecks.list[groupID]!.map { entry in
-                    let id = "\(groupID).\(entry.name)"
-                    let value: AttributeValue
-                    switch entry.kind {
-                    case .bool: value = .bool(false)
-                    case .int: value = .int(1)
-                    case .double: value = .double(1)
-                    case .string: value = .string(id == "label.text" ? text : "Name")
-                    case .color: value = .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1))
-                    case .point: value = .point(WirePoint(x: 0, y: 0))
-                    case .size: value = .size(WireSize(width: 1, height: 1))
-                    case .rect: value = .rect(WireRect(x: 0, y: 0, width: 1, height: 1))
-                    case .insets: value = .insets(WireInsets(top: 0, left: 0, bottom: 0, right: 0))
-                    case .transform: value = .transform(.identity)
-                    case .enumeration: value = .enumeration(
-                            value: 0,
-                            cases: ["only"],
-                            caseName: "only",
-                            caseValues: [0]
-                        )
-                    case .none: fatalError("every attribute of the list has a kind")
-                    }
-                    return Attribute(
-                        id: id,
-                        title: entry.name,
-                        value: value,
-                        editable: entry.editable,
-                        acceptsNil: entry.acceptsNil,
-                        valueKind: entry.kind,
-                        section: AttributeChecks.sections[id] ?? .general,
-                        limits: entry.editable ? AttributeChecks.limits[id] ?? [] : []
-                    )
+            AttributeChecks.listedGroup(groupID, backsView: true) { id, entry in
+                switch entry.kind {
+                case .bool: .bool(false)
+                case .int: .int(1)
+                case .double: .double(1)
+                case .string: .string(id == "label.text" ? text : "Name")
+                case .color: .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1))
+                case .point: .point(WirePoint(x: 0, y: 0))
+                case .size: .size(WireSize(width: 1, height: 1))
+                case .rect: .rect(WireRect(x: 0, y: 0, width: 1, height: 1))
+                case .insets: .insets(WireInsets(top: 0, left: 0, bottom: 0, right: 0))
+                case .transform: .transform(.identity)
+                case .enumeration: .enumeration(value: 0, cases: ["only"], caseName: "only", caseValues: [0])
+                case .none: fatalError("every attribute of the list has a kind")
                 }
-            )
+            }
         }
     }
 

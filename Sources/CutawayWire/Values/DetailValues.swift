@@ -79,7 +79,9 @@ public enum AttributeValue: Sendable, Equatable {
     case int(Int64)
     case double(Double)
     case string(String)
-    case color(WireColor)
+    /// `systemName` is the UIKit system color the server recognized it as (P-ATTR-15, protocol
+    /// 1.1); a server reads only the color (P-SET-02).
+    case color(WireColor, systemName: String? = nil)
     case point(WirePoint)
     case size(WireSize)
     case rect(WireRect)
@@ -118,7 +120,7 @@ public enum AttributeValue: Sendable, Equatable {
             return [Double(number)]
         case .double(let number):
             return [number]
-        case .color(let color):
+        case .color(let color, _):
             return [color.red, color.green, color.blue, color.alpha].map(Double.init)
         case .point(let point):
             return [point.x, point.y]
@@ -164,17 +166,42 @@ public enum AttributeSection: Sendable, Equatable, CaseIterable {
     case identity
     case general
     case layout
+    case content
+    case appearance
+    case behavior
 
     /// The minor version of protocol 1 that named this value. No `default`, so that a value
     /// added later cannot reach every peer by accident (P-HELLO-04).
     public var minorVersion: UInt16 {
         switch self {
         case .unspecified: return 0
-        case .identity, .general, .layout: return 1
+        case .identity, .general, .layout, .content, .appearance, .behavior: return 1
         }
     }
 
     /// P-ATTR-08: a section the peer's version does not have is sent as `unspecified`.
+    func adapted(to version: ProtocolVersion) -> Self {
+        minorVersion <= version.minor ? self : .unspecified
+    }
+}
+
+/// How to read the numbers of an attribute's value (P-ATTR-14, protocol 1.1).
+public enum AttributeUnit: Sendable, Equatable, CaseIterable {
+    case unspecified
+    /// Lengths in points.
+    case points
+    /// A proportion where 1 is the whole.
+    case fraction
+
+    /// The minor version of protocol 1 that named this value. No `default` (P-HELLO-04).
+    public var minorVersion: UInt16 {
+        switch self {
+        case .unspecified: return 0
+        case .points, .fraction: return 1
+        }
+    }
+
+    /// P-ATTR-14: a unit the peer's version does not have is sent as `unspecified`.
     func adapted(to version: ProtocolVersion) -> Self {
         minorVersion <= version.minor ? self : .unspecified
     }
@@ -220,6 +247,41 @@ public struct NumberLimit: Sendable, Equatable {
     }
 }
 
+/// The protocol's tables about attributes (protocol 1.1): only appended to.
+public enum AttributeTables {
+    /// P-ATTR-11: a view attribute and a layer attribute that read and write the same state.
+    /// One layer's groups hold at most one of each pair: the view's when the layer backs a
+    /// view, the layer's otherwise.
+    public static let pairs: [(view: String, layer: String)] = [
+        ("view.isHidden", "layer.hidden"),
+        ("view.alpha", "layer.opacity"),
+        ("view.clipsToBounds", "layer.masksToBounds"),
+        ("view.backgroundColor", "layer.backgroundColor")
+    ]
+
+    /// P-ATTR-12: the clusters and their slots.
+    public static let clusters: [String: Set<String>] = [
+        "visibility": ["hidden", "opacity"],
+        "corners": ["radius", "clip"],
+        "border": ["width", "color"],
+        "shadow": ["color", "opacity", "radius", "offset"],
+        "geometry": ["frame", "bounds", "position", "anchor", "zPosition", "transform"],
+        "sizing": [
+            "hugging.horizontal",
+            "hugging.vertical",
+            "compression.horizontal",
+            "compression.vertical",
+            "intrinsic.width",
+            "intrinsic.height"
+        ],
+        "autoLayout": ["autoresizing", "ambiguous"],
+        "font": ["name", "size"],
+        "lines": ["count", "lineBreak"],
+        "state": ["enabled", "selected", "highlighted"],
+        "scrolling": ["enabled", "paging"]
+    ]
+}
+
 public struct Attribute: Sendable, Equatable {
     /// Stable, for example "layer.cornerRadius" (P-ATTR-01).
     public var id: String
@@ -237,6 +299,15 @@ public struct Attribute: Sendable, Equatable {
     /// The values `SetAttribute` accepts: one entry for every component, or one per component
     /// (P-ATTR-09, protocol 1.1). Empty states no limits.
     public var limits: [NumberLimit]
+    /// The compound row this attribute is part of, and its part in it; `slot` is set exactly
+    /// when `cluster` is (P-ATTR-12, protocol 1.1).
+    public var cluster: String?
+    public var slot: String?
+    /// The ID of the attribute of the same layer that makes this one have no effect now
+    /// (P-ATTR-13, protocol 1.1).
+    public var inactiveCause: String?
+    /// How to read the value's numbers (P-ATTR-14, protocol 1.1).
+    public var unit: AttributeUnit
 
     public init(
         id: String,
@@ -246,7 +317,11 @@ public struct Attribute: Sendable, Equatable {
         acceptsNil: Bool = false,
         valueKind: AttributeValueKind = .none,
         section: AttributeSection = .unspecified,
-        limits: [NumberLimit] = []
+        limits: [NumberLimit] = [],
+        cluster: String? = nil,
+        slot: String? = nil,
+        inactiveCause: String? = nil,
+        unit: AttributeUnit = .unspecified
     ) {
         self.id = id
         self.title = title
@@ -256,6 +331,10 @@ public struct Attribute: Sendable, Equatable {
         self.valueKind = valueKind
         self.section = section
         self.limits = limits
+        self.cluster = cluster
+        self.slot = slot
+        self.inactiveCause = inactiveCause
+        self.unit = unit
     }
 }
 
@@ -264,11 +343,15 @@ public struct AttributeGroup: Sendable, Equatable {
     public var id: String
     public var title: String
     public var attributes: [Attribute]
+    /// The runtime name of the class that declares the group's properties (P-ATTR-16,
+    /// protocol 1.1).
+    public var className: String?
 
-    public init(id: String, title: String, attributes: [Attribute]) {
+    public init(id: String, title: String, attributes: [Attribute], className: String? = nil) {
         self.id = id
         self.title = title
         self.attributes = attributes
+        self.className = className
     }
 }
 
@@ -302,9 +385,10 @@ public struct LayerDetail: Sendable, Equatable {
 }
 
 extension LayerDetail {
-    /// P-HELLO-04, P-LAYOUT-08, P-ATTR-08: the detail as a peer working at `version` may
-    /// receive it. Every layout attribute that `version` does not name becomes `notAnAttribute`
-    /// and every section it does not have `unspecified`; nothing else changes.
+    /// P-HELLO-04, P-LAYOUT-08, P-ATTR-08, P-ATTR-14, P-LAYOUT-04: the detail as a peer working
+    /// at `version` may receive it. Every layout attribute that `version` does not name becomes
+    /// `notAnAttribute`, every section and unit it does not have `unspecified`, and every guide
+    /// kind it does not have `other`; nothing else changes.
     public func adapted(to version: ProtocolVersion) -> LayerDetail {
         var detail = self
         detail.attributeGroups = attributeGroups.map { $0.adapted(to: version) }
@@ -314,11 +398,13 @@ extension LayerDetail {
 }
 
 extension AttributeGroup {
-    /// P-ATTR-08: each section the peer's version does not have becomes `unspecified`.
+    /// P-ATTR-08, P-ATTR-14: each section and unit the peer's version does not have becomes
+    /// `unspecified`.
     func adapted(to version: ProtocolVersion) -> AttributeGroup {
         var group = self
         for index in group.attributes.indices {
             group.attributes[index].section = attributes[index].section.adapted(to: version)
+            group.attributes[index].unit = attributes[index].unit.adapted(to: version)
         }
         return group
     }
@@ -413,6 +499,31 @@ public enum LayoutItemKind: Sendable, Equatable {
     case other
 }
 
+/// Which of its owner's guides a layout guide is (P-LAYOUT-04, protocol 1.1). `unknown` means
+/// absent.
+public enum LayoutGuideKind: Sendable, Equatable, CaseIterable {
+    case unknown
+    case other
+    case safeArea
+    case layoutMargins
+    case readableContent
+    case keyboard
+
+    /// The minor version of protocol 1 that named this value. No `default` (P-HELLO-04).
+    public var minorVersion: UInt16 {
+        switch self {
+        case .unknown: return 0
+        case .other, .safeArea, .layoutMargins, .readableContent, .keyboard: return 1
+        }
+    }
+
+    /// P-LAYOUT-04: a kind the peer's version does not have is sent as `other`. Absent stays
+    /// absent.
+    func adapted(to version: ProtocolVersion) -> Self {
+        self == .unknown || minorVersion <= version.minor ? self : .other
+    }
+}
+
 /// Whether a constraint's relation holds in the current layout (P-LAYOUT-06).
 public enum ConstraintStatus: Sendable, Equatable {
     case unknown
@@ -434,6 +545,8 @@ public struct LayoutItem: Sendable, Equatable {
     public var identifier: String?
     /// A layout guide's `layoutFrame`, in its owning view's bounds.
     public var guideFrame: WireRect?
+    /// A layout guide only (protocol 1.1); `unknown` when absent.
+    public var guideKind: LayoutGuideKind
 
     public init(
         kind: LayoutItemKind,
@@ -442,7 +555,8 @@ public struct LayoutItem: Sendable, Equatable {
         className: String? = nil,
         displayClassName: String? = nil,
         identifier: String? = nil,
-        guideFrame: WireRect? = nil
+        guideFrame: WireRect? = nil,
+        guideKind: LayoutGuideKind = .unknown
     ) {
         self.kind = kind
         self.layerID = layerID
@@ -451,6 +565,7 @@ public struct LayoutItem: Sendable, Equatable {
         self.displayClassName = displayClassName
         self.identifier = identifier
         self.guideFrame = guideFrame
+        self.guideKind = guideKind
     }
 }
 
@@ -471,6 +586,8 @@ public struct LayoutConstraint: Sendable, Equatable {
     public var constant: Double
     public var priority: Float
     public var status: ConstraintStatus
+    /// Whether UIKit created it (P-LAYOUT-09, protocol 1.1); `unknown` when absent.
+    public var origin: Origin
 
     public init(
         id: UInt64,
@@ -484,7 +601,8 @@ public struct LayoutConstraint: Sendable, Equatable {
         multiplier: Double,
         constant: Double,
         priority: Float,
-        status: ConstraintStatus
+        status: ConstraintStatus,
+        origin: Origin = .unknown
     ) {
         self.id = id
         self.className = className
@@ -498,15 +616,19 @@ public struct LayoutConstraint: Sendable, Equatable {
         self.constant = constant
         self.priority = priority
         self.status = status
+        self.origin = origin
     }
 }
 
 extension LayoutConstraint {
-    /// P-LAYOUT-08: the constraint and both its items are sent all the same.
+    /// P-LAYOUT-08: the constraint and both its items are sent all the same. P-LAYOUT-04: a
+    /// guide kind the peer's version does not have becomes `other`.
     public func adapted(to version: ProtocolVersion) -> LayoutConstraint {
         var constraint = self
         constraint.firstAttribute = firstAttribute.adapted(to: version)
         constraint.secondAttribute = secondAttribute.adapted(to: version)
+        constraint.firstItem?.guideKind = firstItem?.guideKind.adapted(to: version) ?? .unknown
+        constraint.secondItem?.guideKind = secondItem?.guideKind.adapted(to: version) ?? .unknown
         return constraint
     }
 }

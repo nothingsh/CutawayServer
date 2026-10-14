@@ -60,7 +60,8 @@ enum DetailChecks {
                 for: item,
                 node: nodes[detail.layerID],
                 nodes: nodes,
-                tables: &tables
+                tables: &tables,
+                version: version
             )
         }
 

@@ -178,7 +178,8 @@ final class SessionVersionTests: XCTestCase {
                         editable: true,
                         valueKind: .int,
                         section: section,
-                        limits: [NumberLimit(minimum: 0)]
+                        limits: [NumberLimit(minimum: 0)],
+                        unit: .points
                     )
                 }
             )
@@ -200,9 +201,19 @@ final class SessionVersionTests: XCTestCase {
         body: .setAttribute(SetAttribute(layerID: 9, attributeID: "view.tag", value: .int(2)))
     )
 
-    /// The sections in the chunk and in the change's result, after a handshake at `version`.
-    private func sections(afterHandshakeAt version: ProtocolVersion) async throws
-        -> (detail: [AttributeSection], result: [AttributeSection], limits: [[NumberLimit]]) {
+    /// What a client at one version gets of the scripted attributes.
+    private struct Received {
+        /// The sections in the chunk and in the change's result.
+        var detail: [AttributeSection]
+        var result: [AttributeSection]
+        /// The limits in both.
+        var limits: [[NumberLimit]]
+        /// The units in the chunk.
+        var units: [AttributeUnit]
+    }
+
+    /// What the chunk and the change's result hold, after a handshake at `version`.
+    private func sections(afterHandshakeAt version: ProtocolVersion) async throws -> Received {
         let harness = SessionHarness(capture: ScriptedCapture(attributeGroups: Self.sectioned(_:)))
         try await harness.handshake(version: version)
         harness.receive(Self.attributesRequest, Self.change)
@@ -214,22 +225,34 @@ final class SessionVersionTests: XCTestCase {
         }
         let detailAttributes = chunk.details.flatMap(\.attributeGroups).flatMap(\.attributes)
         let resultAttributes = result.attributeGroups.flatMap(\.attributes)
-        return (
-            detailAttributes.map(\.section),
-            resultAttributes.map(\.section),
-            (detailAttributes + resultAttributes).map(\.limits)
+        return Received(
+            detail: detailAttributes.map(\.section),
+            result: resultAttributes.map(\.section),
+            limits: (detailAttributes + resultAttributes).map(\.limits),
+            units: detailAttributes.map(\.unit)
         )
+    }
+
+    func test_S_ATTR_13_aProtocol1_0ClientGetsUnspecifiedUnits() async throws {
+        let old = try await sections(afterHandshakeAt: version(0))
+        XCTAssertTrue(old.units.allSatisfy { $0 == .unspecified })
+        let current = try await sections(afterHandshakeAt: version(1))
+        XCTAssertTrue(current.units.allSatisfy { $0 == .points })
     }
 
     func test_S_ATTR_08_aProtocol1_0ClientGetsUnspecifiedSections() async throws {
         let old = try await sections(afterHandshakeAt: version(0))
-        XCTAssertEqual(old.detail, Array(repeating: .unspecified, count: 4))
+        let count = AttributeSection.allCases.count
+        XCTAssertEqual(old.detail, Array(repeating: .unspecified, count: count))
         XCTAssertEqual(old.result, [.unspecified])
         // Limits are appended fields a 1.0 client does not read: they go out as they are.
-        XCTAssertEqual(old.limits, Array(repeating: [NumberLimit(minimum: 0)], count: 5))
+        XCTAssertEqual(old.limits, Array(repeating: [NumberLimit(minimum: 0)], count: count + 1))
+        // S-ATTR-13: 1.0 has no units either (P-ATTR-14).
+        XCTAssertEqual(old.units, Array(repeating: .unspecified, count: count))
 
         let current = try await sections(afterHandshakeAt: version(1))
         XCTAssertEqual(current.detail, AttributeSection.allCases)
         XCTAssertEqual(current.result, [.layout])
+        XCTAssertEqual(current.units, Array(repeating: .points, count: AttributeSection.allCases.count))
     }
 }

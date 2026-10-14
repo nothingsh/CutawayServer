@@ -125,7 +125,10 @@ final class HierarchyCodecTests: XCTestCase {
                 opacity: 1,
                 masksToBounds: false,
                 layerAddress: 0x6000_03B4_C000,
-                viewAddress: 0x1_0380_6A00
+                viewAddress: 0x1_0380_6A00,
+                layerClassOrigin: .system,
+                viewClassOrigin: .system,
+                viewBaseClassName: "UIWindow"
             )
         )
 
@@ -292,6 +295,61 @@ final class HierarchyCodecTests: XCTestCase {
             XCTAssertEqual(node.viewControllerAddress != nil, node.viewControllerClassName != nil, "\(node.id)")
         }
         XCTAssertEqual(nodes.filter { $0.viewAddress == nil }.map(\.id), [5, 8])
+    }
+
+    func test_S_HIER_14_decodesTheFixtureOriginsBaseClassesAndVisibility() throws {
+        // Protocol 1.1 (Protocol/fixtures/README.md, "Origins, base classes and visibility").
+        let nodes = try fixtureHierarchy().nodes
+        for node in nodes {
+            // P-HIER-16, 18: given exactly when the class names are.
+            XCTAssertEqual(node.layerClassOrigin, .system, "\(node.id)")
+            XCTAssertEqual(
+                node.viewClassOrigin,
+                node.viewClassName == nil ? .unknown : node.id == 4 ? .app : .system,
+                "\(node.id)"
+            )
+            XCTAssertEqual(node.viewControllerClassOrigin, node.id == 2 ? .app : .unknown, "\(node.id)")
+            XCTAssertEqual(node.viewControllerVisibility, node.id == 2 ? .shown : .unknown, "\(node.id)")
+        }
+        // P-HIER-17.
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: nodes.compactMap { node in node.viewBaseClassName.map { (node.id, $0) } }),
+            [1: "UIWindow", 3: "UILabel", 6: "UIScrollView", 7: "UILabel"]
+        )
+        XCTAssertEqual(nodes.compactMap(\.layerBaseClassName), ["CAShapeLayer"])
+        XCTAssertEqual(nodes.first { $0.layerBaseClassName != nil }?.id, 5)
+    }
+
+    func test_S_HIER_14_newNodeFieldsRoundTripAndUnknownMeansAbsent() throws {
+        var node = LayerNode(
+            id: 7,
+            parentID: 1,
+            className: "CALayer",
+            displayClassName: "CALayer",
+            viewClassName: "Demo.CardView",
+            viewDisplayClassName: "CardView",
+            bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
+            position: WirePoint(x: 0, y: 0),
+            viewControllerClassName: "UINavigationController",
+            viewControllerDisplayClassName: "UINavigationController",
+            layerClassOrigin: .system,
+            viewClassOrigin: .app,
+            viewControllerClassOrigin: .system,
+            layerBaseClassName: "CAShapeLayer",
+            viewBaseClassName: "UIHostingView",
+            viewControllerVisibility: .notShown
+        )
+        for _ in 0..<2 {
+            let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
+            XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
+            // A 1.0 server sends none of them.
+            node.layerClassOrigin = .unknown
+            node.viewClassOrigin = .unknown
+            node.viewControllerClassOrigin = .unknown
+            node.layerBaseClassName = nil
+            node.viewBaseClassName = nil
+            node.viewControllerVisibility = .unknown
+        }
     }
 
     func test_S_HIER_13_addressesRoundTripAndZeroMeansAbsent() throws {

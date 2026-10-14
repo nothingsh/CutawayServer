@@ -92,6 +92,54 @@ final class VersionAdaptationTests: XCTestCase {
         }
     }
 
+    func test_S_CONN_12_everyUnitAndGuideKindHasItsMinorVersion() {
+        // Protocol 1.1 added every unit and guide kind but the defaults (P-ATTR-14, P-LAYOUT-04).
+        XCTAssertEqual(AttributeUnit.unspecified.minorVersion, 0)
+        for unit in AttributeUnit.allCases where unit != .unspecified {
+            XCTAssertEqual(unit.minorVersion, 1, "\(unit)")
+        }
+        XCTAssertEqual(LayoutGuideKind.unknown.minorVersion, 0)
+        for kind in LayoutGuideKind.allCases where kind != .unknown {
+            XCTAssertEqual(kind.minorVersion, 1, "\(kind)")
+        }
+        // P-HIER-17: every entry of the tables came with 1.1, so a 1.0 peer knows none.
+        for entry in KnownClasses.views + KnownClasses.layers {
+            XCTAssertEqual(entry.minorVersion, 1, entry.name)
+        }
+        XCTAssertTrue(KnownClasses.names(of: KnownClasses.views, at: version(0)).isEmpty)
+        XCTAssertEqual(KnownClasses.names(of: KnownClasses.views, at: version(1)).count, KnownClasses.views.count)
+    }
+
+    func test_S_LAYOUT_06_aProtocol1_0PeerGetsOtherGuideKinds() {
+        let guide = LayoutItem(kind: .layoutGuide, layerID: 2, guideID: 1, guideKind: .safeArea)
+        let detail = LayerDetail(
+            layerID: 3,
+            status: .ok,
+            constraints: [
+                LayoutConstraint(
+                    id: 1,
+                    className: "NSLayoutConstraint",
+                    firstItem: LayoutItem(kind: .view, layerID: 3),
+                    firstAttribute: .top,
+                    relation: .equal,
+                    secondItem: guide,
+                    secondAttribute: .top,
+                    multiplier: 1,
+                    constant: 0,
+                    priority: 1000,
+                    status: .satisfied,
+                    origin: .app
+                )
+            ]
+        )
+        // P-LAYOUT-04: 1.0 has no kinds; the guide becomes `other`, a view stays without one.
+        let adapted = detail.adapted(to: version(0)).constraints[0]
+        XCTAssertEqual(adapted.secondItem?.guideKind, .other)
+        XCTAssertEqual(adapted.firstItem?.guideKind, .unknown)
+        XCTAssertEqual(adapted.origin, .app)
+        XCTAssertEqual(detail.adapted(to: version(1)), detail)
+    }
+
     /// One attribute of each section, with limits.
     private var sectionedGroups: [AttributeGroup] {
         let limits = [NumberLimit(minimum: 0)]
@@ -107,9 +155,13 @@ final class VersionAdaptationTests: XCTestCase {
                         editable: true,
                         valueKind: .int,
                         section: section,
-                        limits: limits
+                        limits: limits,
+                        cluster: "sizing",
+                        slot: "intrinsic.width",
+                        unit: .points
                     )
-                }
+                },
+                className: "UIView"
             )
         ]
     }
@@ -118,11 +170,16 @@ final class VersionAdaptationTests: XCTestCase {
         let detail = LayerDetail(layerID: 9, status: .ok, attributeGroups: sectionedGroups)
         let result = SetAttributeResult(layerID: 9, attributeGroups: sectionedGroups)
 
-        // 1.0 has no sections: every one becomes unspecified; the limits stay.
+        // 1.0 has no sections and no units: every one becomes unspecified; the limits and the
+        // other fields of 1.1 stay.
+        let count = AttributeSection.allCases.count
         for groups in [detail.adapted(to: version(0)).attributeGroups, result.adapted(to: version(0)).attributeGroups] {
             let attributes = groups.flatMap(\.attributes)
-            XCTAssertEqual(attributes.map(\.section), Array(repeating: .unspecified, count: 4))
-            XCTAssertEqual(attributes.map(\.limits), Array(repeating: [NumberLimit(minimum: 0)], count: 4))
+            XCTAssertEqual(attributes.map(\.section), Array(repeating: .unspecified, count: count))
+            XCTAssertEqual(attributes.map(\.unit), Array(repeating: .unspecified, count: count))
+            XCTAssertEqual(attributes.map(\.limits), Array(repeating: [NumberLimit(minimum: 0)], count: count))
+            XCTAssertEqual(attributes.map(\.cluster), Array(repeating: "sizing", count: count))
+            XCTAssertEqual(groups.map(\.className), ["UIView"])
         }
         // 1.1 and later get them as they are.
         for minor: UInt16 in [1, 2] {

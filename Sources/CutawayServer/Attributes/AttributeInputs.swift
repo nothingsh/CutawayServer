@@ -13,7 +13,7 @@ enum AttributeInputs {
     /// In sRGB, each channel clamped to 0...1 (P-ATTR-04, P-SET-04). `nil` stays nil.
     static func color(_ value: AttributeValue?) -> Result<CGColor?, AttributeRejection> {
         guard let value else { return .success(nil) }
-        guard case .color(let color) = value else { return .failure(.otherKind) }
+        guard case .color(let color, _) = value else { return .failure(.otherKind) }
         let channels = [color.red, color.green, color.blue, color.alpha].map(channel)
         return .success(
             CGColor(srgbRed: channels[0], green: channels[1], blue: channels[2], alpha: channels[3])

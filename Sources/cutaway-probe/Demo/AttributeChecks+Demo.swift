@@ -38,7 +38,7 @@ extension AttributeChecks {
         func expect(_ what: String, _ node: LayerNode, _ id: String, _ expected: AttributeValue) throws {
             let actual = value(id, in: byID[node.id]?.attributeGroups ?? [])
             let matches: Bool
-            if case let .color(actualColor)? = actual, case let .color(expectedColor) = expected {
+            if case let .color(actualColor, _)? = actual, case let .color(expectedColor, _) = expected {
                 // Colours went through a colour space conversion.
                 matches = zip(
                     [actualColor.red, actualColor.green, actualColor.blue, actualColor.alpha],
@@ -69,7 +69,7 @@ extension AttributeChecks {
         )
         try expect("the label Scrolled", scene.scrolledLabel, "label.text", .string("Scrolled"))
         try expect("CardView", scene.card, "view.clipsToBounds", .bool(true))
-        try expect("CardView", scene.card, "layer.masksToBounds", .bool(true))
+        try expect("CardView", scene.card, "view.clipsToBounds", .bool(true))
         try expect("the CAShapeLayer", scene.badge, "layer.hidden", .bool(true))
         try expect("the CAShapeLayer", scene.badge, "layer.opacity", .double(0.5))
         try expect("the scroll view", scene.scrollView, "scrollView.contentOffset", .point(WirePoint(x: 0, y: 100)))
@@ -117,17 +117,27 @@ extension AttributeChecks {
                     )
                 }
             }
-            for group in groups { try matchesList(group, name: name) }
+            for group in groups { try matchesList(group, name: name, backsView: node.viewClassName != nil) }
             let geometry: [(String, AttributeValue)] = [
                 ("layer.bounds", .rect(node.bounds)),
                 ("layer.position", .point(node.position)),
                 ("layer.anchorPoint", .point(node.anchorPoint)),
                 ("layer.transform", .transform(node.transform)),
-                ("layer.zPosition", .double(node.zPosition)),
-                ("layer.hidden", .bool(node.isHidden)),
-                ("layer.opacity", .double(Double(node.opacity))),
-                ("layer.masksToBounds", .bool(node.masksToBounds))
-            ]
+                ("layer.zPosition", .double(node.zPosition))
+            ] + (
+                // P-ATTR-11: a view's attribute of each pair stands for its layer's.
+                node.viewClassName == nil
+                    ? [
+                        ("layer.hidden", .bool(node.isHidden)),
+                        ("layer.opacity", .double(Double(node.opacity))),
+                        ("layer.masksToBounds", .bool(node.masksToBounds))
+                    ]
+                    : [
+                        ("view.isHidden", .bool(node.isHidden)),
+                        ("view.alpha", .double(Double(node.opacity))),
+                        ("view.clipsToBounds", .bool(node.masksToBounds))
+                    ]
+            )
             for (id, expected) in geometry {
                 let actual = value(id, in: groups)
                 guard actual == expected else {

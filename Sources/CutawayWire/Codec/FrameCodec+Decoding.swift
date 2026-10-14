@@ -158,7 +158,13 @@ extension FrameCodec {
             },
             layerAddress: node.layerAddress,
             viewAddress: node.viewAddress == 0 ? nil : node.viewAddress,
-            viewControllerAddress: node.viewControllerAddress == 0 ? nil : node.viewControllerAddress
+            viewControllerAddress: node.viewControllerAddress == 0 ? nil : node.viewControllerAddress,
+            layerClassOrigin: Origin(node.layerClassOrigin),
+            viewClassOrigin: Origin(node.viewClassOrigin),
+            viewControllerClassOrigin: Origin(node.viewControllerClassOrigin),
+            layerBaseClassName: node.layerBaseClassName,
+            viewBaseClassName: node.viewBaseClassName,
+            viewControllerVisibility: ViewControllerVisibility(node.viewControllerVisibility)
         )
     }
 
@@ -234,7 +240,8 @@ extension FrameCodec {
             multiplier: constraint.multiplier,
             constant: constraint.constant,
             priority: constraint.priority,
-            status: ConstraintStatus(constraint.status)
+            status: ConstraintStatus(constraint.status),
+            origin: Origin(constraint.origin)
         )
     }
 
@@ -246,7 +253,8 @@ extension FrameCodec {
             className: item.className,
             displayClassName: item.displayClassName,
             identifier: item.identifier,
-            guideFrame: item.guideFrame.map(wireRect(of:))
+            guideFrame: item.guideFrame.map(wireRect(of:)),
+            guideKind: LayoutGuideKind(item.guideKind)
         )
     }
 
@@ -270,9 +278,14 @@ extension FrameCodec {
                             maximum: limit.hasMaximum ? limit.maximum : nil,
                             maximumIsExclusive: limit.maximumExclusive
                         )
-                    }
+                    },
+                    cluster: attribute.cluster,
+                    slot: attribute.slot,
+                    inactiveCause: attribute.inactiveCause,
+                    unit: AttributeUnit(attribute.unit)
                 )
-            }
+            },
+            className: group.className
         )
     }
 
@@ -296,9 +309,11 @@ extension FrameCodec {
         case .stringvalue:
             return .string(try member(Cutaway_Wire_StringValue.self).value ?? "")
         case .colorvalue:
-            let color = try member(Cutaway_Wire_ColorValue.self).value ?? Cutaway_Wire_Color()
+            let colorValue = try member(Cutaway_Wire_ColorValue.self)
+            let color = colorValue.value ?? Cutaway_Wire_Color()
             return .color(
-                WireColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+                WireColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha),
+                systemName: colorValue.systemName
             )
         case .pointvalue:
             return .point(wirePoint(of: try member(Cutaway_Wire_PointValue.self).value))

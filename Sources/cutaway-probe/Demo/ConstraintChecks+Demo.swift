@@ -94,7 +94,7 @@ extension ConstraintChecks {
         }
         func isSafeArea(_ item: LayoutItem?) -> Bool {
             item?.kind == .layoutGuide && item?.layerID == screen.id && item?.className == "UILayoutGuide"
-                && item?.identifier == "UIViewSafeAreaLayoutGuide"
+                && item?.identifier == "UIViewSafeAreaLayoutGuide" && item?.guideKind == .safeArea
         }
         func toSafeArea(_ attribute: LayoutAttribute, _ constant: Double) -> (LayoutConstraint) -> LayoutConstraint {
             { found in
@@ -109,7 +109,9 @@ extension ConstraintChecks {
                     multiplier: 1,
                     constant: constant,
                     priority: 1000,
-                    status: found.status
+                    status: found.status,
+                    // The demo's own (P-LAYOUT-09).
+                    origin: .app
                 )
             }
         }
@@ -134,7 +136,8 @@ extension ConstraintChecks {
                     multiplier: 1,
                     constant: 30,
                     priority: 500,
-                    status: found.status
+                    status: found.status,
+                    origin: .app
                 )
             },
             matches: { constraint in
@@ -172,7 +175,9 @@ extension ConstraintChecks {
                 multiplier: 1,
                 constant: constant,
                 priority: 1000,
-                status: status
+                status: status,
+                // UIKit's (P-LAYOUT-09).
+                origin: .system
             )
         }
         let expected = [

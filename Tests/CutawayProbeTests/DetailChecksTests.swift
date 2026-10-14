@@ -150,7 +150,7 @@ final class DetailChecksTests: XCTestCase {
                 captureFailed: 0,
                 notFound: 1,
                 attributeGroups: 3,
-                attributes: 15
+                attributes: 19
             )
         )
 
@@ -171,8 +171,8 @@ final class DetailChecksTests: XCTestCase {
                 images: 2,
                 captureFailed: 1,
                 notFound: 0,
-                attributeGroups: 1,
-                attributes: 2
+                attributeGroups: 3,
+                attributes: 4
             )
         )
 
