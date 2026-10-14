@@ -199,7 +199,7 @@ final class DetailCaptureTests: CaptureTestCase {
         window.addSubview(empty)
         let id = registry.register(empty.layer)
         let fixture = try fixtureDetailOfLayer9()
-        XCTAssertEqual(fixture.attributeGroups.first?.attributes.count, 2)
+        XCTAssertEqual(fixture.attributeGroups.flatMap(\.attributes).count, 2)
 
         var asked: [CALayer] = []
         let captured = try XCTUnwrap(

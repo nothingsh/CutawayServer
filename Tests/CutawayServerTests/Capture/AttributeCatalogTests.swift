@@ -118,16 +118,29 @@ final class AttributeCatalogTests: CaptureTestCase {
         }
     }
 
+    /// Each group the layer has, with the entries of the list it should have (S-ATTR-10: the
+    /// layer's side of a pair only on a layer that backs no view).
+    private func expectedGroups(of layer: CALayer) throws -> [(
+        group: AttributeGroup,
+        expected: [ExpectedAttributes.Entry]
+    )] {
+        let backingView = LayerTopology.backingView(of: layer) != nil
+        return try AttributeCatalog.standard.read(layer).map { group in
+            let expected = try XCTUnwrap(ExpectedAttributes.groups[group.id], "unknown group \(group.id)")
+            return (group, expected.attributes(backingView: backingView))
+        }
+    }
+
     func test_S_ATTR_01_attributesMatchTheList() throws {
         var seen = Set<String>()
         for specimen in try specimens() {
-            for group in AttributeCatalog.standard.read(specimen.layer) {
+            for (group, entries) in try expectedGroups(of: specimen.layer) {
                 seen.insert(group.id)
-                let expected = try XCTUnwrap(ExpectedAttributes.groups[group.id], "unknown group \(group.id)")
+                let expected = try XCTUnwrap(ExpectedAttributes.groups[group.id])
                 XCTAssertEqual(group.title, expected.title)
-                XCTAssertEqual(group.attributes.map(\.id), expected.attributes.map(\.id), specimen.name)
-                XCTAssertEqual(group.attributes.map(\.title), expected.attributes.map(\.title), specimen.name)
-                for (attribute, entry) in zip(group.attributes, expected.attributes) {
+                XCTAssertEqual(group.attributes.map(\.id), entries.map(\.id), specimen.name)
+                XCTAssertEqual(group.attributes.map(\.title), entries.map(\.title), specimen.name)
+                for (attribute, entry) in zip(group.attributes, entries) {
                     if let value = attribute.value {
                         XCTAssertEqual(value.kind, entry.kind, "\(specimen.name): \(entry.id)")
                     } else {
@@ -591,9 +604,8 @@ final class AttributeCatalogTests: CaptureTestCase {
     func test_S_ATTR_05_flagsMatchTheList() throws {
         var seen = Set<String>()
         for specimen in try specimens() {
-            for group in AttributeCatalog.standard.read(specimen.layer) {
-                let expected = try XCTUnwrap(ExpectedAttributes.groups[group.id], "unknown group \(group.id)")
-                for (attribute, entry) in zip(group.attributes, expected.attributes) {
+            for (group, entries) in try expectedGroups(of: specimen.layer) {
+                for (attribute, entry) in zip(group.attributes, entries) {
                     seen.insert(entry.id)
                     let name = "\(specimen.name): \(entry.id)"
                     // Also for a value that is nil.
@@ -603,23 +615,171 @@ final class AttributeCatalogTests: CaptureTestCase {
                 }
             }
         }
-        XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
     }
 
     func test_S_ATTR_08_sectionsMatchTheList() throws {
         var seen = Set<String>()
         for specimen in try specimens() {
-            for attribute in AttributeCatalog.standard.read(specimen.layer).flatMap(\.attributes) {
-                seen.insert(attribute.id)
+            for (group, entries) in try expectedGroups(of: specimen.layer) {
+                for (attribute, entry) in zip(group.attributes, entries) {
+                    seen.insert(attribute.id)
+                    XCTAssertEqual(attribute.section, entry.section, "\(specimen.name): \(attribute.id)")
+                    // Dev.2 places every attribute in a narrower section.
+                    XCTAssertNotEqual(attribute.section, .general, attribute.id)
+                }
+            }
+        }
+        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+    }
+
+    // MARK: - Protocol 1.1
+
+    func test_S_ATTR_10_aLayerHasOneAttributeOfEachPair() throws {
+        for specimen in try specimens() {
+            let ids = Set(AttributeCatalog.standard.read(specimen.layer).flatMap(\.attributes).map(\.id))
+            let backsView = LayerTopology.backingView(of: specimen.layer) != nil
+            for pair in AttributeTables.pairs {
+                // The view's when the layer backs a view, the layer's otherwise (P-ATTR-11).
+                XCTAssertEqual(ids.contains(pair.view), backsView, "\(specimen.name): \(pair.view)")
+                XCTAssertEqual(ids.contains(pair.layer), !backsView, "\(specimen.name): \(pair.layer)")
+            }
+        }
+    }
+
+    func test_S_ATTR_11_clustersMatchTheList() throws {
+        var seen = Set<String>()
+        for specimen in try specimens() {
+            var slots = Set<String>()
+            var sections: [String: AttributeSection] = [:]
+            for (group, entries) in try expectedGroups(of: specimen.layer) {
+                for (attribute, entry) in zip(group.attributes, entries) {
+                    seen.insert(attribute.id)
+                    let name = "\(specimen.name): \(attribute.id)"
+                    XCTAssertEqual(attribute.cluster, entry.cluster, name)
+                    XCTAssertEqual(attribute.slot, entry.slot, name)
+                    guard let cluster = attribute.cluster, let slot = attribute.slot else {
+                        XCTAssertNil(attribute.slot, name)
+                        continue
+                    }
+                    // From the protocol's table; one of each slot, one section per cluster.
+                    XCTAssertTrue(AttributeTables.clusters[cluster]?.contains(slot) ?? false, name)
+                    XCTAssertTrue(slots.insert("\(cluster).\(slot)").inserted, "\(name): \(cluster).\(slot) twice")
+                    XCTAssertEqual(sections[cluster, default: attribute.section], attribute.section, name)
+                    sections[cluster] = attribute.section
+                }
+            }
+        }
+        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+    }
+
+    func test_S_ATTR_13_unitsMatchTheList() throws {
+        var seen = Set<String>()
+        for specimen in try specimens() {
+            for (group, entries) in try expectedGroups(of: specimen.layer) {
+                for (attribute, entry) in zip(group.attributes, entries) {
+                    seen.insert(attribute.id)
+                    XCTAssertEqual(attribute.unit, entry.unit, "\(specimen.name): \(attribute.id)")
+                    if attribute.unit != .unspecified {
+                        // P-ATTR-14: only numbers have units.
+                        XCTAssertTrue(
+                            [.int, .double, .point, .size, .rect, .insets].contains(attribute.valueKind),
+                            attribute.id
+                        )
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+    }
+
+    func test_S_ATTR_15_groupsNameTheClassThatDeclaresThem() throws {
+        for specimen in try specimens() {
+            for group in AttributeCatalog.standard.read(specimen.layer) {
                 XCTAssertEqual(
-                    attribute.section,
-                    ExpectedAttributes.sections[attribute.id] ?? .general,
-                    "\(specimen.name): \(attribute.id)"
+                    group.className,
+                    ExpectedAttributes.groups[group.id]?.className,
+                    "\(specimen.name): \(group.id)"
                 )
             }
         }
-        XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
-        XCTAssertTrue(Set(ExpectedAttributes.sections.keys).isSubset(of: seen))
+        // A subclass of UILabel: still the class that declares the properties.
+        let label = try XCTUnwrap(try specimens().first { $0.name == "TitleLabel" })
+        XCTAssertEqual(
+            AttributeCatalog.standard.read(label.layer).first { $0.id == "label" }?.className,
+            "UILabel"
+        )
+    }
+
+    func test_S_ATTR_12_whatHasNoEffectSaysWhy() throws {
+        let window = try makeWindow()
+        let layer = CALayer()
+        window.layer.addSublayer(layer)
+        func causes() -> [String: String] {
+            let attributes = AttributeCatalog.standard.read(layer).flatMap(\.attributes)
+            return Dictionary(uniqueKeysWithValues: attributes.compactMap { attribute in
+                attribute.inactiveCause.map { (attribute.id, $0) }
+            })
+        }
+        // The defaults: no border, no shadow.
+        XCTAssertEqual(
+            causes(),
+            [
+                "layer.borderColor": "layer.borderWidth",
+                "layer.shadowColor": "layer.shadowOpacity",
+                "layer.shadowRadius": "layer.shadowOpacity",
+                "layer.shadowOffset": "layer.shadowOpacity"
+            ]
+        )
+        layer.borderWidth = 2
+        layer.shadowOpacity = 0.3
+        XCTAssertEqual(causes(), [:])
+        layer.borderWidth = 0
+        XCTAssertEqual(causes(), ["layer.borderColor": "layer.borderWidth"])
+    }
+
+    func test_S_ATTR_14_systemColorsAreNamed() throws {
+        let window = try makeWindow()
+        let view = UIView()
+        let label = UILabel()
+        window.addSubview(view)
+        window.addSubview(label)
+        func color(_ id: String, of layer: CALayer) throws -> (WireColor, String?) {
+            guard case let .color(color, name)? = try attribute(id, of: layer).value else {
+                throw XCTSkip("\(id) is not a color")
+            }
+            return (color, name)
+        }
+        // The defaults.
+        XCTAssertEqual(try color("view.tintColor", of: view.layer).1, "systemBlue")
+        XCTAssertEqual(try color("label.textColor", of: label.layer).1, "label")
+        // Every color of the table, by name. (A view's tint is the inherited one when set to
+        // `tintColor`, so a label's text color is used.)
+        for (name, systemColor) in SystemColors.table {
+            label.textColor = systemColor
+            XCTAssertEqual(try color("label.textColor", of: label.layer).1, name)
+        }
+        // Not by its components: the same blue, fixed, has no name.
+        let blue = UIColor.systemBlue.resolvedColor(with: view.traitCollection)
+        view.tintColor = UIColor(cgColor: blue.cgColor)
+        let fixed = try color("view.tintColor", of: view.layer)
+        XCTAssertNil(fixed.1)
+        // A CGColor has lost what it was.
+        let bare = CALayer()
+        bare.borderColor = UIColor.systemBlue.cgColor
+        bare.backgroundColor = UIColor.systemBlue.cgColor
+        window.layer.addSublayer(bare)
+        XCTAssertNil(try color("layer.backgroundColor", of: bare).1)
+        XCTAssertNil(try color("layer.borderColor", of: bare).1)
+    }
+
+    func test_S_ATTR_14_noTwoColorsOfTheTableAreTheSameObject() {
+        let table = SystemColors.table
+        for (index, entry) in table.enumerated() {
+            for other in table[(index + 1)...] {
+                XCTAssertFalse(entry.color.isEqual(other.color), "\(entry.name) is \(other.name)")
+            }
+        }
     }
 
     func test_S_ATTR_09_limitsMatchTheList() throws {
@@ -634,7 +794,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 )
             }
         }
-        XCTAssertEqual(seen.count, 68, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
         XCTAssertTrue(Set(ExpectedAttributes.limits.keys).isSubset(of: seen))
     }
 
@@ -742,10 +902,10 @@ final class AttributeCatalogTests: CaptureTestCase {
             try attribute("layer.backgroundColor", of: layer),
             Attribute(
                 id: "layer.backgroundColor",
-                title: "Background Color",
+                title: "Background",
                 value: .string("pattern"),
                 valueKind: .string,
-                section: .general
+                section: .appearance
             )
         )
 
@@ -753,6 +913,7 @@ final class AttributeCatalogTests: CaptureTestCase {
         let definition = AttributeCatalog.AttributeDefinition<UIView>(
             "contentMode",
             .enumeration,
+            section: .appearance,
             write: .enumeration(\.contentMode)
         ) { _ in
             AttributeOutputs.enumeration(99, names: AttributeOutputs.contentModeNames)
@@ -769,7 +930,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 title: "Content Mode",
                 value: .string("99"),
                 valueKind: .string,
-                section: .general
+                section: .appearance
             )
         )
         // The same definition with a value of its kind keeps its flags.
@@ -790,6 +951,7 @@ final class AttributeCatalogTests: CaptureTestCase {
             "odd",
             .color,
             acceptsNil: true,
+            section: .appearance,
             write: nil
         ) { _ in nil }
         let attribute = AttributeCatalog.attribute(
