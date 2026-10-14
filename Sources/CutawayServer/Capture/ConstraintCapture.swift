@@ -62,8 +62,44 @@ enum ConstraintCapture {
             multiplier: WireGeometry.finite(constraint.multiplier),
             constant: WireGeometry.finite(constraint.constant),
             priority: WireGeometry.finite(constraint.priority.rawValue),
-            status: ConstraintCheck.status(of: constraint, screenScale: screenScale)
+            status: ConstraintCheck.status(of: constraint, screenScale: screenScale),
+            origin: origin(of: constraint)
         )
+    }
+
+    // MARK: - Who made it (P-LAYOUT-09)
+
+    /// UIKit's conventions for the constraints it makes itself, as seen on iOS 26; they change,
+    /// and these follow them. Not a closed list: a constraint UIKit makes through the public API
+    /// without an identifier (inside one of its controls, say) is taken as the app's.
+    private static let systemClassNames: Set<String> = [
+        "NSAutoresizingMaskLayoutConstraint",
+        "NSContentSizeLayoutConstraint",
+        "_UILayoutSupportConstraint"
+    ]
+
+    private static let systemIdentifierPrefixes = [
+        "UISV-",
+        "UIView-",
+        "UIViewSafeAreaLayoutGuide-",
+        "UIViewKeyboardLayoutGuide-",
+        "UIKeyboardLayoutGuide-",
+        "_UITemporaryLayout"
+    ]
+
+    /// The class of a constraint made with layout anchors is a private one of UIKit's, so the
+    /// image of the class says nothing: only UIKit's own classes and identifiers do.
+    static func origin(of constraint: NSLayoutConstraint) -> Origin {
+        var type: AnyClass? = Swift.type(of: constraint)
+        while let current = type, current != NSLayoutConstraint.self {
+            if systemClassNames.contains(NSStringFromClass(current)) { return .system }
+            type = class_getSuperclass(current)
+        }
+        if let identifier = constraint.identifier,
+           systemIdentifierPrefixes.contains(where: { identifier.hasPrefix($0) }) {
+            return .system
+        }
+        return .app
     }
 
     /// P-LAYOUT-04: a view is given by its layer; a layout guide by its owner's layer, its own
@@ -85,10 +121,23 @@ enum ConstraintCapture {
                 className: className,
                 displayClassName: displayClassName,
                 identifier: identifier.isEmpty ? nil : identifier,
-                guideFrame: WireGeometry.rect(guide.layoutFrame)
+                guideFrame: WireGeometry.rect(guide.layoutFrame),
+                guideKind: kind(of: guide)
             )
         }
         return LayoutItem(kind: .other, className: className, displayClassName: displayClassName)
+    }
+
+    /// P-LAYOUT-04: which of its owner's guides `guide` is, from its own class and identifier.
+    /// The owner's guide properties are not read: each makes its guide the first time.
+    static func kind(of guide: UILayoutGuide) -> LayoutGuideKind {
+        if #available(iOS 15, *), guide is UIKeyboardLayoutGuide { return .keyboard }
+        switch guide.identifier {
+        case "UIViewSafeAreaLayoutGuide": return .safeArea
+        case "UIViewLayoutMarginsGuide": return .layoutMargins
+        case "UIViewReadableContentGuide": return .readableContent
+        default: return .other
+        }
     }
 
     /// The raw values are the same, UIKit's unpublished ones for autoresizing masks included

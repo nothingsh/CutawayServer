@@ -309,7 +309,8 @@ final class ConstraintCaptureTests: CaptureTestCase {
                 constant: 3.5,
                 priority: 250,
                 // The scene is not complete enough to say; ConstraintCheckTests judges statuses.
-                status: wire.status
+                status: wire.status,
+                origin: .app
             )
         )
 
@@ -390,7 +391,8 @@ final class ConstraintCaptureTests: CaptureTestCase {
                 className: "UILayoutGuide",
                 displayClassName: "UILayoutGuide",
                 identifier: "test.guide",
-                guideFrame: WireRect(x: 5, y: 0, width: 20, height: 10)
+                guideFrame: WireRect(x: 5, y: 0, width: 20, height: 10),
+                guideKind: .other
             )
         )
         // The same guide is listed for its owner.
@@ -411,7 +413,8 @@ final class ConstraintCaptureTests: CaptureTestCase {
                 className: NSStringFromClass(guideType),
                 displayClassName: String(describing: guideType),
                 identifier: safeArea.identifier.isEmpty ? nil : safeArea.identifier,
-                guideFrame: WireGeometry.rect(safeArea.layoutFrame)
+                guideFrame: WireGeometry.rect(safeArea.layoutFrame),
+                guideKind: .safeArea
             )
         )
     }
