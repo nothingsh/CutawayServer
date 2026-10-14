@@ -262,7 +262,7 @@ final class Session: @unchecked Sendable {
             answer(
                 requestID,
                 requiresActiveApp: true,
-                onMain: { app, registry in app.captureHierarchy(registry: registry) },
+                onMain: { [version] app, registry in app.captureHierarchy(registry: registry, version: version) },
                 reply: { session, hierarchy in
                     // The app may have left the active state while the layers were being read. The
                     // client has been told by now, and must not get a hierarchy after that event.
@@ -275,7 +275,9 @@ final class Session: @unchecked Sendable {
             answer(
                 requestID,
                 requiresActiveApp: true,
-                onMain: { app, registry in app.captureSubtree(of: rootID, registry: registry) },
+                onMain: { [version] app, registry in
+                    app.captureSubtree(of: rootID, registry: registry, version: version)
+                },
                 reply: { session, hierarchy in
                     // As for the whole hierarchy: nothing read after the client was told the app
                     // left the active state.

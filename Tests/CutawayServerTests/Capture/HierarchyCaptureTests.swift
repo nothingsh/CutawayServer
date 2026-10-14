@@ -472,7 +472,8 @@ final class HierarchyCaptureTests: CaptureTestCase {
                 isHidden: true,
                 opacity: 0.25,
                 masksToBounds: true,
-                layerAddress: address(of: layer)
+                layerAddress: address(of: layer),
+                layerClassOrigin: .system
             )
         )
     }

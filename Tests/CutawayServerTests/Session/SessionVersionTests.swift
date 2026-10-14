@@ -233,6 +233,20 @@ final class SessionVersionTests: XCTestCase {
         )
     }
 
+    func test_S_HIER_15_hierarchiesAreReadForTheNegotiatedVersion() async throws {
+        // P-HIER-17: the tables of known classes are the negotiated version's.
+        for minor: UInt16 in [0, 1] {
+            let harness = SessionHarness()
+            try await harness.handshake(version: version(minor))
+            harness.receive(
+                Frame(requestID: 5, body: .getHierarchy),
+                Frame(requestID: 6, body: .getSubtree(rootID: 2))
+            )
+            _ = try await harness.frames(4)
+            XCTAssertEqual(harness.captureVersions, [version(minor), version(minor)], "1.\(minor)")
+        }
+    }
+
     func test_S_ATTR_13_aProtocol1_0ClientGetsUnspecifiedUnits() async throws {
         let old = try await sections(afterHandshakeAt: version(0))
         XCTAssertTrue(old.units.allSatisfy { $0 == .unspecified })

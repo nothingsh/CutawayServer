@@ -7,8 +7,8 @@ import UIKit
 /// base's, so that a test can wrap it.
 struct TestHostApp: HostApp {
     private let base: any HostApp
-    var captureHierarchy: @MainActor @Sendable (LayerRegistry) -> Hierarchy
-    var captureSubtree: @MainActor @Sendable (UInt64, LayerRegistry) -> Hierarchy?
+    var captureHierarchy: @MainActor @Sendable (LayerRegistry, ProtocolVersion) -> Hierarchy
+    var captureSubtree: @MainActor @Sendable (UInt64, LayerRegistry, ProtocolVersion) -> Hierarchy?
     var setAttribute:
         @MainActor @Sendable (SetAttribute, LayerRegistry) -> Result<SetAttributeResult, WireError>
     var captureDetail:
@@ -16,8 +16,8 @@ struct TestHostApp: HostApp {
 
     init(_ base: any HostApp = LiveHostApp()) {
         self.base = base
-        captureHierarchy = { base.captureHierarchy(registry: $0) }
-        captureSubtree = { base.captureSubtree(of: $0, registry: $1) }
+        captureHierarchy = { base.captureHierarchy(registry: $0, version: $1) }
+        captureSubtree = { base.captureSubtree(of: $0, registry: $1, version: $2) }
         setAttribute = { base.setAttribute($0, registry: $1) }
         captureDetail = {
             base.captureDetail($0, maxTextureDimension: $1, registry: $2, stopFlag: $3)
@@ -37,13 +37,13 @@ struct TestHostApp: HostApp {
     }
 
     @MainActor
-    func captureHierarchy(registry: LayerRegistry) -> Hierarchy {
-        captureHierarchy(registry)
+    func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
+        captureHierarchy(registry, version)
     }
 
     @MainActor
-    func captureSubtree(of rootID: UInt64, registry: LayerRegistry) -> Hierarchy? {
-        captureSubtree(rootID, registry)
+    func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
+        captureSubtree(rootID, registry, version)
     }
 
     @MainActor
