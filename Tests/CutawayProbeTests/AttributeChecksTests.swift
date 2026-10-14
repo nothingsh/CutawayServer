@@ -25,8 +25,9 @@ final class AttributeChecksTests: XCTestCase {
     }
 
     /// Layer 3 of `layer-details`: three groups that use all eleven kinds of value and a nil, with
-    /// sections and limits (1.1). In the `layer` group, `opacity` is at 4, `backgroundColor` at 6
-    /// and `borderColor` at 7; in the `label` group, `textAlignment` is at 3.
+    /// sections and limits (1.1). In the `layer` group, `shadowOpacity` is at 3 and `borderColor`
+    /// at 6; in the `label` group, `textAlignment` is at 3; in the `view` group, the nil
+    /// `backgroundColor` is at 3 and `isUserInteractionEnabled` at 5.
     private func layer3() throws -> [AttributeGroup] {
         try fixtureGroups("layer-details/02-s2c-chunk-0.bin", layer: 3)
     }
@@ -98,14 +99,14 @@ final class AttributeChecksTests: XCTestCase {
             $0[0].attributes[1].id = "layer.frame"
         }
         try assertStructureRejects("attribute label.text has an empty title") { $0[1].attributes[0].title = "" }
-        try assertStructureRejects("attribute layer.opacity has a number that is not finite") {
-            $0[0].attributes[4].value = .double(.nan)
+        try assertStructureRejects("attribute layer.shadowOpacity has a number that is not finite") {
+            $0[0].attributes[3].value = .double(.nan)
         }
         try assertStructureRejects("attribute layer.frame has a number that is not finite") {
             $0[0].attributes[0].value = .rect(WireRect(x: 0, y: .infinity, width: 1, height: 1))
         }
         try assertStructureRejects("attribute layer.borderColor has a number that is not finite") {
-            $0[0].attributes[7].value = .color(WireColor(red: .nan, green: 0, blue: 0, alpha: 1))
+            $0[0].attributes[6].value = .color(WireColor(red: .nan, green: 0, blue: 0, alpha: 1))
         }
         try assertStructureRejects("attribute label.textAlignment is the case \"middle\"") {
             $0[1].attributes[3].value = .enumeration(
@@ -131,16 +132,16 @@ final class AttributeChecksTests: XCTestCase {
     }
 
     func test_S_ATTR_05_attributeChecksRequireAValueKindThatFits() throws {
-        try assertStructureRejects("attribute layer.opacity has no value_kind (P-ATTR-06)") {
-            $0[0].attributes[4].valueKind = .none
+        try assertStructureRejects("attribute layer.shadowOpacity has no value_kind (P-ATTR-06)") {
+            $0[0].attributes[3].valueKind = .none
         }
-        try assertStructureRejects("attribute layer.backgroundColor has no value_kind (P-ATTR-06)") {
+        try assertStructureRejects("attribute view.backgroundColor has no value_kind (P-ATTR-06)") {
             // Nil, so only its value_kind says what it takes.
-            $0[0].attributes[6].valueKind = .none
+            $0[2].attributes[3].valueKind = .none
         }
         try assertStructureRejects(
-            "attribute layer.opacity is a double value, but its value_kind is int (P-ATTR-06)"
-        ) { $0[0].attributes[4].valueKind = .int }
+            "attribute layer.shadowOpacity is a double value, but its value_kind is int (P-ATTR-06)"
+        ) { $0[0].attributes[3].valueKind = .int }
     }
 
     func test_S_ATTR_06_attributeChecksRequireCaseValuesThatPair() throws {
@@ -185,34 +186,43 @@ final class AttributeChecksTests: XCTestCase {
                 unspecified[group].attributes[attribute].section = .unspecified
             }
         }
+        // P-ATTR-14: nor a unit.
+        assertRejects("attribute layer.frame has the unit points, which protocol 1.0 does not have (P-ATTR-14)") {
+            try AttributeChecks.structure(unspecified, name: "layer 3", version: old)
+        }
+        for group in unspecified.indices {
+            for attribute in unspecified[group].attributes.indices {
+                unspecified[group].attributes[attribute].unit = .unspecified
+            }
+        }
         XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3", version: old))
         XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3"))
     }
 
     func test_S_PROBE_05_attributeChecksRequireLimitsOfTheProtocolsShape() throws {
         let atLeastZero = NumberLimit(minimum: 0)
-        // Layer 3: layer.frame is read-only, layer.bounds a rectangle, layer.hidden a boolean,
-        // label.numberOfLines an integer, layer.opacity a number.
+        // Layer 3: layer.frame is read-only, layer.bounds a rectangle, view.isHidden a boolean,
+        // label.numberOfLines an integer, layer.shadowOpacity a number.
         try assertStructureRejects("attribute layer.frame has limits, but is read-only (P-ATTR-09)") {
             $0[0].attributes[0].limits = [atLeastZero]
         }
-        try assertStructureRejects("attribute layer.hidden has limits, but is a bool value (P-ATTR-09)") {
-            $0[0].attributes[5].limits = [atLeastZero]
+        try assertStructureRejects("attribute view.isHidden has limits, but is a bool value (P-ATTR-09)") {
+            $0[2].attributes[1].limits = [atLeastZero]
         }
         try assertStructureRejects("attribute layer.bounds has 3 limits for a value of 4 components (P-ATTR-09)") {
             $0[0].attributes[1].limits = [.free, .free, atLeastZero]
         }
         try assertStructureRejects("limit 0 is exclusive on a side it does not bound (P-ATTR-10)") {
-            $0[0].attributes[4].limits = [NumberLimit(maximumIsExclusive: true)]
+            $0[0].attributes[3].limits = [NumberLimit(maximumIsExclusive: true)]
         }
         try assertStructureRejects("limit 0 has a bound that is not finite (P-ATTR-10)") {
-            $0[0].attributes[4].limits = [NumberLimit(maximum: .infinity)]
+            $0[0].attributes[3].limits = [NumberLimit(maximum: .infinity)]
         }
         try assertStructureRejects("limit 0 leaves no value between 1.0 and 0.0 (P-ATTR-10)") {
-            $0[0].attributes[4].limits = [NumberLimit(minimum: 1, maximum: 0)]
+            $0[0].attributes[3].limits = [NumberLimit(minimum: 1, maximum: 0)]
         }
         try assertStructureRejects("limit 0 leaves no value between 1.0 and 1.0 (P-ATTR-10)") {
-            $0[0].attributes[4].limits = [NumberLimit(minimum: 1, minimumIsExclusive: true, maximum: 1)]
+            $0[0].attributes[3].limits = [NumberLimit(minimum: 1, minimumIsExclusive: true, maximum: 1)]
         }
         try assertStructureRejects(
             "attribute label.numberOfLines: limit 0 bounds an integer by a fraction (P-ATTR-10)"
@@ -221,7 +231,7 @@ final class AttributeChecksTests: XCTestCase {
         }
         // A single value between equal bounds is fine.
         var groups = try layer3()
-        groups[0].attributes[4].limits = [NumberLimit(minimum: 1, maximum: 1)]
+        groups[0].attributes[3].limits = [NumberLimit(minimum: 1, maximum: 1)]
         XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
     }
 
@@ -229,23 +239,110 @@ final class AttributeChecksTests: XCTestCase {
         var groups = try layer3()
         XCTAssertEqual(AttributeChecks.valuesOutsideLimits(groups, name: "layer 3"), [])
         // The app set them itself (P-SET-07): not a failure.
-        groups[0].attributes[4].value = .double(1.5)
+        groups[0].attributes[3].value = .double(1.5)
         groups[0].attributes[1].value = .rect(WireRect(x: -5, y: 0, width: -10, height: 24))
         XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
         XCTAssertEqual(
             AttributeChecks.valuesOutsideLimits(groups, name: "layer 3"),
             [
                 "layer 3: layer.bounds has -10.0 as component 2, outside its limits",
-                "layer 3: layer.opacity has 1.5 as component 0, outside its limits"
+                "layer 3: layer.shadowOpacity has 1.5 as component 0, outside its limits"
             ]
         )
+    }
+
+    func test_S_PROBE_06_attributeChecksRequireTheRulesOfDev2() throws {
+        // Layer 3 backs a view: layer 0 is `layer`, 1 `label`, 2 `view`.
+        XCTAssertNoThrow(try AttributeChecks.structure(try layer3(), name: "layer 3"))
+        try assertStructureRejects("layer 3 has both view.alpha and layer.opacity (P-ATTR-11)") {
+            $0[0].attributes.append(Attribute(
+                id: "layer.opacity",
+                title: "Opacity",
+                value: .double(1),
+                valueKind: .double
+            ))
+        }
+        try assertStructureRejects("has a cluster without a slot, or a slot without a cluster (P-ATTR-12)") {
+            $0[0].attributes[0].slot = nil
+        }
+        try assertStructureRejects("attribute layer.bounds and layer.frame are both the frame of the cluster") {
+            $0[0].attributes[1].slot = "frame"
+        }
+        try assertStructureRejects("is in the section appearance, another attribute of the cluster geometry") {
+            $0[0].attributes[1].section = .appearance
+        }
+        try assertStructureRejects("has no effect because of layer.nothing, which the layer does not have") {
+            $0[0].attributes[6].inactiveCause = "layer.nothing"
+        }
+        try assertStructureRejects("attribute label.text has the unit points, but is a string value (P-ATTR-14)") {
+            $0[1].attributes[0].unit = .points
+        }
+        try assertStructureRejects(
+            "attribute layer.borderColor is a CGColor, but has the system name systemBlue (P-ATTR-15)"
+        ) {
+            $0[0].attributes[6].value = .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1), systemName: "systemBlue")
+        }
+        try assertStructureRejects("group view has no class_name (P-ATTR-16)") { $0[2].className = nil }
+
+        // A cluster the protocol does not name is only reported.
+        var unknown = try layer3()
+        unknown[2].attributes[5].cluster = "interaction"
+        unknown[2].attributes[5].slot = "enabled"
+        XCTAssertNoThrow(try AttributeChecks.structure(unknown, name: "layer 3"))
+        XCTAssertEqual(
+            AttributeChecks.unknownClusters(unknown, name: "layer 3"),
+            [
+                "layer 3: view.isUserInteractionEnabled is the enabled of the cluster interaction, "
+                    + "which the protocol does not name"
+            ]
+        )
+        XCTAssertEqual(AttributeChecks.unknownClusters(try layer3(), name: "layer 3"), [])
+    }
+
+    func test_S_PROBE_06_demoAttributeChecksRequireTheList() {
+        func first(_ id: String, in groups: inout [AttributeGroup], _ change: (inout Attribute) -> Void) {
+            for group in groups.indices {
+                for index in groups[group].attributes.indices where groups[group].attributes[index].id == id {
+                    change(&groups[group].attributes[index])
+                }
+            }
+        }
+        assertDemoRejects("attribute view.alpha has the title \"Alpha\"; the list says \"Opacity\"", layer: 2) {
+            first("view.alpha", in: &$0) { $0.title = "Alpha" }
+        }
+        assertDemoRejects("attribute view.alpha is the nil of the cluster nil", layer: 2) {
+            first("view.alpha", in: &$0) { $0.cluster = nil; $0.slot = nil }
+        }
+        assertDemoRejects(
+            "attribute view.alpha has the unit unspecified; the list says fraction (P-ATTR-14)",
+            layer: 2
+        ) {
+            first("view.alpha", in: &$0) { $0.unit = .unspecified }
+        }
+        assertDemoRejects("group view has the class_name UIControl; the list says UIView (P-ATTR-16)", layer: 2) {
+            $0[1].className = "UIControl"
+        }
+        // A layer of its own has the layer's side of each pair, a view's layer not.
+        assertDemoRejects("group layer has the attributes", layer: 5) {
+            $0[0].attributes.removeAll { $0.id == "layer.opacity" }
+        }
     }
 
     func test_S_PROBE_05_theListAgreesWithTheFixture() throws {
         // The fixture's assignment is an example (Protocol/fixtures/README.md), but it is the
         // standard catalog's, and so the list's.
+        let entries = Dictionary(
+            uniqueKeysWithValues: AttributeChecks.list.flatMap { group, entries in
+                entries.map { ("\(group).\($0.name)", $0) }
+            }
+        )
         for attribute in try layer3().flatMap(\.attributes) {
-            XCTAssertEqual(attribute.section, AttributeChecks.sections[attribute.id] ?? .general, attribute.id)
+            let entry = try XCTUnwrap(entries[attribute.id], attribute.id)
+            XCTAssertEqual(attribute.section, entry.section, attribute.id)
+            XCTAssertEqual(attribute.title, entry.title, attribute.id)
+            XCTAssertEqual(attribute.cluster, entry.cluster, attribute.id)
+            XCTAssertEqual(attribute.slot, entry.slot, attribute.id)
+            XCTAssertEqual(attribute.unit, entry.unit, attribute.id)
             let limits = attribute.editable ? AttributeChecks.limits[attribute.id] ?? [] : []
             XCTAssertEqual(attribute.limits, limits, attribute.id)
         }
@@ -259,8 +356,8 @@ final class AttributeChecksTests: XCTestCase {
                 }
             }
         }
-        assertDemoRejects("attribute layer.opacity has the limits []; the list says", layer: 2) {
-            $0[0].attributes[7].limits = []
+        assertDemoRejects("attribute view.alpha has the limits []; the list says", layer: 2) {
+            $0[1].attributes[0].limits = []
         }
         assertDemoRejects("attribute layer.bounds has the limits", layer: 2) {
             $0[0].attributes[1].limits = [NumberLimit(minimum: 0)]
@@ -286,7 +383,7 @@ final class AttributeChecksTests: XCTestCase {
             ]
         )
         // 60 of version 0.1 and the 8 of S-ATTR-07.
-        XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 68)
+        XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 69)
     }
 
     func test_S_ATTR_07_theListHasTheLayoutAttributes() {
@@ -343,27 +440,17 @@ final class AttributeChecksTests: XCTestCase {
             "layer.zPosition": .double(node.zPosition),
             "layer.hidden": .bool(node.isHidden),
             "layer.opacity": .double(Double(node.opacity)),
-            "layer.masksToBounds": .bool(node.masksToBounds)
+            "layer.masksToBounds": .bool(node.masksToBounds),
+            "view.isHidden": .bool(node.isHidden),
+            "view.alpha": .double(Double(node.opacity)),
+            "view.clipsToBounds": .bool(node.masksToBounds)
         ]
         known.merge(values) { $1 }
+        let backsView = ids.contains("view")
         return ids.map { groupID in
-            AttributeGroup(
-                id: groupID,
-                title: groupID,
-                attributes: AttributeChecks.list[groupID]!.map { entry in
-                    let id = "\(groupID).\(entry.name)"
-                    return Attribute(
-                        id: id,
-                        title: entry.name,
-                        value: known[id] ?? placeholder(entry.kind),
-                        editable: entry.editable,
-                        acceptsNil: entry.acceptsNil,
-                        valueKind: entry.kind,
-                        section: AttributeChecks.sections[id] ?? .general,
-                        limits: entry.editable ? AttributeChecks.limits[id] ?? [] : []
-                    )
-                }
-            )
+            AttributeChecks.listedGroup(groupID, backsView: backsView) { id, entry in
+                known[id] ?? self.placeholder(entry.kind)
+            }
         }
     }
 
@@ -599,10 +686,10 @@ final class AttributeChecksTests: XCTestCase {
         // view.contentMode of the screen's view, with a raw value that has no name.
         fallback[1].attributeGroups[1].attributes[6] = Attribute(
             id: "view.contentMode",
-            title: "contentMode",
+            title: "Content Mode",
             value: .string("99"),
             valueKind: .string,
-            section: .general
+            section: .appearance
         )
         XCTAssertNoThrow(try AttributeChecks.demo(fallback, hierarchy: hierarchy, scene: scene))
     }
@@ -632,10 +719,10 @@ final class AttributeChecksTests: XCTestCase {
             layer: 2
         ) { $0[0].attributes[0].editable = true }
         assertDemoRejects(
-            "attribute layer.backgroundColor has value_kind color, editable true, accepts_nil false; the list says " +
+            "attribute layer.borderColor has value_kind color, editable true, accepts_nil false; the list says " +
                 "color, true, true",
             layer: 2
-        ) { $0[0].attributes[10].acceptsNil = false }
+        ) { $0[0].attributes[8].acceptsNil = false }
         assertDemoRejects(
             "attribute view.tag has value_kind double, editable true, accepts_nil false; the list says int, true, " +
                 "false",
@@ -680,7 +767,7 @@ final class AttributeChecksTests: XCTestCase {
         assertDemoRejects("label.text of the label Scrolled is nil", layer: 7) {
             self.set("label.text", nil, in: &$0)
         }
-        assertDemoRejects("view.clipsToBounds of CardView is", layer: 4) {
+        assertDemoRejects("view.clipsToBounds is bool(false), but the hierarchy says bool(true)", layer: 4) {
             self.set("view.clipsToBounds", .bool(false), in: &$0)
         }
         assertDemoRejects("scrollView.contentOffset of the scroll view is", layer: 6) {
@@ -739,5 +826,38 @@ final class AttributeChecksTests: XCTestCase {
         assertDemoRejects("group view has the attributes", layer: 2) {
             $0[1].attributes.remove(at: index("view.translatesAutoresizingMaskIntoConstraints", in: $0))
         }
+    }
+}
+
+extension AttributeChecks {
+    /// A group with every attribute of the list for a layer that does or does not back a view,
+    /// with the fields of protocol 1.1 the list gives, and the value `value` gives each.
+    static func listedGroup(
+        _ groupID: String,
+        backsView: Bool,
+        value: (String, Entry) -> AttributeValue?
+    ) -> AttributeGroup {
+        let entries = list[groupID]!.filter { !backsView || !$0.onlyWithoutView }
+        return AttributeGroup(
+            id: groupID,
+            title: groupID,
+            attributes: entries.map { entry in
+                let id = "\(groupID).\(entry.name)"
+                return Attribute(
+                    id: id,
+                    title: entry.title,
+                    value: value(id, entry),
+                    editable: entry.editable,
+                    acceptsNil: entry.acceptsNil,
+                    valueKind: entry.kind,
+                    section: entry.section,
+                    limits: entry.editable ? limits[id] ?? [] : [],
+                    cluster: entry.cluster,
+                    slot: entry.slot,
+                    unit: entry.unit
+                )
+            },
+            className: classNames[groupID]
+        )
     }
 }

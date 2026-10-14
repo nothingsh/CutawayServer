@@ -128,6 +128,12 @@ extension FrameCodec {
         object.layerAddress = node.layerAddress
         object.viewAddress = node.viewAddress ?? 0
         object.viewControllerAddress = node.viewControllerAddress ?? 0
+        object.layerClassOrigin = node.layerClassOrigin.generated
+        object.viewClassOrigin = node.viewClassOrigin.generated
+        object.viewControllerClassOrigin = node.viewControllerClassOrigin.generated
+        object.layerBaseClassName = node.layerBaseClassName
+        object.viewBaseClassName = node.viewBaseClassName
+        object.viewControllerVisibility = node.viewControllerVisibility.generated
         return object
     }
 
@@ -170,6 +176,7 @@ extension FrameCodec {
         object.constant = constraint.constant
         object.priority = constraint.priority
         object.status = constraint.status.generated
+        object.origin = constraint.origin.generated
         return object
     }
 
@@ -182,6 +189,7 @@ extension FrameCodec {
         object.displayClassName = item.displayClassName
         object.identifier = item.identifier
         object.guideFrame = item.guideFrame.map(rectStruct(for:))
+        object.guideKind = item.guideKind.generated
         return object
     }
 
@@ -189,6 +197,7 @@ extension FrameCodec {
         let object = Cutaway_Wire_AttributeGroupT()
         object.id = group.id
         object.title = group.title
+        object.className = group.className
         object.attributes = group.attributes.map { attribute in
             let attributeObject = Cutaway_Wire_AttributeT()
             attributeObject.id = attribute.id
@@ -209,6 +218,10 @@ extension FrameCodec {
                 limitObject.maximumExclusive = limit.maximumIsExclusive
                 return limitObject
             }
+            attributeObject.cluster = attribute.cluster
+            attributeObject.slot = attribute.slot
+            attributeObject.inactiveCause = attribute.inactiveCause
+            attributeObject.unit = attribute.unit.generated
             return attributeObject
         }
         return object
@@ -234,8 +247,9 @@ extension FrameCodec {
             let object = Cutaway_Wire_StringValueT()
             object.value = value
             return Cutaway_Wire_AttributeValueUnion(object, type: .stringvalue)
-        case .color(let color):
+        case let .color(color, systemName):
             let object = Cutaway_Wire_ColorValueT()
+            object.systemName = systemName
             object.value = Cutaway_Wire_Color(
                 red: color.red,
                 green: color.green,

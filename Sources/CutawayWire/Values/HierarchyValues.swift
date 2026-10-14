@@ -20,6 +20,77 @@ public struct MemberReference: Sendable, Equatable {
     }
 }
 
+/// Where a class, or a constraint, comes from (P-HIER-16, P-LAYOUT-09, protocol 1.1).
+/// `unknown` means absent.
+public enum Origin: Sendable, Equatable, CaseIterable {
+    case unknown
+    case system
+    case app
+}
+
+/// Whether a view controller is shown (P-HIER-18, protocol 1.1). `unknown` means absent.
+public enum ViewControllerVisibility: Sendable, Equatable, CaseIterable {
+    case unknown
+    case shown
+    case notShown
+}
+
+/// The protocol's tables of known classes (P-HIER-17, protocol 1.1): only appended to, each
+/// entry with the minor version of protocol 1 that added it.
+public enum KnownClasses {
+    public struct Entry: Sendable, Equatable {
+        /// The runtime name of the class; `UIHostingView` names no class (see `hostingView`).
+        public var name: String
+        public var minorVersion: UInt16
+    }
+
+    /// Stands for a view SwiftUI uses to host SwiftUI content in UIKit; not a runtime name.
+    public static let hostingView = "UIHostingView"
+
+    public static let views: [Entry] = [
+        "UIWindow",
+        "UILabel",
+        "UITextField",
+        "UITextView",
+        "UISegmentedControl",
+        "UIPageControl",
+        "UIStepper",
+        "UIDatePicker",
+        "UIPickerView",
+        "UIButton",
+        "UISwitch",
+        "UISlider",
+        "UIControl",
+        "UIImageView",
+        "UITableViewCell",
+        "UICollectionViewCell",
+        "UICollectionReusableView",
+        "UITableViewHeaderFooterView",
+        "UICollectionView",
+        "UITableView",
+        "UIScrollView",
+        "UINavigationBar",
+        "UITabBar",
+        "UIToolbar",
+        "UISearchBar",
+        "WKWebView",
+        "MKMapView",
+        "UIActivityIndicatorView",
+        "UIProgressView",
+        "UIStackView",
+        "UIVisualEffectView",
+        hostingView
+    ].map { Entry(name: $0, minorVersion: 1) }
+
+    public static let layers: [Entry] = ["CAShapeLayer", "CAGradientLayer", "CATextLayer"]
+        .map { Entry(name: $0, minorVersion: 1) }
+
+    /// The names of `entries` that a peer working at `version` knows.
+    public static func names(of entries: [Entry], at version: ProtocolVersion) -> Set<String> {
+        Set(entries.filter { $0.minorVersion <= version.minor }.map(\.name))
+    }
+}
+
 /// One layer. Geometry holds the layer's model values (PROTOCOL.md, P-HIER-05, P-HIER-06).
 /// A geometry field that is absent on the wire reads as zeros.
 public struct LayerNode: Sendable, Equatable {
@@ -56,6 +127,16 @@ public struct LayerNode: Sendable, Equatable {
     public var viewAddress: UInt64?
     /// Set exactly when `viewControllerClassName` is. 0 on the wire reads as nil.
     public var viewControllerAddress: UInt64?
+    /// Where each class comes from, given exactly when its name is (P-HIER-16, protocol 1.1).
+    public var layerClassOrigin: Origin
+    public var viewClassOrigin: Origin
+    public var viewControllerClassOrigin: Origin
+    /// The nearest class of the protocol's tables (P-HIER-17, protocol 1.1).
+    public var layerBaseClassName: String?
+    /// Only when the layer backs a view.
+    public var viewBaseClassName: String?
+    /// Given exactly when `viewControllerClassName` is (P-HIER-18, protocol 1.1).
+    public var viewControllerVisibility: ViewControllerVisibility
 
     public init(
         id: UInt64,
@@ -77,7 +158,13 @@ public struct LayerNode: Sendable, Equatable {
         memberReferences: [MemberReference] = [],
         layerAddress: UInt64 = 0,
         viewAddress: UInt64? = nil,
-        viewControllerAddress: UInt64? = nil
+        viewControllerAddress: UInt64? = nil,
+        layerClassOrigin: Origin = .unknown,
+        viewClassOrigin: Origin = .unknown,
+        viewControllerClassOrigin: Origin = .unknown,
+        layerBaseClassName: String? = nil,
+        viewBaseClassName: String? = nil,
+        viewControllerVisibility: ViewControllerVisibility = .unknown
     ) {
         self.id = id
         self.parentID = parentID
@@ -99,6 +186,12 @@ public struct LayerNode: Sendable, Equatable {
         self.layerAddress = layerAddress
         self.viewAddress = viewAddress
         self.viewControllerAddress = viewControllerAddress
+        self.layerClassOrigin = layerClassOrigin
+        self.viewClassOrigin = viewClassOrigin
+        self.viewControllerClassOrigin = viewControllerClassOrigin
+        self.layerBaseClassName = layerBaseClassName
+        self.viewBaseClassName = viewBaseClassName
+        self.viewControllerVisibility = viewControllerVisibility
     }
 }
 

@@ -22,7 +22,10 @@ enum EditChecks {
         }
         let name = "SetAttributeResult for layer \(layerID)"
         try AttributeChecks.structure(result.attributeGroups, name: name)
-        for group in result.attributeGroups { try AttributeChecks.matchesList(group, name: name) }
+        let backsView = result.attributeGroups.contains { $0.id == "view" }
+        for group in result.attributeGroups {
+            try AttributeChecks.matchesList(group, name: name, backsView: backsView)
+        }
         let actual = AttributeChecks.value(attributeID, in: result.attributeGroups)
         guard actual == value else {
             throw ProbeFailure(

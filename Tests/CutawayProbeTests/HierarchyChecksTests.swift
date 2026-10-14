@@ -262,7 +262,8 @@ final class HierarchyChecksTests: XCTestCase {
                 bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
                 position: WirePoint(x: 0, y: 0),
                 zPosition: -1,
-                layerAddress: 0x6000_0000_1000
+                layerAddress: 0x6000_0000_1000,
+                layerClassOrigin: .system
             )
         )
         XCTAssertNoThrow(try HierarchyChecks.structure(windows))
@@ -293,6 +294,9 @@ final class HierarchyChecksTests: XCTestCase {
             plain.nodes[index].layerAddress = 0
             plain.nodes[index].viewAddress = nil
             plain.nodes[index].viewControllerAddress = nil
+            // Nor the base classes of the tables 1.0 does not have (P-HIER-17).
+            plain.nodes[index].viewBaseClassName = nil
+            plain.nodes[index].layerBaseClassName = nil
         }
         XCTAssertNoThrow(try HierarchyChecks.structure(plain, version: ProtocolVersion(major: 1, minor: 0)))
         XCTAssertThrowsError(try HierarchyChecks.structure(plain))
@@ -433,6 +437,63 @@ final class HierarchyChecksTests: XCTestCase {
         // The change leaves a well-formed hierarchy: only the demo check may object.
         XCTAssertNoThrow(try HierarchyChecks.structure(hierarchy), file: file, line: line)
         assertRejects(expected, file: file, line: line) { _ = try HierarchyChecks.demoScene(hierarchy) }
+    }
+
+    func test_S_PROBE_06_structureChecksRequireTheFactsAboutClasses() throws {
+        try assertStructureRejects("(id 1) has no layer_class_origin, but a class name for it (P-HIER-16, 18)") {
+            $0.nodes[0].layerClassOrigin = .unknown
+        }
+        try assertStructureRejects("(id 2) has no view_class_origin, but a class name for it") {
+            $0.nodes[1].viewClassOrigin = .unknown
+        }
+        try assertStructureRejects("(id 5) has a view_class_origin, but no class name for it") {
+            $0.nodes[4].viewClassOrigin = .app
+        }
+        try assertStructureRejects("(id 2) has no view_controller_visibility, but a class name for it") {
+            $0.nodes[1].viewControllerVisibility = .unknown
+        }
+        try assertStructureRejects("(id 3) has a view_controller_class_origin, but no class name for it") {
+            $0.nodes[2].viewControllerClassOrigin = .system
+        }
+        try assertStructureRejects("(id 2) has view_base_class_name UIViewController, which the view table") {
+            $0.nodes[1].viewBaseClassName = "UIViewController"
+        }
+        try assertStructureRejects("(id 5) has view_base_class_name UILabel but backs no view (P-HIER-17)") {
+            $0.nodes[4].viewBaseClassName = "UILabel"
+        }
+        try assertStructureRejects("(id 1) has layer_base_class_name CALayer, which the layer table") {
+            $0.nodes[0].layerBaseClassName = "CALayer"
+        }
+        // A 1.0 client knows no table.
+        let fixture = try fixtureHierarchy()
+        assertRejects("has view_base_class_name UIWindow, which the view table of protocol 1.0 does not have") {
+            try HierarchyChecks.structure(fixture, version: ProtocolVersion(major: 1, minor: 0))
+        }
+    }
+
+    func test_S_PROBE_06_demoChecksRequireTheFactsAboutTheDemosClasses() {
+        func assertRejects(_ expected: String, line: UInt = #line, _ change: (inout Hierarchy) -> Void) {
+            var hierarchy = demoHierarchy()
+            Addresses.add(to: &hierarchy)
+            change(&hierarchy)
+            XCTAssertNoThrow(try HierarchyChecks.structure(hierarchy), line: line)
+            self.assertRejects(expected, line: line) { _ = try HierarchyChecks.demoScene(hierarchy) }
+        }
+        func node(_ name: String, in hierarchy: Hierarchy) -> Int {
+            hierarchy.nodes.firstIndex { $0.viewControllerClassName == name || $0.viewClassName == name }!
+        }
+        assertRejects("the screen's view has view_controller_class_origin system, expected app") {
+            $0.nodes[node("CutawayDemo.DemoViewController", in: $0)].viewControllerClassOrigin = .system
+        }
+        assertRejects("the screen's view has view_controller_visibility notShown, expected shown") {
+            $0.nodes[node("CutawayDemo.DemoViewController", in: $0)].viewControllerVisibility = .notShown
+        }
+        assertRejects("CardView has view_class_origin system, expected app") {
+            $0.nodes[node("CutawayDemo.CardView", in: $0)].viewClassOrigin = .system
+        }
+        assertRejects("the key window has view_base_class_name nil, expected Optional(\"UIWindow\")") {
+            $0.nodes[0].viewBaseClassName = nil
+        }
     }
 
     func test_S_PROBE_01_demoChecksAcceptTheExpectedScene() throws {

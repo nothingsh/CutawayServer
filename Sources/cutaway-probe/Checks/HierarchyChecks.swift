@@ -92,6 +92,7 @@ enum HierarchyChecks {
 
             try checkClassNames(of: node, name: name)
             try checkAddresses(of: node, name: name, version: version)
+            try checkClassFacts(of: node, name: name, version: version)
             try checkMemberReferences(of: node, name: name)
             guard numbers(of: node).allSatisfy(\.isFinite) else {
                 throw ProbeFailure("\(name) (id \(node.id)) has a number that is not finite (P-HIER-05)")
@@ -131,6 +132,50 @@ enum HierarchyChecks {
             throw ProbeFailure(
                 "\(label) has \(node.viewControllerAddress == nil ? "no " : "a ")view_controller_address but "
                     + "\(node.viewControllerClassName == nil ? "no " : "a ")view_controller_class_name (P-HIER-14)"
+            )
+        }
+    }
+
+    /// P-HIER-16 to 18 (protocol 1.1): each origin, and the view controller's visibility, given
+    /// exactly when its class name is, and then not `Unknown`; base classes only from the tables
+    /// of the negotiated version, a view's only where there is a view.
+    private static func checkClassFacts(of node: LayerNode, name: String, version: ProtocolVersion) throws {
+        let label = "\(name) (id \(node.id))"
+        let views = KnownClasses.names(of: KnownClasses.views, at: version)
+        let layers = KnownClasses.names(of: KnownClasses.layers, at: version)
+        if let base = node.viewBaseClassName {
+            guard node.viewClassName != nil else {
+                throw ProbeFailure("\(label) has view_base_class_name \(base) but backs no view (P-HIER-17)")
+            }
+            guard views.contains(base) else {
+                throw ProbeFailure(
+                    "\(label) has view_base_class_name \(base), which the view table of protocol 1.\(version.minor) does not have (P-HIER-17)"
+                )
+            }
+        }
+        if let base = node.layerBaseClassName, !layers.contains(base) {
+            throw ProbeFailure(
+                "\(label) has layer_base_class_name \(base), which the layer table of protocol 1.\(version.minor) does not have (P-HIER-17)"
+            )
+        }
+        guard version.minor >= 1 else { return }
+        let given: [(String, Bool, Bool)] = [
+            ("layer_class_origin", node.layerClassOrigin != .unknown, true),
+            ("view_class_origin", node.viewClassOrigin != .unknown, node.viewClassName != nil),
+            (
+                "view_controller_class_origin",
+                node.viewControllerClassOrigin != .unknown,
+                node.viewControllerClassName != nil
+            ),
+            (
+                "view_controller_visibility",
+                node.viewControllerVisibility != .unknown,
+                node.viewControllerClassName != nil
+            )
+        ]
+        for (field, isGiven, hasName) in given where isGiven != hasName {
+            throw ProbeFailure(
+                "\(label) has \(isGiven ? "a" : "no") \(field), but \(hasName ? "a" : "no") class name for it (P-HIER-16, 18)"
             )
         }
     }

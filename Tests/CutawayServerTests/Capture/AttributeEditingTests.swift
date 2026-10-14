@@ -118,7 +118,7 @@ final class AttributeEditingTests: CaptureTestCase {
     /// `Float` properties lose digits, enumerations come back with their cases.
     private func matches(_ actual: AttributeValue?, _ written: AttributeValue?) -> Bool {
         switch (actual, written) {
-        case let (.color(actualColor), .color(writtenColor)):
+        case let (.color(actualColor, _), .color(writtenColor, _)):
             return zip(
                 [actualColor.red, actualColor.green, actualColor.blue, actualColor.alpha],
                 [writtenColor.red, writtenColor.green, writtenColor.blue, writtenColor.alpha]
