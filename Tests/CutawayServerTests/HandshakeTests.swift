@@ -41,7 +41,7 @@ final class HandshakeTests: ServerTestCase {
                     height: Double(UIScreen.main.bounds.height)
                 ),
                 screenScale: Float(UIScreen.main.scale),
-                serverVersion: "1.0.0"
+                serverVersion: "1.1.0"
             )
         }
         let app = try XCTUnwrap(hello.app)
