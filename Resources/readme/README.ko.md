@@ -55,7 +55,7 @@ Xcode에서 **File › Add Package Dependencies…**를 선택하고 `https://gi
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -110,7 +110,7 @@ struct MyApp: App {
 - SwiftPM 호스트에서는:
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - Xcode 프로젝트에서는: 이 패키지 의존성에서 trait `ReleaseEnabled`를 활성화합니다. XcodeGen을 사용한다면 `packages.<name>.traits` 아래에 나열합니다. `Demo/release-enabled.yml`이 예시입니다.
@@ -171,7 +171,6 @@ struct MyApp: App {
 
 1.0 이후에 계획된 방향입니다. 순서와 범위는 바뀔 수 있습니다.
 
-- **프로토콜 1.0.** Cutaway 프로토콜을 동결하여, 이후의 기능은 프로토콜에 추가만 하도록 합니다.
 - **상호작용 분석.** 제스처 인식기와 target–action 쌍을 표시하고, 제스처를 활성화·비활성화하며, 객체의 메서드를 호출합니다.
 - **호스트 앱을 위한 확장 API.** 사용자 정의 속성, 가상 자식 노드, 그리고 기본적으로 접혀 있는 클래스, 색상 별칭, 이미지에서 제외할 뷰 같은 설정.
 - **대규모 계층.** 보이는 레이어만 캡처하는 빠른 모드. 매우 큰 이미지의 분할 전송.

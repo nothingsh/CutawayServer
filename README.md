@@ -60,7 +60,7 @@ In a `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -117,7 +117,7 @@ To use the server in configurations of the second kind, enable the package trait
 - In a SwiftPM host:
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - In an Xcode project: enable the trait `ReleaseEnabled` on this package dependency. With
@@ -198,7 +198,6 @@ Debug build:
 
 These are the directions planned after 1.0. Order and scope may change.
 
-- **Protocol 1.0.** Freeze the Cutaway protocol, so later features only add to it.
 - **Interaction analysis.** Show gesture recognizers and target–action pairs; enable and disable
   gestures; call methods on objects.
 - **Extension API for host apps.** Custom attributes, virtual child nodes, and configuration such
