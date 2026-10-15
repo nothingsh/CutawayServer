@@ -52,7 +52,7 @@ Xcode で **File › Add Package Dependencies…** を選び、`https://github.c
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -107,7 +107,7 @@ struct MyApp: App {
 - SwiftPM のホストの場合:
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - Xcode プロジェクトの場合: このパッケージ依存関係で trait `ReleaseEnabled` を有効にします。XcodeGen を使う場合は `packages.<name>.traits` に記載します。`Demo/release-enabled.yml` が例です。
@@ -168,7 +168,6 @@ struct MyApp: App {
 
 1.0 以降に予定している方向性です。順序と範囲は変わる可能性があります。
 
-- **プロトコル 1.0。** Cutaway プロトコルを凍結し、以後の機能はプロトコルへの追加だけで実現します。
 - **インタラクションの分析。** ジェスチャーレコグナイザーと target–action の組を表示し、ジェスチャーを有効化・無効化し、オブジェクトのメソッドを呼び出します。
 - **ホストアプリ向けの拡張 API。** カスタム属性、仮想の子ノード、そしてデフォルトで折りたたむクラス、色のエイリアス、画像から除外するビューなどの設定。
 - **大規模な階層。** 可視レイヤーだけをキャプチャする高速モード。非常に大きな画像の分割転送。

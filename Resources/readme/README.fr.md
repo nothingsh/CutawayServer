@@ -68,7 +68,7 @@ Dans un `Package.swift` :
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -128,7 +128,7 @@ package SwiftPM) `ReleaseEnabled` :
 - Dans un hôte SwiftPM :
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - Dans un projet Xcode : activez le trait `ReleaseEnabled` sur cette dépendance de package. Avec
@@ -221,8 +221,6 @@ Simulator, en build Debug :
 
 Voici les orientations prévues après la 1.0. L'ordre et le périmètre peuvent changer.
 
-- **Protocole 1.0.** Figer le protocole Cutaway, afin que les fonctionnalités ultérieures ne fassent
-  qu'y ajouter.
 - **Analyse des interactions.** Afficher les gesture recognizers et les paires target–action ; activer
   et désactiver des gestes ; appeler des méthodes sur des objets.
 - **API d'extension pour les apps hôtes.** Attributs personnalisés, nœuds enfants virtuels, et
