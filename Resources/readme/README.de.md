@@ -68,7 +68,7 @@ In einer `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -127,7 +127,7 @@ Um den Server in Konfigurationen der zweiten Art zu verwenden, aktivieren Sie da
 - In einem SwiftPM-Host:
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - In einem Xcode-Projekt: Aktivieren Sie das Trait `ReleaseEnabled` für diese Paketabhängigkeit. Mit
@@ -218,8 +218,6 @@ Simulator, Debug-Build:
 
 Dies sind die für die Zeit nach 1.0 geplanten Richtungen. Reihenfolge und Umfang können sich ändern.
 
-- **Protokoll 1.0.** Das Cutaway-Protokoll einfrieren, sodass spätere Funktionen es nur noch
-  erweitern.
 - **Interaktionsanalyse.** Gesture-Recognizer und Target-Action-Paare anzeigen; Gesten aktivieren und
   deaktivieren; Methoden auf Objekten aufrufen.
 - **Erweiterungs-API für Host-Apps.** Benutzerdefinierte Attribute, virtuelle Kindknoten und

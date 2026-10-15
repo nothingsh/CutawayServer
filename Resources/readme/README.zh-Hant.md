@@ -55,7 +55,7 @@ CutawayServer 是一套在開發期間嵌入你的 App 的 iOS SDK。它讓 macO
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0")
+    .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0")
 ]
 ```
 
@@ -110,7 +110,7 @@ struct MyApp: App {
 - 在 SwiftPM 宿主中：
 
   ```swift
-  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.0.0", traits: ["ReleaseEnabled"])
+  .package(url: "https://github.com/nothingsh/CutawayServer", from: "1.1.0", traits: ["ReleaseEnabled"])
   ```
 
 - 在 Xcode 專案中：在這個套件相依項目上啟用 trait `ReleaseEnabled`。使用 XcodeGen 時，把它列在 `packages.<name>.traits` 之下；`Demo/release-enabled.yml` 是一個範例。
@@ -171,7 +171,6 @@ struct MyApp: App {
 
 以下是 1.0 之後規劃的方向。順序和範圍可能會變動。
 
-- **協定 1.0。** 凍結 Cutaway 協定，讓之後的功能只在其上增加。
 - **互動分析。** 顯示手勢辨識器和 target–action 配對；啟用和停用手勢；在物件上呼叫方法。
 - **供宿主 App 使用的擴充 API。** 自訂屬性、虛擬子節點，以及像是預設收合的類別、顏色別名和從影像中排除的視圖等設定。
 - **大型階層。** 只擷取可見圖層的快速模式；對超大影像分塊傳輸。
