@@ -195,6 +195,18 @@ final class AttributeChecksTests: XCTestCase {
                 unspecified[group].attributes[attribute].unit = .unspecified
             }
         }
+        // P-ATTR-12: nor a cluster, as the table of 1.0 is empty.
+        assertRejects(
+            "attribute layer.frame is the frame of the cluster geometry, which protocol 1.0 does not name (P-ATTR-12)"
+        ) {
+            try AttributeChecks.structure(unspecified, name: "layer 3", version: old)
+        }
+        for group in unspecified.indices {
+            for attribute in unspecified[group].attributes.indices {
+                unspecified[group].attributes[attribute].cluster = nil
+                unspecified[group].attributes[attribute].slot = nil
+            }
+        }
         XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3", version: old))
         XCTAssertNoThrow(try AttributeChecks.structure(unspecified, name: "layer 3"))
     }
@@ -283,20 +295,107 @@ final class AttributeChecksTests: XCTestCase {
             $0[0].attributes[6].value = .color(WireColor(red: 0, green: 0, blue: 0, alpha: 1), systemName: "systemBlue")
         }
         try assertStructureRejects("group view has no class_name (P-ATTR-16)") { $0[2].className = nil }
+    }
 
-        // A cluster the protocol does not name is only reported.
-        var unknown = try layer3()
-        unknown[2].attributes[5].cluster = "interaction"
-        unknown[2].attributes[5].slot = "enabled"
-        XCTAssertNoThrow(try AttributeChecks.structure(unknown, name: "layer 3"))
-        XCTAssertEqual(
-            AttributeChecks.unknownClusters(unknown, name: "layer 3"),
-            [
-                "layer 3: view.isUserInteractionEnabled is the enabled of the cluster interaction, "
-                    + "which the protocol does not name"
-            ]
+    // MARK: - Protocol 1.2 (S-PROBE-07)
+
+    func test_S_PROBE_07_clustersAreThoseOfTheNegotiatedTable() throws {
+        // Since 1.2 a cluster or slot outside the negotiated table is a failure (P-ATTR-12).
+        try assertStructureRejects(
+            "view.isUserInteractionEnabled is the enabled of the cluster interaction, "
+                + "which protocol 1.2 does not name (P-ATTR-12)"
+        ) {
+            $0[2].attributes[5].cluster = "interaction"
+            $0[2].attributes[5].slot = "enabled"
+        }
+        // A slot of 1.2 at 1.1.
+        var style = Attribute(
+            id: "label.fontTextStyle",
+            title: "Text Style",
+            value: .string("body"),
+            valueKind: .string,
+            section: .content
         )
-        XCTAssertEqual(AttributeChecks.unknownClusters(try layer3(), name: "layer 3"), [])
+        style.cluster = "font"
+        style.slot = "textStyle"
+        let groups = [AttributeGroup(id: "label", title: "Label", attributes: [style], className: "UILabel")]
+        let previous = ProtocolVersion(major: 1, minor: 1)
+        XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
+        assertRejects("label.fontTextStyle is the textStyle of the cluster font, which protocol 1.1 does not name") {
+            try AttributeChecks.structure(groups, name: "layer 3", version: previous)
+        }
+        style.cluster = nil
+        style.slot = nil
+        let unclustered = [AttributeGroup(id: "label", title: "Label", attributes: [style], className: "UILabel")]
+        XCTAssertNoThrow(try AttributeChecks.structure(unclustered, name: "layer 3", version: previous))
+    }
+
+    func test_S_PROBE_07_accessibilityIsNotSentTo1_1() throws {
+        let groups = try layer3()
+        XCTAssertTrue(groups.flatMap(\.attributes).contains { $0.section == .accessibility })
+        assertRejects("which protocol 1.1 does not have (P-ATTR-08)") {
+            try AttributeChecks.structure(groups, name: "layer 3", version: ProtocolVersion(major: 1, minor: 1))
+        }
+    }
+
+    func test_S_PROBE_07_lightAndDarkComeTogetherAndDiffer() throws {
+        let groups = try layer3()
+        let tint = try XCTUnwrap(groups[2].attributes.firstIndex { $0.id == "view.tintColor" })
+        guard case let .color(value, name, light?, _?)? = groups[2].attributes[tint].value else {
+            return XCTFail("the fixture's tint has a light and a dark")
+        }
+        try assertStructureRejects("has one of light and dark without the other (P-ATTR-17)") {
+            $0[2].attributes[tint].value = .color(value, systemName: name, light: light, dark: nil)
+        }
+        try assertStructureRejects("has a light and a dark that are the same in 8 bits (P-ATTR-17)") {
+            var near = light
+            near.red += 0.001
+            $0[2].attributes[tint].value = .color(value, systemName: name, light: light, dark: near)
+        }
+    }
+
+    func test_S_PROBE_07_referencesAreReadOnlyAndNameLayersOfTheHierarchy() throws {
+        let reference = ObjectReference(layerID: 7, className: "Demo.Source", displayClassName: "Source")
+        let groups = [
+            AttributeGroup(
+                id: "scrollView",
+                title: "Scroll View",
+                attributes: [
+                    Attribute(
+                        id: "scrollView.delegate",
+                        title: "Delegate",
+                        value: .layerReference([
+                            reference,
+                            ObjectReference(layerID: 0, className: "X", displayClassName: "X")
+                        ]),
+                        valueKind: .layerReference,
+                        section: .content
+                    )
+                ],
+                className: "UIScrollView"
+            )
+        ]
+        XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 9", layerIDs: [7]))
+        // P-ATTR-03: a 1.1 client gets text instead.
+        assertRejects(
+            "attribute scrollView.delegate is a layerReference value, which protocol 1.1 does not have (P-ATTR-03)"
+        ) {
+            try AttributeChecks.structure(groups, name: "layer 9", version: ProtocolVersion(major: 1, minor: 1))
+        }
+        assertRejects("reference 0 names layer 7, which the hierarchy does not have (P-ATTR-18)") {
+            try AttributeChecks.structure(groups, name: "layer 9", layerIDs: [8])
+        }
+        var editable = groups
+        editable[0].attributes[0].editable = true
+        assertRejects("attribute scrollView.delegate refers to objects, but is editable (P-ATTR-18)") {
+            try AttributeChecks.structure(editable, name: "layer 9", layerIDs: [7])
+        }
+        var unnamed = groups
+        let nameless = ObjectReference(layerID: 0, className: "", displayClassName: "")
+        unnamed[0].attributes[0].value = .layerReference([nameless])
+        assertRejects("reference 0 has no class_name or display_class_name (P-ATTR-18)") {
+            try AttributeChecks.structure(unnamed, name: "layer 9")
+        }
     }
 
     func test_S_PROBE_06_demoAttributeChecksRequireTheList() {
@@ -336,13 +435,7 @@ final class AttributeChecksTests: XCTestCase {
                 entries.map { ("\(group).\($0.name)", $0) }
             }
         )
-        // The attributes of protocol 1.2 come to the list with milestone 31.
-        let notYetListed: Set = [
-            "label.fontTextStyle",
-            "label.adjustsFontForContentSizeCategory",
-            "view.accessibilityLabel"
-        ]
-        for attribute in try layer3().flatMap(\.attributes) where !notYetListed.contains(attribute.id) {
+        for attribute in try layer3().flatMap(\.attributes) {
             let entry = try XCTUnwrap(entries[attribute.id], attribute.id)
             XCTAssertEqual(attribute.section, entry.section, attribute.id)
             XCTAssertEqual(attribute.title, entry.title, attribute.id)
@@ -385,15 +478,22 @@ final class AttributeChecksTests: XCTestCase {
                 "scrollView",
                 "stackView",
                 "textField",
-                "textView"
+                "textView",
+                "tableView",
+                "collectionView",
+                "tableViewCell",
+                "collectionViewCell"
             ]
         )
-        // 60 of version 0.1 and the 8 of S-ATTR-07.
-        XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 69)
+        // 60 of version 0.1, the 8 of S-ATTR-07 and the 45 of protocol 1.2 (S-ATTR-16 to 22), with
+        // `imageView.imageSize` of 0.1 in a cluster now.
+        XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 114)
     }
 
     func test_S_ATTR_07_theListHasTheLayoutAttributes() {
-        let view = AttributeChecks.list["view"]!
+        let all = AttributeChecks.list["view"]!
+        // Before the accessibility of protocol 1.2.
+        let view = all.prefix { !$0.name.hasPrefix("accessibility") }
         XCTAssertEqual(
             view.suffix(8).map(\.name),
             [

@@ -76,7 +76,9 @@ extension AttributeCatalog {
                 section: .content,
                 cluster: ("scrolling", "paging"),
                 write: .bool(\.isPagingEnabled)
-            ) { .bool($0.isPagingEnabled) }
+            ) { .bool($0.isPagingEnabled) },
+            // Protocol 1.2 (S-ATTR-18). Also a table's and a collection view's delegate.
+            .references("delegate", section: .content) { $0.delegate.map { [$0 as AnyObject] } }
         ] as [AttributeDefinition<UIScrollView>]
     )
 
@@ -104,7 +106,8 @@ extension AttributeCatalog {
                 unit: .points,
                 limits: Limits.positive,
                 write: .fontSize(\.font)
-            ) { $0.font.map { Outputs.double($0.pointSize) } },
+            ) { $0.font.map { Outputs.double($0.pointSize) } }
+        ] + fontDefinitions(font: \.font, adjusts: \.adjustsFontForContentSizeCategory) + [
             .init("textColor", .color, acceptsNil: true, section: .content, write: .uiColor(\.textColor)) {
                 Outputs.color($0.textColor, in: $0)
             },
@@ -126,7 +129,28 @@ extension AttributeCatalog {
                 section: .content,
                 cluster: ("lines", "lineBreak"),
                 write: .enumeration(\.lineBreakMode)
-            ) { Outputs.enumeration($0.lineBreakMode.rawValue, names: Outputs.lineBreakModeNames) }
+            ) { Outputs.enumeration($0.lineBreakMode.rawValue, names: Outputs.lineBreakModeNames) },
+            // Protocol 1.2 (S-ATTR-22).
+            .init(
+                "drawnLineCount",
+                .int,
+                title: "Drawn Lines",
+                section: .content,
+                cluster: ("lines", "drawn"),
+                write: nil
+            ) {
+                AttributeTexts.lines(of: $0).map { .int(Int64($0.count)) }
+            },
+            .init(
+                "isTruncated",
+                .bool,
+                title: "Truncated",
+                section: .content,
+                cluster: ("lines", "truncated"),
+                write: nil
+            ) {
+                AttributeTexts.lines(of: $0).map { .bool($0.truncated) }
+            }
         ] as [AttributeDefinition<UILabel>]
     )
 
@@ -134,11 +158,7 @@ extension AttributeCatalog {
         "imageView",
         className: "UIImageView",
         subject: { (_: CALayer, view: UIView?) in view as? UIImageView },
-        [
-            // The image's own size.
-            .init("imageSize", .size, section: .content, unit: .points, write: nil) {
-                $0.image.map { Outputs.size($0.size) }
-            },
+        imageDefinitions { $0.image } + [
             .init(
                 "isHighlighted",
                 .bool,
@@ -177,7 +197,7 @@ extension AttributeCatalog {
                     }
                 }
             ) { Outputs.color($0.currentTitleColor, in: $0) }
-        ] as [AttributeDefinition<UIButton>]
+        ] + imageDefinitions { $0.currentImage } as [AttributeDefinition<UIButton>]
     )
 
     static let stackViewGroup = GroupDefinition(
@@ -196,6 +216,11 @@ extension AttributeCatalog {
             },
             .init("spacing", .double, section: .content, unit: .points, write: .number(\.spacing)) {
                 Outputs.double($0.spacing)
+            },
+            // Protocol 1.2 (S-ATTR-18, 19).
+            .references("arrangedSubviews", section: .content) { $0.arrangedSubviews },
+            .init("customSpacing", .string, section: .content, write: nil) {
+                AttributeTexts.customSpacing(of: $0).map { .string($0) }
             }
         ] as [AttributeDefinition<UIStackView>]
     )
@@ -227,7 +252,8 @@ extension AttributeCatalog {
                 unit: .points,
                 limits: Limits.positive,
                 write: .fontSize(\.font)
-            ) { $0.font.map { Outputs.double($0.pointSize) } },
+            ) { $0.font.map { Outputs.double($0.pointSize) } }
+        ] + fontDefinitions(font: \.font, adjusts: \.adjustsFontForContentSizeCategory) + [
             .init("textColor", .color, acceptsNil: true, section: .content, write: .uiColor(\.textColor)) {
                 Outputs.color($0.textColor, in: $0)
             }
@@ -256,7 +282,8 @@ extension AttributeCatalog {
                 unit: .points,
                 limits: Limits.positive,
                 write: .fontSize(\.font)
-            ) { $0.font.map { Outputs.double($0.pointSize) } },
+            ) { $0.font.map { Outputs.double($0.pointSize) } }
+        ] + fontDefinitions(font: \.font, adjusts: \.adjustsFontForContentSizeCategory) + [
             .init("textColor", .color, acceptsNil: true, section: .content, write: .uiColor(\.textColor)) {
                 Outputs.color($0.textColor, in: $0)
             },
@@ -265,5 +292,78 @@ extension AttributeCatalog {
             }
         ] as [AttributeDefinition<UITextView>]
     )
+
+    // MARK: - Shared by several groups (protocol 1.2)
+
+    /// S-ATTR-21: a font as text, the text style it was made for, and whether it follows the
+    /// text size.
+    private static func fontDefinitions<Subject: UIView>(
+        font: KeyPath<Subject, UIFont?>,
+        adjusts: ReferenceWritableKeyPath<Subject, Bool>
+    ) -> [AttributeDefinition<Subject>] {
+        [
+            .init("fontDescription", .string, section: .content, write: nil) {
+                $0[keyPath: font].map { .string(AttributeTexts.font($0)) }
+            },
+            .init(
+                "fontTextStyle",
+                .string,
+                title: "Text Style",
+                section: .content,
+                cluster: ("font", "textStyle"),
+                write: nil
+            ) {
+                $0[keyPath: font].flatMap(AttributeTexts.textStyle(of:)).map { .string($0) }
+            },
+            .init(
+                "adjustsFontForContentSizeCategory",
+                .bool,
+                title: "Adjusts to Text Size",
+                section: .content,
+                cluster: ("font", "scalable"),
+                write: .bool(adjusts)
+            ) { .bool($0[keyPath: adjusts]) }
+        ]
+    }
+
+    /// S-ATTR-20: an image's name, size, scale, rendering mode and symbol configuration; all
+    /// nil without an image. The name and the configuration come from descriptions (H4).
+    private static func imageDefinitions<Subject>(
+        _ image: @escaping (Subject) -> UIImage?
+    ) -> [AttributeDefinition<Subject>] {
+        [
+            .init("imageName", .string, title: "Image", section: .content, cluster: ("image", "name"), write: nil) {
+                image($0).flatMap { AttributeTexts.imageName(inDescription: $0.description) }.map { .string($0) }
+            },
+            // The image's own size.
+            .init("imageSize", .size, section: .content, cluster: ("image", "size"), unit: .points, write: nil) {
+                image($0).map { Outputs.size($0.size) }
+            },
+            .init("imageScale", .double, section: .content, cluster: ("image", "scale"), write: nil) {
+                image($0).map { Outputs.double($0.scale) }
+            },
+            .init(
+                "imageRenderingMode",
+                .enumeration,
+                title: "Rendering Mode",
+                section: .content,
+                cluster: ("image", "renderingMode"),
+                write: nil
+            ) { image($0).map { Outputs.enumeration($0.renderingMode.rawValue, names: Outputs.renderingModeNames) } },
+            .init(
+                "symbolConfiguration",
+                .string,
+                section: .content,
+                cluster: ("image", "symbolConfiguration"),
+                write: nil
+            ) {
+                guard let image = image($0), image.isSymbolImage,
+                      let configuration = image.symbolConfiguration else {
+                    return nil
+                }
+                return AttributeTexts.symbolConfiguration(inDescription: configuration.description).map { .string($0) }
+            }
+        ]
+    }
 }
 #endif

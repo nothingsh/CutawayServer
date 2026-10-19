@@ -97,9 +97,9 @@ extension AttributeChecks {
         try expect("the label Layout", scene.layoutLabel, "label.text", .string("Layout"))
     }
 
-    /// Every layer of the demo app's screen: the groups of the list, `layer` first and `view`
-    /// second for a view, and geometry that agrees with the hierarchy.
-    private static func checkDemoLayers(_ nodes: [LayerNode], byID: [UInt64: LayerDetail]) throws {
+    /// Every layer of the demo app's screen or its Lists page: the groups of the list, `layer`
+    /// first and `view` second for a view, and geometry that agrees with the hierarchy.
+    static func checkDemoLayers(_ nodes: [LayerNode], byID: [UInt64: LayerDetail]) throws {
         for node in nodes {
             let name = "demo: layer \(node.id) (\(node.viewClassName ?? node.className))"
             guard let groups = byID[node.id]?.attributeGroups else {
@@ -149,7 +149,7 @@ extension AttributeChecks {
         }
     }
 
-    private static func describe(_ value: AttributeValue?) -> String {
+    static func describe(_ value: AttributeValue?) -> String {
         value.map { "\($0)" } ?? "nil"
     }
 }

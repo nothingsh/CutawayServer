@@ -1,5 +1,6 @@
 import CutawayWire
 import Foundation
+import UIKit
 import XCTest
 
 @testable import CutawayServer
@@ -273,5 +274,83 @@ final class SessionVersionTests: XCTestCase {
         let current = try await sections(afterHandshakeAt: version(2))
         XCTAssertEqual(current.detail, AttributeSection.allCases)
         XCTAssertEqual(current.result, [.layout])
+    }
+
+    // MARK: - Protocol 1.2
+
+    /// What the catalog reads of a stack view holding a label with a text style and an
+    /// accessibility label: attributes of the `Accessibility` section, slots of 1.2 and object
+    /// references.
+    @MainActor
+    private static func catalogGroups() -> [AttributeGroup] {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        let label = UILabel()
+        label.font = .preferredFont(forTextStyle: .body)
+        label.text = "Hello"
+        label.accessibilityLabel = "Greeting"
+        let stack = UIStackView(arrangedSubviews: [label])
+        stack.frame = CGRect(x: 0, y: 0, width: 200, height: 40)
+        window.addSubview(stack)
+        window.layoutIfNeeded()
+        let reading = AttributeReading(registry: LayerRegistry(), windows: [window])
+        return AttributeCatalog.standard.read(stack.layer, reading: reading)
+            + AttributeCatalog.standard.read(label.layer, reading: reading)
+    }
+
+    /// The attributes of the chunk after a handshake at `version`, and of a change's result
+    /// adapted as the session adapts it (the harness answers changes with attributes of its own).
+    private func catalogAttributes(afterHandshakeAt version: ProtocolVersion) async throws
+        -> (detail: [Attribute], result: [Attribute]) {
+        let groups = await MainActor.run { Self.catalogGroups() }
+        let harness = SessionHarness(capture: ScriptedCapture(attributeGroups: { _ in groups }))
+        try await harness.handshake(version: version)
+        harness.receive(Self.attributesRequest)
+        let frames = try await harness.frames(4)
+        guard case .layerDetailsChunk(let chunk)? = frames[2].body else {
+            XCTFail("expected a chunk, got \(frames)")
+            throw CancellationError()
+        }
+        let result = SetAttributeResult(layerID: 9, attributeGroups: groups).adapted(to: version)
+        return (
+            chunk.details.flatMap(\.attributeGroups).flatMap(\.attributes),
+            result.attributeGroups.flatMap(\.attributes)
+        )
+    }
+
+    /// S-CONN-12 (as of 1.2): a 1.1 client gets no `Accessibility` section, no slot of 1.2 and no
+    /// references, in a detail and in a change's result alike.
+    func test_S_CONN_12_aProtocol1_1ClientGetsNothingOf1_2() async throws {
+        let table = AttributeTables.clusters(at: version(1))
+        let previous = try await catalogAttributes(afterHandshakeAt: version(1))
+        for (name, attributes) in [("detail", previous.detail), ("result", previous.result)] {
+            XCTAssertFalse(attributes.isEmpty, name)
+            XCTAssertFalse(attributes.contains { $0.section == .accessibility }, name)
+            let accessibility = attributes.filter { $0.id.hasPrefix("view.accessibility") }
+            XCTAssertEqual(accessibility.count, 10, "\(name): five of each view")
+            XCTAssertTrue(accessibility.allSatisfy { $0.section == .unspecified }, name)
+            for attribute in attributes {
+                if let cluster = attribute.cluster {
+                    XCTAssertTrue(table[cluster]?.contains(attribute.slot ?? "") ?? false, "\(name): \(attribute.id)")
+                } else {
+                    XCTAssertNil(attribute.slot, "\(name): \(attribute.id)")
+                }
+                XCTAssertNotEqual(attribute.valueKind, .layerReference, "\(name): \(attribute.id)")
+            }
+            let style = try XCTUnwrap(attributes.first { $0.id == "label.fontTextStyle" }, name)
+            XCTAssertEqual(style.value, .string("body"), name)
+            XCTAssertNil(style.cluster, name)
+            let arranged = try XCTUnwrap(attributes.first { $0.id == "stackView.arrangedSubviews" }, name)
+            XCTAssertEqual(arranged.value, .string("UILabel"), name)
+            XCTAssertEqual(arranged.valueKind, .string, name)
+            XCTAssertFalse(arranged.editable, name)
+        }
+
+        let current = try await catalogAttributes(afterHandshakeAt: version(2))
+        let style = try XCTUnwrap(current.detail.first { $0.id == "label.fontTextStyle" })
+        XCTAssertEqual(style.cluster, "font")
+        XCTAssertEqual(style.slot, "textStyle")
+        let arranged = try XCTUnwrap(current.result.first { $0.id == "stackView.arrangedSubviews" })
+        XCTAssertEqual(arranged.valueKind, .layerReference)
+        XCTAssertEqual(current.detail.filter { $0.section == .accessibility }.count, 12)
     }
 }

@@ -131,3 +131,30 @@ func checkDemoConstraints(
             + "and changing it back restored the layout"
     )
 }
+
+/// Overrides the appearance to dark and removes the override again (S-PROBE-07; PROTOCOL.md,
+/// P-ENV-01, P-ENV-02). The override is removed before the end, also when a check fails on the
+/// way, so that the demo app is left as it was.
+func checkDemoEnvironment(_ before: Environment, on connection: ProbeConnection) throws {
+    guard before.overridable.contains(.userInterfaceStyle) else {
+        throw ProbeFailure("demo: the appearance cannot be overridden; every server can (P-ENV-01)")
+    }
+    func set(_ overrides: Traits?, id: UInt32, what: String) throws -> Environment {
+        try EnvironmentChecks.environment(
+            try request(.setEnvironment(overrides: overrides), id: id, on: connection),
+            answering: what
+        )
+    }
+    var changed = true
+    defer {
+        // Best effort: the check that failed has already been reported.
+        if changed { _ = try? set(nil, id: ProbeRequestID.removeOverridesAfterFailure, what: "SetEnvironment") }
+    }
+    try EnvironmentChecks.dark(
+        try set(Traits(userInterfaceStyle: .dark), id: ProbeRequestID.darkAppearance, what: "SetEnvironment to dark")
+    )
+    let restored = try set(nil, id: ProbeRequestID.removeOverrides, what: "SetEnvironment without overrides")
+    changed = false
+    try EnvironmentChecks.restored(restored, before: before)
+    print("environment: overridden to dark, then back to the app's own")
+}
