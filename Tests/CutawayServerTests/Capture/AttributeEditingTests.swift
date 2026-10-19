@@ -118,7 +118,7 @@ final class AttributeEditingTests: CaptureTestCase {
     /// `Float` properties lose digits, enumerations come back with their cases.
     private func matches(_ actual: AttributeValue?, _ written: AttributeValue?) -> Bool {
         switch (actual, written) {
-        case let (.color(actualColor, _), .color(writtenColor, _)):
+        case let (.color(actualColor, _, _, _), .color(writtenColor, _, _, _)):
             return zip(
                 [actualColor.red, actualColor.green, actualColor.blue, actualColor.alpha],
                 [writtenColor.red, writtenColor.green, writtenColor.blue, writtenColor.alpha]
@@ -407,7 +407,7 @@ final class AttributeEditingTests: CaptureTestCase {
                     return .transform(transform)
                 }
             case .color: return [color(100, -100, 1e30, 2)]
-            case .bool, .enumeration: return []
+            case .bool, .enumeration, .layerReference: return []
             }
         }
         for (id, value, _) in Self.writes {
@@ -741,7 +741,7 @@ final class AttributeEditingTests: CaptureTestCase {
         }
         XCTAssertEqual(read(withName), read(withoutName))
         // A fixed colour, as written: no name.
-        guard case .color(_, let name)? = read(withName)?.value else { return XCTFail("not a color") }
+        guard case .color(_, let name, _, _)? = read(withName)?.value else { return XCTFail("not a color") }
         XCTAssertNil(name)
     }
 

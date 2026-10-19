@@ -38,7 +38,7 @@ extension AttributeChecks {
         func expect(_ what: String, _ node: LayerNode, _ id: String, _ expected: AttributeValue) throws {
             let actual = value(id, in: byID[node.id]?.attributeGroups ?? [])
             let matches: Bool
-            if case let .color(actualColor, _)? = actual, case let .color(expectedColor, _) = expected {
+            if case let .color(actualColor, _, _, _)? = actual, case let .color(expectedColor, _, _, _) = expected {
                 // Colours went through a colour space conversion.
                 matches = zip(
                     [actualColor.red, actualColor.green, actualColor.blue, actualColor.alpha],

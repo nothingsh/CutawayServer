@@ -56,10 +56,11 @@ final class VersionAdaptationTests: XCTestCase {
 
     func test_S_CONN_12_negotiatedVersionIsTheLowerMinor() {
         let current = ProtocolVersion.current
-        XCTAssertEqual(current, version(1))
+        XCTAssertEqual(current, version(2))
         XCTAssertEqual(current.negotiated(with: version(0)), version(0))
         XCTAssertEqual(current.negotiated(with: version(1)), version(1))
-        XCTAssertEqual(current.negotiated(with: version(2)), version(1))
+        XCTAssertEqual(current.negotiated(with: version(2)), version(2))
+        XCTAssertEqual(current.negotiated(with: version(3)), version(2))
         XCTAssertEqual(version(2).negotiated(with: version(1)), version(1))
         XCTAssertEqual(version(1).negotiated(with: version(3)), version(1))
     }
@@ -85,9 +86,10 @@ final class VersionAdaptationTests: XCTestCase {
     }
 
     func test_S_CONN_12_everySectionHasItsMinorVersion() {
-        // Protocol 1.1 added every section but the default (P-ATTR-08).
+        // Protocol 1.1 added every section but the default, 1.2 `Accessibility` (P-ATTR-08).
         XCTAssertEqual(AttributeSection.unspecified.minorVersion, 0)
-        for section in AttributeSection.allCases where section != .unspecified {
+        XCTAssertEqual(AttributeSection.accessibility.minorVersion, 2)
+        for section in AttributeSection.allCases where ![.unspecified, .accessibility].contains(section) {
             XCTAssertEqual(section.minorVersion, 1, "\(section)")
         }
     }
@@ -170,21 +172,112 @@ final class VersionAdaptationTests: XCTestCase {
         let detail = LayerDetail(layerID: 9, status: .ok, attributeGroups: sectionedGroups)
         let result = SetAttributeResult(layerID: 9, attributeGroups: sectionedGroups)
 
-        // 1.0 has no sections and no units: every one becomes unspecified; the limits and the
-        // other fields of 1.1 stay.
+        // 1.0 has no sections, no units and no clusters: every section and unit becomes
+        // unspecified, and the cluster and slot go (1.2, P-ATTR-12); the limits and the other
+        // fields of 1.1 stay.
         let count = AttributeSection.allCases.count
         for groups in [detail.adapted(to: version(0)).attributeGroups, result.adapted(to: version(0)).attributeGroups] {
             let attributes = groups.flatMap(\.attributes)
             XCTAssertEqual(attributes.map(\.section), Array(repeating: .unspecified, count: count))
             XCTAssertEqual(attributes.map(\.unit), Array(repeating: .unspecified, count: count))
             XCTAssertEqual(attributes.map(\.limits), Array(repeating: [NumberLimit(minimum: 0)], count: count))
-            XCTAssertEqual(attributes.map(\.cluster), Array(repeating: "sizing", count: count))
+            XCTAssertEqual(attributes.map(\.cluster), Array(repeating: nil, count: count))
+            XCTAssertEqual(attributes.map(\.slot), Array(repeating: nil, count: count))
             XCTAssertEqual(groups.map(\.className), ["UIView"])
         }
-        // 1.1 and later get them as they are.
-        for minor: UInt16 in [1, 2] {
-            XCTAssertEqual(detail.adapted(to: version(minor)), detail, "1.\(minor)")
-            XCTAssertEqual(result.adapted(to: version(minor)), result, "1.\(minor)")
+        // 1.1 gets them as they are but `Accessibility`; 1.2 all of them.
+        for groups in [detail.adapted(to: version(1)).attributeGroups, result.adapted(to: version(1)).attributeGroups] {
+            XCTAssertEqual(
+                groups.flatMap(\.attributes).map(\.section),
+                AttributeSection.allCases.map { $0 == .accessibility ? .unspecified : $0 }
+            )
+            XCTAssertEqual(groups.flatMap(\.attributes).map(\.cluster), Array(repeating: "sizing", count: count))
         }
+        XCTAssertEqual(detail.adapted(to: version(2)), detail)
+        XCTAssertEqual(result.adapted(to: version(2)), result)
+    }
+
+    // MARK: - Protocol 1.2
+
+    private func attribute(
+        _ id: String,
+        _ value: AttributeValue?,
+        kind: AttributeValueKind,
+        cluster: String? = nil,
+        slot: String? = nil
+    ) -> Attribute {
+        Attribute(id: id, title: id, value: value, valueKind: kind, section: .content, cluster: cluster, slot: slot)
+    }
+
+    func test_S_CONN_12_clustersAndSlotsFollowTheNegotiatedTable() {
+        let groups = [
+            AttributeGroup(
+                id: "label",
+                title: "Label",
+                attributes: [
+                    attribute("label.fontSize", .double(17), kind: .double, cluster: "font", slot: "size"),
+                    attribute(
+                        "label.fontTextStyle",
+                        .string("body"),
+                        kind: .string,
+                        cluster: "font",
+                        slot: "textStyle"
+                    ),
+                    attribute("tableView.numberOfRows", .int(8), kind: .int, cluster: "listCounts", slot: "items"),
+                    attribute("other", .int(1), kind: .int, cluster: "nowhere", slot: "at.all")
+                ]
+            )
+        ]
+        let adapted = { (minor: UInt16) in
+            LayerDetail(layerID: 1, status: .ok, attributeGroups: groups).adapted(to: self.version(minor))
+                .attributeGroups.flatMap(\.attributes)
+        }
+        // 1.2 knows the new slot and cluster; a slot of no table goes at every version.
+        XCTAssertEqual(adapted(2).map(\.cluster), ["font", "font", "listCounts", nil])
+        XCTAssertEqual(adapted(2).map(\.slot), ["size", "textStyle", "items", nil])
+        // 1.1 knows `font` but not its slot `textStyle`, and not `listCounts`.
+        XCTAssertEqual(adapted(1).map(\.cluster), ["font", nil, nil, nil])
+        XCTAssertEqual(adapted(1).map(\.slot), ["size", nil, nil, nil])
+        // 1.0 knows no clusters.
+        XCTAssertEqual(adapted(0).map(\.cluster), [nil, nil, nil, nil])
+        XCTAssertEqual(AttributeTables.clusters(at: version(0)), [:])
+        XCTAssertEqual(AttributeTables.clusters(at: version(1))["font"], ["name", "size"])
+        XCTAssertEqual(AttributeTables.clusters["font"], ["name", "size", "textStyle", "scalable"])
+        XCTAssertNil(AttributeTables.clusters(at: version(1))["image"])
+    }
+
+    func test_S_CONN_12_objectReferencesAreTextBefore1_2() {
+        let references: AttributeValue = .layerReference([
+            ObjectReference(layerID: 2, className: "Demo.HomeViewController", displayClassName: "HomeViewController"),
+            ObjectReference(layerID: 0, className: "NSObject", displayClassName: "NSObject")
+        ])
+        let groups = [
+            AttributeGroup(
+                id: "stackView",
+                title: "Stack View",
+                attributes: [
+                    attribute("stackView.arrangedSubviews", references, kind: .layerReference),
+                    attribute("tableView.dataSource", .layerReference([]), kind: .layerReference),
+                    attribute("tableView.delegate", nil, kind: .layerReference)
+                ]
+            )
+        ]
+        let detail = LayerDetail(layerID: 1, status: .ok, attributeGroups: groups)
+        let result = SetAttributeResult(layerID: 1, attributeGroups: groups)
+        for adapted in [
+            detail.adapted(to: version(1)).attributeGroups,
+            result.adapted(to: version(1)).attributeGroups
+        ] {
+            let attributes = adapted.flatMap(\.attributes)
+            XCTAssertEqual(attributes.map(\.valueKind), [.string, .string, .string])
+            XCTAssertEqual(attributes.map(\.value), [.string("HomeViewController, NSObject"), .string("None"), nil])
+            XCTAssertTrue(attributes.allSatisfy { !$0.editable })
+        }
+        XCTAssertEqual(
+            detail.adapted(to: version(0)).attributeGroups.flatMap(\.attributes).map(\.valueKind),
+            [.string, .string, .string]
+        )
+        XCTAssertEqual(detail.adapted(to: version(2)), detail)
+        XCTAssertEqual(AttributeValueKind.layerReference.minorVersion, 2)
     }
 }

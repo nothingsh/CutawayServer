@@ -28,14 +28,14 @@ final class FrameCodecTests: XCTestCase {
             try decodedFixture("handshake/01-c2s-hello.bin"),
             Frame(
                 requestID: 0,
-                body: .hello(Hello(version: ProtocolVersion(major: 1, minor: 1), role: .client, client: client))
+                body: .hello(Hello(version: ProtocolVersion(major: 1, minor: 2), role: .client, client: client))
             )
         )
         XCTAssertEqual(
             try decodedFixture("handshake/02-s2c-hello.bin"),
             Frame(
                 requestID: 0,
-                body: .hello(Hello(version: ProtocolVersion(major: 1, minor: 1), role: .server, app: demoApp))
+                body: .hello(Hello(version: ProtocolVersion(major: 1, minor: 2), role: .server, app: demoApp))
             )
         )
         XCTAssertEqual(
@@ -59,7 +59,7 @@ final class FrameCodecTests: XCTestCase {
                 body: .hello(Hello(version: ProtocolVersion(major: 0, minor: 5), role: .server, app: demoApp))
             )
         )
-        XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 1))
+        XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 2))
     }
 
     func test_S_CONN_04_helloRoundTrips() throws {

@@ -11,6 +11,8 @@ struct HostAccess: Sendable {
     let registry: LayerRegistry
     let queue: DispatchQueue
     let encodeQueue: DispatchQueue
+    /// The connection's overrides of the app's environment (P-ENV-01). Main thread only.
+    let environment = EnvironmentOverrides()
 
     /// Works out a value from the app on the main thread and hands it to `answer` on `queue`.
     func perform<Value: Sendable>(
@@ -18,6 +20,20 @@ struct HostAccess: Sendable {
         then answer: @escaping @Sendable (Value) -> Void
     ) {
         onMain(answeringOn: queue, to: answer) { [app, registry] in work(app, registry) }
+    }
+
+    /// The same, with the connection's overrides of the environment.
+    func performOnEnvironment<Value: Sendable>(
+        _ work: @escaping @MainActor @Sendable (any HostApp, EnvironmentOverrides) -> Value,
+        then answer: @escaping @Sendable (Value) -> Void
+    ) {
+        onMain(answeringOn: queue, to: answer) { [app, environment] in work(app, environment) }
+    }
+
+    /// P-ENV-03: removes the connection's overrides on the main thread. Work the connection
+    /// queued there before runs first, and a later connection's after.
+    func removeOverrides() {
+        onMain { [app, environment] in app.removeOverrides(environment) }
     }
 
     /// Finds the icon on the main thread and compresses it on `encodeQueue`, like a detail.

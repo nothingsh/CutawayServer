@@ -81,7 +81,42 @@ extension FrameCodec {
             let object = Cutaway_Wire_GetSubtreeT()
             object.rootId = rootID
             return Cutaway_Wire_BodyUnion(object, type: .getsubtree)
+        case .getEnvironment, .setEnvironment, .environment:
+            return environmentUnion(for: message)
         }
+    }
+
+    /// The messages of protocol 1.2's environment.
+    private static func environmentUnion(for message: Message) -> Cutaway_Wire_BodyUnion {
+        switch message {
+        case .getEnvironment:
+            return Cutaway_Wire_BodyUnion(Cutaway_Wire_GetEnvironmentT(), type: .getenvironment)
+        case .setEnvironment(let overrides):
+            let object = Cutaway_Wire_SetEnvironmentT()
+            object.overrides = overrides.map(traitsObject(for:))
+            return Cutaway_Wire_BodyUnion(object, type: .setenvironment)
+        case .environment(let environment):
+            let object = Cutaway_Wire_EnvironmentT()
+            // P-ENV-01: absent is the same as every trait unspecified, as the fixtures write it.
+            // Unknown values are not written, so they do not count.
+            object.overrides = environment.overrides.hasKnownValues ? traitsObject(for: environment.overrides) : nil
+            object.current = environment.current.hasKnownValues ? traitsObject(for: environment.current) : nil
+            object.overridable = environment.overridable.map(\.generated)
+            return Cutaway_Wire_BodyUnion(object, type: .environment)
+        default:
+            preconditionFailure("not a message of the environment: \(message)")
+        }
+    }
+
+    /// `unknownKinds` is not written: a value this build does not know cannot be (P-ENV-04).
+    private static func traitsObject(for traits: Traits) -> Cutaway_Wire_TraitsT {
+        let object = Cutaway_Wire_TraitsT()
+        object.userInterfaceStyle = traits.userInterfaceStyle.generated
+        object.contentSizeCategory = traits.contentSizeCategory.generated
+        object.layoutDirection = traits.layoutDirection.generated
+        object.horizontalSizeClass = traits.horizontalSizeClass.generated
+        object.verticalSizeClass = traits.verticalSizeClass.generated
+        return object
     }
 
     private static func appInfoObject(for app: AppInfo) -> Cutaway_Wire_AppInfoT {
@@ -247,15 +282,12 @@ extension FrameCodec {
             let object = Cutaway_Wire_StringValueT()
             object.value = value
             return Cutaway_Wire_AttributeValueUnion(object, type: .stringvalue)
-        case let .color(color, systemName):
+        case let .color(color, systemName, light, dark):
             let object = Cutaway_Wire_ColorValueT()
             object.systemName = systemName
-            object.value = Cutaway_Wire_Color(
-                red: color.red,
-                green: color.green,
-                blue: color.blue,
-                alpha: color.alpha
-            )
+            object.value = colorStruct(for: color)
+            object.light = light.map(colorStruct(for:))
+            object.dark = dark.map(colorStruct(for:))
             return Cutaway_Wire_AttributeValueUnion(object, type: .colorvalue)
         case .point(let point):
             let object = Cutaway_Wire_PointValueT()
@@ -290,7 +322,21 @@ extension FrameCodec {
             object.caseName = caseName
             object.caseValues = caseValues
             return Cutaway_Wire_AttributeValueUnion(object, type: .enumvalue)
+        case .layerReference(let references):
+            let object = Cutaway_Wire_LayerReferenceValueT()
+            object.references = references.map { reference in
+                let referenceObject = Cutaway_Wire_ObjectReferenceT()
+                referenceObject.layerId = reference.layerID
+                referenceObject.className = reference.className
+                referenceObject.displayClassName = reference.displayClassName
+                return referenceObject
+            }
+            return Cutaway_Wire_AttributeValueUnion(object, type: .layerreferencevalue)
         }
+    }
+
+    private static func colorStruct(for color: WireColor) -> Cutaway_Wire_Color {
+        Cutaway_Wire_Color(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
     }
 
     private static func pointStruct(for point: WirePoint) -> Cutaway_Wire_Point {

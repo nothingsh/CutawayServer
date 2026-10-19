@@ -20,7 +20,7 @@ final class HandshakeTests: ServerTestCase {
         }
         // The same shape as the fixture's server hello.
         XCTAssertEqual(hello.role, .server)
-        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 1))
+        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 2))
         XCTAssertNil(hello.client)
 
         // The app's fields are the real ones: read here independently of the server.
@@ -98,7 +98,7 @@ final class HandshakeTests: ServerTestCase {
             return XCTFail("expected Hello, got \(String(describing: frame))")
         }
         XCTAssertEqual(hello.role, .server)
-        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 1))
+        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 2))
         XCTAssertEqual(hello.app?.bundleID, "dev.cutaway.testhost")
         // ...then the end of the connection, with no state event or anything else before it.
         try await assertClosed(client)

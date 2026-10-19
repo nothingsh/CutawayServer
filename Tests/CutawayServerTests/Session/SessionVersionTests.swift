@@ -102,7 +102,7 @@ final class SessionVersionTests: XCTestCase {
         guard case .hello(let hello)? = frame.body else {
             return XCTFail("expected Hello, got \(frame)", file: file, line: line)
         }
-        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 1), file: file, line: line)
+        XCTAssertEqual(hello.version, ProtocolVersion(major: 1, minor: 2), file: file, line: line)
     }
 
     func test_S_CONN_12_protocol1ClientsGetTheAttributes() async throws {
@@ -149,10 +149,10 @@ final class SessionVersionTests: XCTestCase {
         }
     }
 
-    /// S-REL-03: the handshake reports the pinned protocol, 1.1, and the app's information the
-    /// SDK's version, which is the repository's tag: 1.1.0.
+    /// S-REL-03: the handshake reports the pinned protocol, 1.2, and the app's information the
+    /// SDK's version, which is the repository's tag: 1.1.0 until 1.2.0 is released.
     func test_S_REL_03_versionsAreProtocol1AndServer1() async throws {
-        XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 1))
+        XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 2))
         XCTAssertEqual(ServerVersion.string, "1.1.0")
         let serverVersion = await MainActor.run { LiveHostApp(infoDictionary: [:]).appInfo().serverVersion }
         XCTAssertEqual(serverVersion, "1.1.0")
@@ -264,9 +264,14 @@ final class SessionVersionTests: XCTestCase {
         // S-ATTR-13: 1.0 has no units either (P-ATTR-14).
         XCTAssertEqual(old.units, Array(repeating: .unspecified, count: count))
 
-        let current = try await sections(afterHandshakeAt: version(1))
+        // 1.1 has every section but `Accessibility` (1.2).
+        let previous = try await sections(afterHandshakeAt: version(1))
+        XCTAssertEqual(previous.detail, AttributeSection.allCases.map { $0 == .accessibility ? .unspecified : $0 })
+        XCTAssertEqual(previous.result, [.layout])
+        XCTAssertEqual(previous.units, Array(repeating: .points, count: AttributeSection.allCases.count))
+
+        let current = try await sections(afterHandshakeAt: version(2))
         XCTAssertEqual(current.detail, AttributeSection.allCases)
         XCTAssertEqual(current.result, [.layout])
-        XCTAssertEqual(current.units, Array(repeating: .points, count: AttributeSection.allCases.count))
     }
 }

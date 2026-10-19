@@ -112,7 +112,7 @@ enum AttributeChecks {
                     "\(label) has no effect because of \(cause), which the layer does not have (P-ATTR-13)"
                 )
             }
-            if case .color(_, let systemName?)? = attribute.value, cgColorAttributes.contains(attribute.id) {
+            if case .color(_, let systemName?, _, _)? = attribute.value, cgColorAttributes.contains(attribute.id) {
                 throw ProbeFailure("\(label) is a CGColor, but has the system name \(systemName) (P-ATTR-15)")
             }
         }
@@ -136,12 +136,14 @@ enum AttributeChecks {
     private static func check(_ value: AttributeValue, name: String) throws {
         let numbers: [Double]
         switch value {
-        case .bool, .int, .string:
+        case .bool, .int, .string, .layerReference:
             numbers = []
         case .double(let number):
             numbers = [number]
-        case .color(let color, _):
-            numbers = [color.red, color.green, color.blue, color.alpha].map(Double.init)
+        case let .color(color, _, light, dark):
+            numbers = ([color] + [light, dark].compactMap { $0 }).flatMap { color in
+                [color.red, color.green, color.blue, color.alpha].map(Double.init)
+            }
         case .point(let point):
             numbers = [point.x, point.y]
         case .size(let size):

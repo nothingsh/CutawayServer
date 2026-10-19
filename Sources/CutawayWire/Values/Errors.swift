@@ -16,6 +16,8 @@ public enum ErrorCode: Sendable, Equatable {
     case attributeNotEditable
     /// The value written is not acceptable (P-SET-03). Protocol 0.3.
     case invalidAttributeValue
+    /// The server cannot apply an override the request asks for (P-ENV-04). Protocol 1.2.
+    case notSupported
 }
 
 /// Also an `Error`, so that a failure can carry it in a `Result`.

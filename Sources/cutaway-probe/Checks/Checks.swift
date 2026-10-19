@@ -113,6 +113,9 @@ enum Checks {
         case .setAttribute: kind = "SetAttribute"
         case .setAttributeResult: kind = "SetAttributeResult"
         case .getSubtree: kind = "GetSubtree"
+        case .getEnvironment: kind = "GetEnvironment"
+        case .setEnvironment: kind = "SetEnvironment"
+        case .environment: kind = "Environment"
         }
         return "\(kind) with request_id \(frame.requestID)"
     }

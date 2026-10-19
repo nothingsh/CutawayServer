@@ -9,6 +9,8 @@ final class SessionHarness: @unchecked Sendable {
     let queue = DispatchQueue(label: "dev.cutaway.tests.session")
     let transport = FakeTransport()
     let capture: ScriptedCapture
+    /// The host app's environment; main thread only.
+    let environment = ScriptedEnvironment()
     /// Dropped by `releaseSession()`, so that a test can see what the session kept alive.
     private var session: Session!
     private let state = StateBox()
@@ -31,9 +33,23 @@ final class SessionHarness: @unchecked Sendable {
     /// The host app as the harness plays it: what the real one reads from UIKit comes from
     /// the values below, and the subtree and change steps are recorded. On the main thread,
     /// like the real one; `HostAccess` brings every answer back to the queue.
+    /// The environment as the harness plays it, on the main thread: no window is touched.
+    @MainActor
+    final class ScriptedEnvironment {
+        var overrides = Traits.none
+        var overridable: [TraitKind] = TraitKind.allCases
+        /// How many times the session asked for its overrides to be removed.
+        var removals = 0
+        /// The traits each accepted `SetEnvironment` asked for, in order.
+        var applied: [Traits] = []
+
+        nonisolated init() {}
+    }
+
     private struct ScriptedApp: HostApp {
         let queue: DispatchQueue
         let state: StateBox
+        let environment: ScriptedEnvironment
 
         @MainActor
         func appInfo() -> AppInfo {
@@ -73,6 +89,31 @@ final class SessionHarness: @unchecked Sendable {
             let state = self.state
             queue.async { state.changes.append(change) }
             return SessionHarness.result(of: change)
+        }
+
+        @MainActor
+        func environment(overrides: EnvironmentOverrides) -> Environment {
+            Environment(
+                overrides: environment.overrides,
+                current: SessionHarness.current,
+                overridable: environment.overridable
+            )
+        }
+
+        @MainActor
+        func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
+            if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: environment.overridable) {
+                return .failure(refusal)
+            }
+            environment.overrides = traits
+            environment.applied.append(traits)
+            return .success(self.environment(overrides: overrides))
+        }
+
+        @MainActor
+        func removeOverrides(_ overrides: EnvironmentOverrides) {
+            environment.overrides = .none
+            environment.removals += 1
         }
 
         // The stream never gets here: the harness scripts its pipeline.
@@ -125,6 +166,14 @@ final class SessionHarness: @unchecked Sendable {
         serverVersion: "0"
     )
     static let hierarchy = Hierarchy(nodes: [], keyWindowID: 0)
+    /// The key window's traits as the harness plays them.
+    static let current = Traits(
+        userInterfaceStyle: .light,
+        contentSizeCategory: .large,
+        layoutDirection: .leftToRight,
+        horizontalSizeClass: .compact,
+        verticalSizeClass: .regular
+    )
     static let clientHello = clientHello(version: .current)
 
     static func clientHello(version: ProtocolVersion) -> Frame {
@@ -188,7 +237,7 @@ final class SessionHarness: @unchecked Sendable {
         session = Session(
             transport: transport,
             host: HostAccess(
-                app: ScriptedApp(queue: queue, state: state),
+                app: ScriptedApp(queue: queue, state: state, environment: environment),
                 registry: LayerRegistry(),
                 queue: queue,
                 encodeQueue: queue
@@ -229,6 +278,11 @@ final class SessionHarness: @unchecked Sendable {
     /// Completes the oldest `count` sends that wait, on the session's queue.
     func completeSends(_ count: Int = .max) {
         queue.async { self.transport.completeSends(count) }
+    }
+
+    /// The server ends the session, as when it stops.
+    func stop() {
+        queue.async { self.session?.stop() }
     }
 
     /// The peer goes away.
