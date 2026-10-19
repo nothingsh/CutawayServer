@@ -74,6 +74,12 @@ extension FrameCodec {
         case .getsubtree:
             let get = try body(of: frame, as: Cutaway_Wire_GetSubtree.self)
             return .getSubtree(rootID: get.rootId)
+        case .getenvironment:
+            return .getEnvironment
+        case .setenvironment:
+            return .setEnvironment(overrides: try body(of: frame, as: RawTable.self).table(at: 0).map(traits(of:)))
+        case .environment:
+            return .environment(try environment(of: body(of: frame, as: RawTable.self)))
         }
     }
 
@@ -310,10 +316,11 @@ extension FrameCodec {
             return .string(try member(Cutaway_Wire_StringValue.self).value ?? "")
         case .colorvalue:
             let colorValue = try member(Cutaway_Wire_ColorValue.self)
-            let color = colorValue.value ?? Cutaway_Wire_Color()
             return .color(
-                WireColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha),
-                systemName: colorValue.systemName
+                wireColor(of: colorValue.value ?? Cutaway_Wire_Color()),
+                systemName: colorValue.systemName,
+                light: colorValue.light.map(wireColor(of:)),
+                dark: colorValue.dark.map(wireColor(of:))
             )
         case .pointvalue:
             return .point(wirePoint(of: try member(Cutaway_Wire_PointValue.self).value))
@@ -341,7 +348,22 @@ extension FrameCodec {
                 caseName: value.caseName ?? "",
                 caseValues: Array(value.caseValues)
             )
+        case .layerreferencevalue:
+            let value = try member(Cutaway_Wire_LayerReferenceValue.self)
+            return .layerReference(
+                value.references.map { reference in
+                    ObjectReference(
+                        layerID: reference.layerId,
+                        className: reference.className ?? "",
+                        displayClassName: reference.displayClassName ?? ""
+                    )
+                }
+            )
         }
+    }
+
+    private static func wireColor(of color: Cutaway_Wire_Color) -> WireColor {
+        WireColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
     }
 
     private static func wireError(of error: Cutaway_Wire_Error) -> WireError {

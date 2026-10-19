@@ -306,13 +306,44 @@ final class Session: @unchecked Sendable {
                     }
                 }
             )
+        case .getEnvironment:
+            // P-APP-01: answered whatever the app's state.
+            answer(
+                requestID,
+                requiresActiveApp: false,
+                perform: { [host] in host.performOnEnvironment(
+                    { app, overrides in app.environment(overrides: overrides) },
+                    then: $0
+                ) },
+                reply: { _, environment in .environment(environment) }
+            )
+        case .setEnvironment(let overrides):
+            // P-APP-01, then P-ENV-04 on the main thread.
+            answer(
+                requestID,
+                requiresActiveApp: true,
+                perform: { [host] in
+                    host.performOnEnvironment(
+                        { app, environment in app.setEnvironment(overrides ?? .none, overrides: environment) },
+                        then: $0
+                    )
+                },
+                reply: { _, result in
+                    // As for `SetAttribute`: the overrides may have been applied, so the answer
+                    // goes out whatever the state is now.
+                    switch result {
+                    case .success(let environment): return .environment(environment)
+                    case .failure(let error): return .error(error)
+                    }
+                }
+            )
         case .getLayerDetails(let details):
             beginStream(details, requestID: requestID, isCancelled: request.isCancelled)
         case .cancel:
             // Never queued: `accept(_:)` handles it on arrival.
             break
         case nil, .hello, .appIcon, .hierarchy, .layerDetailsChunk, .streamEnd, .error,
-             .appStateChanged, .setAttributeResult:
+             .appStateChanged, .setAttributeResult, .environment:
             // P-REQ-08: answer and keep the connection.
             transport.send(Frame(requestID: requestID, body: .error(.unexpectedMessage)))
         }
@@ -428,6 +459,8 @@ final class Session: @unchecked Sendable {
         pending.removeAll()
         activeStream?.stream.stop()
         activeStream = nil
+        // P-ENV-03: whoever ended the connection, and however.
+        host.removeOverrides()
         let delegate = self.delegate
         self.delegate = nil
         delegate?.sessionDidEnd(self)

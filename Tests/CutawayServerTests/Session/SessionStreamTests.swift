@@ -323,11 +323,11 @@ final class SessionStreamTests: XCTestCase {
         let harness = SessionHarness(capture: ScriptedCapture(missing: [99]))
         try await harness.handshake()
 
-        // The request of the `layer-details` fixture: layers 3, 4 and 99.
+        // The request of the `layer-details` fixture: layers 3, 4, 99 and 6.
         harness.receive(try Fixtures.frame("layer-details/01-c2s-get-layer-details.bin"))
-        let frames = try await harness.frames(6)
-        assertChunks(frames[2..<5], of: 3, layers: [3, 4, 99])
-        XCTAssertEqual(frames[5], end(3, .completed, 3))
+        let frames = try await harness.frames(7)
+        assertChunks(frames[2..<6], of: 3, layers: [3, 4, 99, 6])
+        XCTAssertEqual(frames[6], end(3, .completed, 4))
 
         // The fixture's detail of layer 99: the status and nothing else (P-DET-02).
         let fixture = chunk(try Fixtures.frame("layer-details/03-s2c-chunk-1.bin")).details[1]

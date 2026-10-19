@@ -75,7 +75,7 @@ enum AttributeOutputs {
     static func color(_ color: UIColor?, in view: UIView) -> AttributeValue? {
         guard let color else { return nil }
         let value = self.color(color.resolvedColor(with: view.traitCollection).cgColor)
-        guard case .color(let resolved, _)? = value else { return value }
+        guard case .color(let resolved, _, _, _)? = value else { return value }
         return .color(resolved, systemName: SystemColors.name(of: color))
     }
 

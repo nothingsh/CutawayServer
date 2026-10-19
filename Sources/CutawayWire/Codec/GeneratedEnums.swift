@@ -16,6 +16,7 @@ extension ErrorCode {
         case .layernotfound: self = .layerNotFound
         case .attributenoteditable: self = .attributeNotEditable
         case .invalidattributevalue: self = .invalidAttributeValue
+        case .notsupported: self = .notSupported
         }
     }
 
@@ -30,6 +31,7 @@ extension ErrorCode {
         case .layerNotFound: return .layernotfound
         case .attributeNotEditable: return .attributenoteditable
         case .invalidAttributeValue: return .invalidattributevalue
+        case .notSupported: return .notsupported
         }
     }
 }
@@ -44,6 +46,7 @@ extension AttributeSection {
         case .content: self = .content
         case .appearance: self = .appearance
         case .behavior: self = .behavior
+        case .accessibility: self = .accessibility
         }
     }
 
@@ -56,6 +59,7 @@ extension AttributeSection {
         case .content: return .content
         case .appearance: return .appearance
         case .behavior: return .behavior
+        case .accessibility: return .accessibility
         }
     }
 }
@@ -228,6 +232,7 @@ extension AttributeValueKind {
         case .insetsvalue: self = .insets
         case .transformvalue: self = .transform
         case .enumvalue: self = .enumeration
+        case .layerreferencevalue: self = .layerReference
         }
     }
 
@@ -245,8 +250,41 @@ extension AttributeValueKind {
         case .insets: return .insetsvalue
         case .transform: return .transformvalue
         case .enumeration: return .enumvalue
+        case .layerReference: return .layerreferencevalue
         }
     }
+}
+
+/// The environment's enumerations share their raw values with the generated ones (protocol 1.2).
+/// Decoding reads them from the raw bytes instead, to keep values this build does not know
+/// (`FrameCodec+Environment.swift`).
+extension UserInterfaceStyle {
+    var generated: Cutaway_Wire_UserInterfaceStyle {
+        Cutaway_Wire_UserInterfaceStyle(rawValue: rawValue) ?? .unspecified
+    }
+}
+
+extension ContentSizeCategory {
+    var generated: Cutaway_Wire_ContentSizeCategory {
+        Cutaway_Wire_ContentSizeCategory(rawValue: rawValue) ?? .unspecified
+    }
+}
+
+extension LayoutDirection {
+    var generated: Cutaway_Wire_LayoutDirection { Cutaway_Wire_LayoutDirection(rawValue: rawValue) ?? .unspecified }
+}
+
+extension SizeClass {
+    var generated: Cutaway_Wire_SizeClass { Cutaway_Wire_SizeClass(rawValue: rawValue) ?? .unspecified }
+}
+
+extension TraitKind {
+    /// A kind this build does not know is `nil`.
+    init?(_ generated: Cutaway_Wire_TraitKind) {
+        self.init(rawValue: generated.rawValue)
+    }
+
+    var generated: Cutaway_Wire_TraitKind { Cutaway_Wire_TraitKind(rawValue: rawValue) ?? .userinterfacestyle }
 }
 
 /// The two enumerations share their raw values.

@@ -33,7 +33,7 @@ final class ToolchainTests: XCTestCase {
         let hello = try XCTUnwrap(frame.body(type: Cutaway_Wire_Hello.self))
         XCTAssertEqual(hello.role, .client)
         XCTAssertEqual(hello.protocol_?.major, 1)
-        XCTAssertEqual(hello.protocol_?.minor, 1)
+        XCTAssertEqual(hello.protocol_?.minor, 2)
         XCTAssertEqual(hello.client?.name, "Cutaway")
         XCTAssertEqual(hello.client?.version, "0.4.0")
         XCTAssertNil(hello.app)

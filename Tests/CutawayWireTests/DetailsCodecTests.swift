@@ -37,7 +37,8 @@ final class DetailsCodecTests: XCTestCase {
                         requests: [
                             request(3, attributes: true),
                             request(4, solo: true),
-                            request(99)
+                            request(99),
+                            request(6, group: false, attributes: true)
                         ],
                         maxTextureDimension: 16384
                     )
@@ -45,16 +46,16 @@ final class DetailsCodecTests: XCTestCase {
             )
         )
 
-        // Two chunks, numbered from 0; three details in the order of the request.
+        // Two chunks, numbered from 0; four details in the order of the request.
         XCTAssertEqual(try fixture("layer-details/02-s2c-chunk-0.bin").requestID, 3)
         let first = try chunk("layer-details/02-s2c-chunk-0.bin")
         let second = try chunk("layer-details/03-s2c-chunk-1.bin")
         XCTAssertEqual([first.sequence, second.sequence], [0, 1])
         XCTAssertEqual(first.details.map(\.layerID), [3])
-        XCTAssertEqual(second.details.map(\.layerID), [4, 99])
+        XCTAssertEqual(second.details.map(\.layerID), [4, 99, 6])
         XCTAssertEqual(
             (first.details + second.details).map(\.status),
-            [.ok, .ok, .layerNotFound]
+            [.ok, .ok, .layerNotFound, .ok]
         )
 
         XCTAssertEqual(
@@ -221,6 +222,25 @@ final class DetailsCodecTests: XCTestCase {
                             unit: .points
                         ),
                         Attribute(
+                            id: "label.fontTextStyle",
+                            title: "Text Style",
+                            value: .string("body"),
+                            valueKind: .string,
+                            section: .content,
+                            cluster: "font",
+                            slot: "textStyle"
+                        ),
+                        Attribute(
+                            id: "label.adjustsFontForContentSizeCategory",
+                            title: "Adjusts to Text Size",
+                            value: .bool(true),
+                            editable: true,
+                            valueKind: .bool,
+                            section: .content,
+                            cluster: "font",
+                            slot: "scalable"
+                        ),
+                        Attribute(
                             id: "label.numberOfLines",
                             title: "Lines",
                             value: .int(1),
@@ -295,7 +315,9 @@ final class DetailsCodecTests: XCTestCase {
                             title: "Tint",
                             value: .color(
                                 WireColor(red: 0, green: 0.47843137, blue: 1, alpha: 1),
-                                systemName: "systemBlue"
+                                systemName: "systemBlue",
+                                light: WireColor(red: 0, green: 0.47843137, blue: 1, alpha: 1),
+                                dark: WireColor(red: 0.039215688, green: 0.5176471, blue: 1, alpha: 1)
                             ),
                             editable: true,
                             acceptsNil: true,
@@ -318,6 +340,72 @@ final class DetailsCodecTests: XCTestCase {
                             valueKind: .insets,
                             section: .layout,
                             unit: .points
+                        ),
+                        Attribute(
+                            id: "view.accessibilityLabel",
+                            title: "Label",
+                            value: .string("Welcome"),
+                            editable: true,
+                            acceptsNil: true,
+                            valueKind: .string,
+                            section: .accessibility
+                        )
+                    ],
+                    className: "UIView"
+                )
+            ]
+        )
+    }
+
+    func test_S_CONN_12_decodesObjectReferences() throws {
+        // Layer 6 of `layer-details` (1.2, P-ATTR-18): a view controller by its root view's
+        // layer, and two objects that are not views.
+        let layer6 = try XCTUnwrap(try chunk("layer-details/03-s2c-chunk-1.bin").details.last)
+        XCTAssertEqual(layer6.layerID, 6)
+        XCTAssertEqual(
+            layer6.attributeGroups,
+            [
+                AttributeGroup(
+                    id: "scrollView",
+                    title: "Scroll View",
+                    attributes: [
+                        Attribute(
+                            id: "scrollView.delegate",
+                            title: "Delegate",
+                            value: .layerReference([
+                                ObjectReference(
+                                    layerID: 2,
+                                    className: "Demo.HomeViewController",
+                                    displayClassName: "HomeViewController"
+                                )
+                            ]),
+                            valueKind: .layerReference,
+                            section: .content
+                        )
+                    ],
+                    className: "UIScrollView"
+                ),
+                AttributeGroup(
+                    id: "view",
+                    title: "View",
+                    attributes: [
+                        Attribute(
+                            id: "view.gestureRecognizers",
+                            title: "Gesture Recognizers",
+                            value: .layerReference([
+                                ObjectReference(
+                                    layerID: 0,
+                                    className: "UIScrollViewDelayedTouchesBeganGestureRecognizer",
+                                    displayClassName: "UIScrollViewDelayedTouchesBeganGestureRecognizer"
+                                ),
+                                ObjectReference(
+                                    layerID: 0,
+                                    className: "UIScrollViewPanGestureRecognizer",
+                                    displayClassName: "UIScrollViewPanGestureRecognizer"
+                                )
+                            ]),
+                            valueKind: .layerReference,
+                            section: .behavior
                         )
                     ],
                     className: "UIView"

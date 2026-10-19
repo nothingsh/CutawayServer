@@ -80,8 +80,9 @@ public enum AttributeValue: Sendable, Equatable {
     case double(Double)
     case string(String)
     /// `systemName` is the UIKit system color the server recognized it as (P-ATTR-15, protocol
-    /// 1.1); a server reads only the color (P-SET-02).
-    case color(WireColor, systemName: String? = nil)
+    /// 1.1); `light` and `dark` are the value in either appearance, both or neither (P-ATTR-17,
+    /// protocol 1.2). A server reads only the color (P-SET-02).
+    case color(WireColor, systemName: String? = nil, light: WireColor? = nil, dark: WireColor? = nil)
     case point(WirePoint)
     case size(WireSize)
     case rect(WireRect)
@@ -90,6 +91,8 @@ public enum AttributeValue: Sendable, Equatable {
     /// `cases` names every case in declaration order; `caseName` names the current one;
     /// `caseValues` is the raw value of each case, parallel to `cases` (P-ATTR-07).
     case enumeration(value: Int64, cases: [String], caseName: String, caseValues: [Int64])
+    /// The objects the attribute holds, in order (P-ATTR-18, protocol 1.2). Always read-only.
+    case layerReference([ObjectReference])
 
     /// The member of the union this value is.
     public var kind: AttributeValueKind {
@@ -105,6 +108,7 @@ public enum AttributeValue: Sendable, Equatable {
         case .insets: return .insets
         case .transform: return .transform
         case .enumeration: return .enumeration
+        case .layerReference: return .layerReference
         }
     }
 
@@ -114,13 +118,13 @@ public enum AttributeValue: Sendable, Equatable {
     /// colour has no limits.
     public var components: [Double] {
         switch self {
-        case .bool, .string, .enumeration:
+        case .bool, .string, .enumeration, .layerReference:
             return []
         case .int(let number):
             return [Double(number)]
         case .double(let number):
             return [number]
-        case .color(let color, _):
+        case .color(let color, _, _, _):
             return [color.red, color.green, color.blue, color.alpha].map(Double.init)
         case .point(let point):
             return [point.x, point.y]
@@ -150,13 +154,43 @@ public enum AttributeValueKind: Sendable, Equatable {
     case insets
     case transform
     case enumeration
+    /// Protocol 1.2.
+    case layerReference
 
     /// The kinds that may carry limits (P-ATTR-09).
     public var isNumeric: Bool {
         switch self {
         case .int, .double, .point, .size, .rect, .insets, .transform: return true
-        case .none, .bool, .string, .color, .enumeration: return false
+        case .none, .bool, .string, .color, .enumeration, .layerReference: return false
         }
+    }
+
+    /// The minor version of protocol 1 that named this member. No `default` (P-HELLO-04).
+    public var minorVersion: UInt16 {
+        switch self {
+        case .none, .bool, .int, .double, .string, .color, .point, .size, .rect, .insets, .transform,
+             .enumeration:
+            return 0
+        case .layerReference:
+            return 2
+        }
+    }
+}
+
+/// One object an attribute refers to (P-ATTR-18, protocol 1.2).
+public struct ObjectReference: Sendable, Equatable {
+    /// The layer of the view, or of a view controller's root view; 0 when there is none, or it
+    /// does not exist.
+    public var layerID: UInt64
+    /// The runtime name of the object's class.
+    public var className: String
+    /// The name to show, by the rule of hierarchy nodes.
+    public var displayClassName: String
+
+    public init(layerID: UInt64, className: String, displayClassName: String) {
+        self.layerID = layerID
+        self.className = className
+        self.displayClassName = displayClassName
     }
 }
 
@@ -169,6 +203,8 @@ public enum AttributeSection: Sendable, Equatable, CaseIterable {
     case content
     case appearance
     case behavior
+    /// Protocol 1.2.
+    case accessibility
 
     /// The minor version of protocol 1 that named this value. No `default`, so that a value
     /// added later cannot reach every peer by accident (P-HELLO-04).
@@ -176,6 +212,7 @@ public enum AttributeSection: Sendable, Equatable, CaseIterable {
         switch self {
         case .unspecified: return 0
         case .identity, .general, .layout, .content, .appearance, .behavior: return 1
+        case .accessibility: return 2
         }
     }
 
@@ -259,27 +296,43 @@ public enum AttributeTables {
         ("view.backgroundColor", "layer.backgroundColor")
     ]
 
-    /// P-ATTR-12: the clusters and their slots.
-    public static let clusters: [String: Set<String>] = [
-        "visibility": ["hidden", "opacity"],
-        "corners": ["radius", "clip"],
-        "border": ["width", "color"],
-        "shadow": ["color", "opacity", "radius", "offset"],
-        "geometry": ["frame", "bounds", "position", "anchor", "zPosition", "transform"],
+    /// P-ATTR-12: the clusters and their slots, each slot with the minor version of protocol 1
+    /// that added it.
+    public static let clusterSlots: [String: [String: UInt16]] = [
+        "visibility": ["hidden": 1, "opacity": 1],
+        "corners": ["radius": 1, "clip": 1],
+        "border": ["width": 1, "color": 1],
+        "shadow": ["color": 1, "opacity": 1, "radius": 1, "offset": 1],
+        "geometry": ["frame": 1, "bounds": 1, "position": 1, "anchor": 1, "zPosition": 1, "transform": 1],
         "sizing": [
-            "hugging.horizontal",
-            "hugging.vertical",
-            "compression.horizontal",
-            "compression.vertical",
-            "intrinsic.width",
-            "intrinsic.height"
+            "hugging.horizontal": 1,
+            "hugging.vertical": 1,
+            "compression.horizontal": 1,
+            "compression.vertical": 1,
+            "intrinsic.width": 1,
+            "intrinsic.height": 1
         ],
-        "autoLayout": ["autoresizing", "ambiguous"],
-        "font": ["name", "size"],
-        "lines": ["count", "lineBreak"],
-        "state": ["enabled", "selected", "highlighted"],
-        "scrolling": ["enabled", "paging"]
+        "autoLayout": ["autoresizing": 1, "ambiguous": 1],
+        "font": ["name": 1, "size": 1, "textStyle": 2, "scalable": 2],
+        "lines": ["count": 1, "lineBreak": 1, "drawn": 2, "truncated": 2],
+        "state": ["enabled": 1, "selected": 1, "highlighted": 1],
+        "scrolling": ["enabled": 1, "paging": 1],
+        "image": ["name": 2, "size": 2, "scale": 2, "renderingMode": 2, "symbolConfiguration": 2],
+        "indexPath": ["section": 2, "item": 2],
+        "listCounts": ["sections": 2, "items": 2]
     ]
+
+    /// The clusters and slots of the table of `version`; a cluster with none of its slots there
+    /// is left out.
+    public static func clusters(at version: ProtocolVersion) -> [String: Set<String>] {
+        clusterSlots.reduce(into: [:]) { table, entry in
+            let slots = Set(entry.value.filter { $0.value <= version.minor }.keys)
+            if !slots.isEmpty { table[entry.key] = slots }
+        }
+    }
+
+    /// The clusters and slots of this build's version.
+    public static let clusters = clusters(at: .current)
 }
 
 public struct Attribute: Sendable, Equatable {
@@ -399,14 +452,44 @@ extension LayerDetail {
 
 extension AttributeGroup {
     /// P-ATTR-08, P-ATTR-14: each section and unit the peer's version does not have becomes
-    /// `unspecified`.
+    /// `unspecified`. P-ATTR-12: a cluster or slot not in its table is left out, both together.
+    /// P-ATTR-03: a value whose member it does not have is sent as text.
     func adapted(to version: ProtocolVersion) -> AttributeGroup {
         var group = self
-        for index in group.attributes.indices {
-            group.attributes[index].section = attributes[index].section.adapted(to: version)
-            group.attributes[index].unit = attributes[index].unit.adapted(to: version)
+        let clusters = AttributeTables.clusters(at: version)
+        group.attributes = attributes.map { original in
+            var attribute = original
+            attribute.section = original.section.adapted(to: version)
+            attribute.unit = original.unit.adapted(to: version)
+            if let cluster = original.cluster, let slot = original.slot,
+               clusters[cluster]?.contains(slot) == true {
+                // Kept.
+            } else {
+                attribute.cluster = nil
+                attribute.slot = nil
+            }
+            if original.valueKind.minorVersion > version.minor {
+                attribute.valueKind = .string
+                attribute.value = original.value.map { .string($0.text) }
+                attribute.editable = false
+                attribute.acceptsNil = false
+            }
+            return attribute
         }
         return group
+    }
+}
+
+extension AttributeValue {
+    /// The value as text, for a peer whose version does not have its member (P-ATTR-03). Only
+    /// members added after 1.0 need it.
+    var text: String {
+        switch self {
+        case .layerReference(let references):
+            references.isEmpty ? "None" : references.map(\.displayClassName).joined(separator: ", ")
+        default:
+            String(describing: self)
+        }
     }
 }
 

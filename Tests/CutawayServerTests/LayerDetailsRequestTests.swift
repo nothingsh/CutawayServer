@@ -422,15 +422,15 @@ final class LayerDetailsRequestTests: ServerTestCase {
         let (client, _) = try await connectAndHandshake(port: port)
 
         // The fixture's bytes. This connection never asked for the hierarchy, so it knows no
-        // layer: all three are answered as the fixture answers layer 99.
+        // layer: all four are answered as the fixture answers layer 99.
         let request = try Fixtures.frame("layer-details/01-c2s-get-layer-details.bin")
         try await client.send(Fixtures.data("layer-details/c2s.stream"))
         let stream = try await readStream(client, requestID: request.requestID)
 
-        XCTAssertEqual(stream.end, StreamEnd(status: .completed, chunkCount: 3))
+        XCTAssertEqual(stream.end, StreamEnd(status: .completed, chunkCount: 4))
         XCTAssertEqual(
             stream.chunks.map(\.details),
-            [3, 4, 99].map { [LayerDetail(layerID: $0, status: .layerNotFound)] }
+            [3, 4, 99, 6].map { [LayerDetail(layerID: $0, status: .layerNotFound)] }
         )
         guard
             case .layerDetailsChunk(let fixtureChunk)? = try Fixtures.frame(

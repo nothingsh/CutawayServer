@@ -57,6 +57,7 @@ final class EditChecksTests: XCTestCase {
                 case .insets: .insets(WireInsets(top: 0, left: 0, bottom: 0, right: 0))
                 case .transform: .transform(.identity)
                 case .enumeration: .enumeration(value: 0, cases: ["only"], caseName: "only", caseValues: [0])
+                case .layerReference: .layerReference([])
                 case .none: fatalError("every attribute of the list has a kind")
                 }
             }

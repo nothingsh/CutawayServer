@@ -30,8 +30,9 @@ enum Cutaway_Wire_ErrorCode: UInt16, FlatbuffersVectorInitializable, Enum, Verif
   case layernotfound = 6
   case attributenoteditable = 7
   case invalidattributevalue = 8
+  case notsupported = 9
 
-  static var max: Cutaway_Wire_ErrorCode { return .invalidattributevalue }
+  static var max: Cutaway_Wire_ErrorCode { return .notsupported }
   static var min: Cutaway_Wire_ErrorCode { return .unknown }
 }
 
@@ -147,8 +148,9 @@ enum Cutaway_Wire_AttributeValue: UInt8, FlatbuffersVectorInitializable, UnionEn
   case insetsvalue = 9
   case transformvalue = 10
   case enumvalue = 11
+  case layerreferencevalue = 12
 
-  static var max: Cutaway_Wire_AttributeValue { return .enumvalue }
+  static var max: Cutaway_Wire_AttributeValue { return .layerreferencevalue }
   static var min: Cutaway_Wire_AttributeValue { return .none_ }
 }
 
@@ -195,6 +197,9 @@ struct Cutaway_Wire_AttributeValueUnion {
     case .enumvalue:
       var __obj = value as? Cutaway_Wire_EnumValueT
       return Cutaway_Wire_EnumValue.pack(&builder, obj: &__obj)
+    case .layerreferencevalue:
+      var __obj = value as? Cutaway_Wire_LayerReferenceValueT
+      return Cutaway_Wire_LayerReferenceValue.pack(&builder, obj: &__obj)
     default: return Offset()
     }
   }
@@ -215,8 +220,9 @@ enum Cutaway_Wire_AttributeValueKind: UInt8, FlatbuffersVectorInitializable, Enu
   case insetsvalue = 9
   case transformvalue = 10
   case enumvalue = 11
+  case layerreferencevalue = 12
 
-  static var max: Cutaway_Wire_AttributeValueKind { return .enumvalue }
+  static var max: Cutaway_Wire_AttributeValueKind { return .layerreferencevalue }
   static var min: Cutaway_Wire_AttributeValueKind { return .none_ }
 }
 
@@ -232,8 +238,9 @@ enum Cutaway_Wire_AttributeSection: UInt8, FlatbuffersVectorInitializable, Enum,
   case content = 4
   case appearance = 5
   case behavior = 6
+  case accessibility = 7
 
-  static var max: Cutaway_Wire_AttributeSection { return .behavior }
+  static var max: Cutaway_Wire_AttributeSection { return .accessibility }
   static var min: Cutaway_Wire_AttributeSection { return .unspecified }
 }
 
@@ -341,6 +348,83 @@ enum Cutaway_Wire_LayoutGuideKind: UInt8, FlatbuffersVectorInitializable, Enum, 
 }
 
 
+enum Cutaway_Wire_UserInterfaceStyle: UInt8, FlatbuffersVectorInitializable, Enum, Verifiable {
+  typealias T = UInt8
+  static var byteSize: Int { return MemoryLayout<UInt8>.size }
+  var value: UInt8 { return self.rawValue }
+  case unspecified = 0
+  case light = 1
+  case dark = 2
+
+  static var max: Cutaway_Wire_UserInterfaceStyle { return .dark }
+  static var min: Cutaway_Wire_UserInterfaceStyle { return .unspecified }
+}
+
+
+enum Cutaway_Wire_ContentSizeCategory: UInt8, FlatbuffersVectorInitializable, Enum, Verifiable {
+  typealias T = UInt8
+  static var byteSize: Int { return MemoryLayout<UInt8>.size }
+  var value: UInt8 { return self.rawValue }
+  case unspecified = 0
+  case extrasmall = 1
+  case small = 2
+  case medium = 3
+  case large = 4
+  case extralarge = 5
+  case extraextralarge = 6
+  case extraextraextralarge = 7
+  case accessibilitymedium = 8
+  case accessibilitylarge = 9
+  case accessibilityextralarge = 10
+  case accessibilityextraextralarge = 11
+  case accessibilityextraextraextralarge = 12
+
+  static var max: Cutaway_Wire_ContentSizeCategory { return .accessibilityextraextraextralarge }
+  static var min: Cutaway_Wire_ContentSizeCategory { return .unspecified }
+}
+
+
+enum Cutaway_Wire_LayoutDirection: UInt8, FlatbuffersVectorInitializable, Enum, Verifiable {
+  typealias T = UInt8
+  static var byteSize: Int { return MemoryLayout<UInt8>.size }
+  var value: UInt8 { return self.rawValue }
+  case unspecified = 0
+  case lefttoright = 1
+  case righttoleft = 2
+
+  static var max: Cutaway_Wire_LayoutDirection { return .righttoleft }
+  static var min: Cutaway_Wire_LayoutDirection { return .unspecified }
+}
+
+
+enum Cutaway_Wire_SizeClass: UInt8, FlatbuffersVectorInitializable, Enum, Verifiable {
+  typealias T = UInt8
+  static var byteSize: Int { return MemoryLayout<UInt8>.size }
+  var value: UInt8 { return self.rawValue }
+  case unspecified = 0
+  case compact = 1
+  case regular = 2
+
+  static var max: Cutaway_Wire_SizeClass { return .regular }
+  static var min: Cutaway_Wire_SizeClass { return .unspecified }
+}
+
+
+enum Cutaway_Wire_TraitKind: UInt8, FlatbuffersVectorInitializable, Enum, Verifiable {
+  typealias T = UInt8
+  static var byteSize: Int { return MemoryLayout<UInt8>.size }
+  var value: UInt8 { return self.rawValue }
+  case userinterfacestyle = 0
+  case contentsizecategory = 1
+  case layoutdirection = 2
+  case horizontalsizeclass = 3
+  case verticalsizeclass = 4
+
+  static var max: Cutaway_Wire_TraitKind { return .verticalsizeclass }
+  static var min: Cutaway_Wire_TraitKind { return .userinterfacestyle }
+}
+
+
 enum Cutaway_Wire_Body: UInt8, FlatbuffersVectorInitializable, UnionEnum {
   typealias T = UInt8
 
@@ -365,8 +449,11 @@ enum Cutaway_Wire_Body: UInt8, FlatbuffersVectorInitializable, UnionEnum {
   case setattribute = 12
   case setattributeresult = 13
   case getsubtree = 14
+  case getenvironment = 15
+  case setenvironment = 16
+  case environment = 17
 
-  static var max: Cutaway_Wire_Body { return .getsubtree }
+  static var max: Cutaway_Wire_Body { return .environment }
   static var min: Cutaway_Wire_Body { return .none_ }
 }
 
@@ -422,6 +509,15 @@ struct Cutaway_Wire_BodyUnion {
     case .getsubtree:
       var __obj = value as? Cutaway_Wire_GetSubtreeT
       return Cutaway_Wire_GetSubtree.pack(&builder, obj: &__obj)
+    case .getenvironment:
+      var __obj = value as? Cutaway_Wire_GetEnvironmentT
+      return Cutaway_Wire_GetEnvironment.pack(&builder, obj: &__obj)
+    case .setenvironment:
+      var __obj = value as? Cutaway_Wire_SetEnvironmentT
+      return Cutaway_Wire_SetEnvironment.pack(&builder, obj: &__obj)
+    case .environment:
+      var __obj = value as? Cutaway_Wire_EnvironmentT
+      return Cutaway_Wire_Environment.pack(&builder, obj: &__obj)
     default: return Offset()
     }
   }
@@ -2681,6 +2777,8 @@ struct Cutaway_Wire_ColorValue: FlatBufferTable, FlatbuffersVectorInitializable,
   private enum VTOFFSET: VOffset {
     case value = 4
     case systemName = 6
+    case light = 8
+    case dark = 10
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
@@ -2689,18 +2787,28 @@ struct Cutaway_Wire_ColorValue: FlatBufferTable, FlatbuffersVectorInitializable,
   var mutableValue: Cutaway_Wire_Color_Mutable? { let o = _accessor.offset(VTOFFSET.value.v); return o == 0 ? nil : Cutaway_Wire_Color_Mutable(_accessor.bb, o: o + _accessor.position) }
   var systemName: String? { let o = _accessor.offset(VTOFFSET.systemName.v); return o == 0 ? nil : _accessor.string(at: o) }
   var systemNameSegmentArray: [UInt8]? { return _accessor.getVector(at: VTOFFSET.systemName.v) }
-  static func startColorValue(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 2) }
+  var light: Cutaway_Wire_Color? { let o = _accessor.offset(VTOFFSET.light.v); return o == 0 ? nil : _accessor.readBuffer(of: Cutaway_Wire_Color.self, at: o) }
+  var mutableLight: Cutaway_Wire_Color_Mutable? { let o = _accessor.offset(VTOFFSET.light.v); return o == 0 ? nil : Cutaway_Wire_Color_Mutable(_accessor.bb, o: o + _accessor.position) }
+  var dark: Cutaway_Wire_Color? { let o = _accessor.offset(VTOFFSET.dark.v); return o == 0 ? nil : _accessor.readBuffer(of: Cutaway_Wire_Color.self, at: o) }
+  var mutableDark: Cutaway_Wire_Color_Mutable? { let o = _accessor.offset(VTOFFSET.dark.v); return o == 0 ? nil : Cutaway_Wire_Color_Mutable(_accessor.bb, o: o + _accessor.position) }
+  static func startColorValue(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 4) }
   static func add(value: Cutaway_Wire_Color?, _ fbb: inout FlatBufferBuilder) { guard let value = value else { return }; fbb.create(struct: value, position: VTOFFSET.value.p) }
   static func add(systemName: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: systemName, at: VTOFFSET.systemName.p) }
+  static func add(light: Cutaway_Wire_Color?, _ fbb: inout FlatBufferBuilder) { guard let light = light else { return }; fbb.create(struct: light, position: VTOFFSET.light.p) }
+  static func add(dark: Cutaway_Wire_Color?, _ fbb: inout FlatBufferBuilder) { guard let dark = dark else { return }; fbb.create(struct: dark, position: VTOFFSET.dark.p) }
   static func endColorValue(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
   static func createColorValue(
     _ fbb: inout FlatBufferBuilder,
     value: Cutaway_Wire_Color? = nil,
-    systemNameOffset systemName: Offset = Offset()
+    systemNameOffset systemName: Offset = Offset(),
+    light: Cutaway_Wire_Color? = nil,
+    dark: Cutaway_Wire_Color? = nil
   ) -> Offset {
     let __start = Cutaway_Wire_ColorValue.startColorValue(&fbb)
     Cutaway_Wire_ColorValue.add(value: value, &fbb)
     Cutaway_Wire_ColorValue.add(systemName: systemName, &fbb)
+    Cutaway_Wire_ColorValue.add(light: light, &fbb)
+    Cutaway_Wire_ColorValue.add(dark: dark, &fbb)
     return Cutaway_Wire_ColorValue.endColorValue(&fbb, start: __start)
   }
 
@@ -2723,6 +2831,8 @@ struct Cutaway_Wire_ColorValue: FlatBufferTable, FlatbuffersVectorInitializable,
     let __root = Cutaway_Wire_ColorValue.startColorValue(&builder)
     Cutaway_Wire_ColorValue.add(value: obj.value, &builder)
     Cutaway_Wire_ColorValue.add(systemName: __systemName, &builder)
+    Cutaway_Wire_ColorValue.add(light: obj.light, &builder)
+    Cutaway_Wire_ColorValue.add(dark: obj.dark, &builder)
     return Cutaway_Wire_ColorValue.endColorValue(&builder, start: __root)
   }
 
@@ -2730,6 +2840,8 @@ struct Cutaway_Wire_ColorValue: FlatBufferTable, FlatbuffersVectorInitializable,
     var _v = try verifier.visitTable(at: position)
     try _v.visit(field: VTOFFSET.value.p, fieldName: "value", required: false, type: Cutaway_Wire_Color.self)
     try _v.visit(field: VTOFFSET.systemName.p, fieldName: "systemName", required: false, type: ForwardOffset<String>.self)
+    try _v.visit(field: VTOFFSET.light.p, fieldName: "light", required: false, type: Cutaway_Wire_Color.self)
+    try _v.visit(field: VTOFFSET.dark.p, fieldName: "dark", required: false, type: Cutaway_Wire_Color.self)
     _v.finish()
   }
 }
@@ -2738,14 +2850,20 @@ class Cutaway_Wire_ColorValueT: NativeObject {
 
   var value: Cutaway_Wire_Color?
   var systemName: String?
+  var light: Cutaway_Wire_Color?
+  var dark: Cutaway_Wire_Color?
 
   init(_ _t: borrowing Cutaway_Wire_ColorValue) {
     value = _t.value
     systemName = _t.systemName
+    light = _t.light
+    dark = _t.dark
   }
 
   init() {
     value = Cutaway_Wire_Color()
+    light = Cutaway_Wire_Color()
+    dark = Cutaway_Wire_Color()
   }
 
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_ColorValue.self) }
@@ -3194,6 +3312,180 @@ class Cutaway_Wire_EnumValueT: NativeObject {
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_EnumValue.self) }
 
 }
+struct Cutaway_Wire_ObjectReference: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_ObjectReference.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case layerId = 4
+    case className = 6
+    case displayClassName = 8
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var layerId: UInt64 { let o = _accessor.offset(VTOFFSET.layerId.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
+  var className: String? { let o = _accessor.offset(VTOFFSET.className.v); return o == 0 ? nil : _accessor.string(at: o) }
+  var classNameSegmentArray: [UInt8]? { return _accessor.getVector(at: VTOFFSET.className.v) }
+  var displayClassName: String? { let o = _accessor.offset(VTOFFSET.displayClassName.v); return o == 0 ? nil : _accessor.string(at: o) }
+  var displayClassNameSegmentArray: [UInt8]? { return _accessor.getVector(at: VTOFFSET.displayClassName.v) }
+  static func startObjectReference(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 3) }
+  static func add(layerId: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: layerId, def: 0, at: VTOFFSET.layerId.p) }
+  static func add(className: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: className, at: VTOFFSET.className.p) }
+  static func add(displayClassName: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: displayClassName, at: VTOFFSET.displayClassName.p) }
+  static func endObjectReference(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createObjectReference(
+    _ fbb: inout FlatBufferBuilder,
+    layerId: UInt64 = 0,
+    classNameOffset className: Offset = Offset(),
+    displayClassNameOffset displayClassName: Offset = Offset()
+  ) -> Offset {
+    let __start = Cutaway_Wire_ObjectReference.startObjectReference(&fbb)
+    Cutaway_Wire_ObjectReference.add(layerId: layerId, &fbb)
+    Cutaway_Wire_ObjectReference.add(className: className, &fbb)
+    Cutaway_Wire_ObjectReference.add(displayClassName: displayClassName, &fbb)
+    return Cutaway_Wire_ObjectReference.endObjectReference(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_ObjectReferenceT {
+    return Cutaway_Wire_ObjectReferenceT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_ObjectReferenceT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_ObjectReferenceT) -> Offset {
+    let __className: Offset
+    if let s = obj.className {
+      __className = builder.create(string: s)
+    } else {
+      __className = Offset()
+    }
+
+    let __displayClassName: Offset
+    if let s = obj.displayClassName {
+      __displayClassName = builder.create(string: s)
+    } else {
+      __displayClassName = Offset()
+    }
+
+    let __root = Cutaway_Wire_ObjectReference.startObjectReference(&builder)
+    Cutaway_Wire_ObjectReference.add(layerId: obj.layerId, &builder)
+    Cutaway_Wire_ObjectReference.add(className: __className, &builder)
+    Cutaway_Wire_ObjectReference.add(displayClassName: __displayClassName, &builder)
+    return Cutaway_Wire_ObjectReference.endObjectReference(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.layerId.p, fieldName: "layerId", required: false, type: UInt64.self)
+    try _v.visit(field: VTOFFSET.className.p, fieldName: "className", required: false, type: ForwardOffset<String>.self)
+    try _v.visit(field: VTOFFSET.displayClassName.p, fieldName: "displayClassName", required: false, type: ForwardOffset<String>.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_ObjectReferenceT: NativeObject {
+
+  var layerId: UInt64
+  var className: String?
+  var displayClassName: String?
+
+  init(_ _t: borrowing Cutaway_Wire_ObjectReference) {
+    layerId = _t.layerId
+    className = _t.className
+    displayClassName = _t.displayClassName
+  }
+
+  init() {
+    layerId = 0
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_ObjectReference.self) }
+
+}
+struct Cutaway_Wire_LayerReferenceValue: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_LayerReferenceValue.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case references = 4
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var references: FlatbufferVector<Cutaway_Wire_ObjectReference> { return _accessor.vector(at: VTOFFSET.references.v, byteSize: 4) }
+  static func startLayerReferenceValue(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 1) }
+  static func addVectorOf(references: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: references, at: VTOFFSET.references.p) }
+  static func endLayerReferenceValue(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createLayerReferenceValue(
+    _ fbb: inout FlatBufferBuilder,
+    referencesVectorOffset references: Offset = Offset()
+  ) -> Offset {
+    let __start = Cutaway_Wire_LayerReferenceValue.startLayerReferenceValue(&fbb)
+    Cutaway_Wire_LayerReferenceValue.addVectorOf(references: references, &fbb)
+    return Cutaway_Wire_LayerReferenceValue.endLayerReferenceValue(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_LayerReferenceValueT {
+    return Cutaway_Wire_LayerReferenceValueT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_LayerReferenceValueT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_LayerReferenceValueT) -> Offset {
+    var __references__: [Offset] = []
+    for var i in obj.references {
+      __references__.append(Cutaway_Wire_ObjectReference.pack(&builder, obj: &i))
+    }
+    let __references = builder.createVector(ofOffsets: __references__)
+    let __root = Cutaway_Wire_LayerReferenceValue.startLayerReferenceValue(&builder)
+    Cutaway_Wire_LayerReferenceValue.addVectorOf(references: __references, &builder)
+    return Cutaway_Wire_LayerReferenceValue.endLayerReferenceValue(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.references.p, fieldName: "references", required: false, type: ForwardOffset<Vector<ForwardOffset<Cutaway_Wire_ObjectReference>, Cutaway_Wire_ObjectReference>>.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_LayerReferenceValueT: NativeObject {
+
+  var references: [Cutaway_Wire_ObjectReferenceT?]
+
+  init(_ _t: borrowing Cutaway_Wire_LayerReferenceValue) {
+    references = []
+    for val in _t.references{
+        references.append(val.unpack())
+    }
+  }
+
+  init() {
+    references = []
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_LayerReferenceValue.self) }
+
+}
 struct Cutaway_Wire_NumberLimit: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
 
   static func validateVersion() { FlatBuffersVersion_25_12_19() }
@@ -3511,6 +3803,8 @@ struct Cutaway_Wire_Attribute: FlatBufferTable, FlatbuffersVectorInitializable, 
         try ForwardOffset<Cutaway_Wire_TransformValue>.verify(&verifier, at: pos, of: Cutaway_Wire_TransformValue.self)
       case .enumvalue:
         try ForwardOffset<Cutaway_Wire_EnumValue>.verify(&verifier, at: pos, of: Cutaway_Wire_EnumValue.self)
+      case .layerreferencevalue:
+        try ForwardOffset<Cutaway_Wire_LayerReferenceValue>.verify(&verifier, at: pos, of: Cutaway_Wire_LayerReferenceValue.self)
       }
     })
     try _v.visit(field: VTOFFSET.editable.p, fieldName: "editable", required: false, type: Bool.self)
@@ -3578,6 +3872,9 @@ class Cutaway_Wire_AttributeT: NativeObject {
     case .enumvalue:
       let _v = _t.value(type: Cutaway_Wire_EnumValue.self)
       value = Cutaway_Wire_AttributeValueUnion(_v?.unpack(), type: .enumvalue)
+    case .layerreferencevalue:
+      let _v = _t.value(type: Cutaway_Wire_LayerReferenceValue.self)
+      value = Cutaway_Wire_AttributeValueUnion(_v?.unpack(), type: .layerreferencevalue)
     default: break
     }
     editable = _t.editable
@@ -4053,6 +4350,8 @@ struct Cutaway_Wire_SetAttribute: FlatBufferTable, FlatbuffersVectorInitializabl
         try ForwardOffset<Cutaway_Wire_TransformValue>.verify(&verifier, at: pos, of: Cutaway_Wire_TransformValue.self)
       case .enumvalue:
         try ForwardOffset<Cutaway_Wire_EnumValue>.verify(&verifier, at: pos, of: Cutaway_Wire_EnumValue.self)
+      case .layerreferencevalue:
+        try ForwardOffset<Cutaway_Wire_LayerReferenceValue>.verify(&verifier, at: pos, of: Cutaway_Wire_LayerReferenceValue.self)
       }
     })
     _v.finish()
@@ -4102,6 +4401,9 @@ class Cutaway_Wire_SetAttributeT: NativeObject {
     case .enumvalue:
       let _v = _t.value(type: Cutaway_Wire_EnumValue.self)
       value = Cutaway_Wire_AttributeValueUnion(_v?.unpack(), type: .enumvalue)
+    case .layerreferencevalue:
+      let _v = _t.value(type: Cutaway_Wire_LayerReferenceValue.self)
+      value = Cutaway_Wire_AttributeValueUnion(_v?.unpack(), type: .layerreferencevalue)
     default: break
     }
   }
@@ -4623,6 +4925,314 @@ class Cutaway_Wire_LayoutConstraintT: NativeObject {
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_LayoutConstraint.self) }
 
 }
+struct Cutaway_Wire_Traits: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_Traits.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case userInterfaceStyle = 4
+    case contentSizeCategory = 6
+    case layoutDirection = 8
+    case horizontalSizeClass = 10
+    case verticalSizeClass = 12
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var userInterfaceStyle: Cutaway_Wire_UserInterfaceStyle { let o = _accessor.offset(VTOFFSET.userInterfaceStyle.v); return o == 0 ? .unspecified : Cutaway_Wire_UserInterfaceStyle(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unspecified }
+  var contentSizeCategory: Cutaway_Wire_ContentSizeCategory { let o = _accessor.offset(VTOFFSET.contentSizeCategory.v); return o == 0 ? .unspecified : Cutaway_Wire_ContentSizeCategory(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unspecified }
+  var layoutDirection: Cutaway_Wire_LayoutDirection { let o = _accessor.offset(VTOFFSET.layoutDirection.v); return o == 0 ? .unspecified : Cutaway_Wire_LayoutDirection(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unspecified }
+  var horizontalSizeClass: Cutaway_Wire_SizeClass { let o = _accessor.offset(VTOFFSET.horizontalSizeClass.v); return o == 0 ? .unspecified : Cutaway_Wire_SizeClass(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unspecified }
+  var verticalSizeClass: Cutaway_Wire_SizeClass { let o = _accessor.offset(VTOFFSET.verticalSizeClass.v); return o == 0 ? .unspecified : Cutaway_Wire_SizeClass(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unspecified }
+  static func startTraits(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 5) }
+  static func add(userInterfaceStyle: Cutaway_Wire_UserInterfaceStyle, _ fbb: inout FlatBufferBuilder) { fbb.add(element: userInterfaceStyle.rawValue, def: 0, at: VTOFFSET.userInterfaceStyle.p) }
+  static func add(contentSizeCategory: Cutaway_Wire_ContentSizeCategory, _ fbb: inout FlatBufferBuilder) { fbb.add(element: contentSizeCategory.rawValue, def: 0, at: VTOFFSET.contentSizeCategory.p) }
+  static func add(layoutDirection: Cutaway_Wire_LayoutDirection, _ fbb: inout FlatBufferBuilder) { fbb.add(element: layoutDirection.rawValue, def: 0, at: VTOFFSET.layoutDirection.p) }
+  static func add(horizontalSizeClass: Cutaway_Wire_SizeClass, _ fbb: inout FlatBufferBuilder) { fbb.add(element: horizontalSizeClass.rawValue, def: 0, at: VTOFFSET.horizontalSizeClass.p) }
+  static func add(verticalSizeClass: Cutaway_Wire_SizeClass, _ fbb: inout FlatBufferBuilder) { fbb.add(element: verticalSizeClass.rawValue, def: 0, at: VTOFFSET.verticalSizeClass.p) }
+  static func endTraits(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createTraits(
+    _ fbb: inout FlatBufferBuilder,
+    userInterfaceStyle: Cutaway_Wire_UserInterfaceStyle = .unspecified,
+    contentSizeCategory: Cutaway_Wire_ContentSizeCategory = .unspecified,
+    layoutDirection: Cutaway_Wire_LayoutDirection = .unspecified,
+    horizontalSizeClass: Cutaway_Wire_SizeClass = .unspecified,
+    verticalSizeClass: Cutaway_Wire_SizeClass = .unspecified
+  ) -> Offset {
+    let __start = Cutaway_Wire_Traits.startTraits(&fbb)
+    Cutaway_Wire_Traits.add(userInterfaceStyle: userInterfaceStyle, &fbb)
+    Cutaway_Wire_Traits.add(contentSizeCategory: contentSizeCategory, &fbb)
+    Cutaway_Wire_Traits.add(layoutDirection: layoutDirection, &fbb)
+    Cutaway_Wire_Traits.add(horizontalSizeClass: horizontalSizeClass, &fbb)
+    Cutaway_Wire_Traits.add(verticalSizeClass: verticalSizeClass, &fbb)
+    return Cutaway_Wire_Traits.endTraits(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_TraitsT {
+    return Cutaway_Wire_TraitsT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_TraitsT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_TraitsT) -> Offset {
+    let __root = Cutaway_Wire_Traits.startTraits(&builder)
+    Cutaway_Wire_Traits.add(userInterfaceStyle: obj.userInterfaceStyle, &builder)
+    Cutaway_Wire_Traits.add(contentSizeCategory: obj.contentSizeCategory, &builder)
+    Cutaway_Wire_Traits.add(layoutDirection: obj.layoutDirection, &builder)
+    Cutaway_Wire_Traits.add(horizontalSizeClass: obj.horizontalSizeClass, &builder)
+    Cutaway_Wire_Traits.add(verticalSizeClass: obj.verticalSizeClass, &builder)
+    return Cutaway_Wire_Traits.endTraits(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.userInterfaceStyle.p, fieldName: "userInterfaceStyle", required: false, type: Cutaway_Wire_UserInterfaceStyle.self)
+    try _v.visit(field: VTOFFSET.contentSizeCategory.p, fieldName: "contentSizeCategory", required: false, type: Cutaway_Wire_ContentSizeCategory.self)
+    try _v.visit(field: VTOFFSET.layoutDirection.p, fieldName: "layoutDirection", required: false, type: Cutaway_Wire_LayoutDirection.self)
+    try _v.visit(field: VTOFFSET.horizontalSizeClass.p, fieldName: "horizontalSizeClass", required: false, type: Cutaway_Wire_SizeClass.self)
+    try _v.visit(field: VTOFFSET.verticalSizeClass.p, fieldName: "verticalSizeClass", required: false, type: Cutaway_Wire_SizeClass.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_TraitsT: NativeObject {
+
+  var userInterfaceStyle: Cutaway_Wire_UserInterfaceStyle
+  var contentSizeCategory: Cutaway_Wire_ContentSizeCategory
+  var layoutDirection: Cutaway_Wire_LayoutDirection
+  var horizontalSizeClass: Cutaway_Wire_SizeClass
+  var verticalSizeClass: Cutaway_Wire_SizeClass
+
+  init(_ _t: borrowing Cutaway_Wire_Traits) {
+    userInterfaceStyle = _t.userInterfaceStyle
+    contentSizeCategory = _t.contentSizeCategory
+    layoutDirection = _t.layoutDirection
+    horizontalSizeClass = _t.horizontalSizeClass
+    verticalSizeClass = _t.verticalSizeClass
+  }
+
+  init() {
+    userInterfaceStyle = .unspecified
+    contentSizeCategory = .unspecified
+    layoutDirection = .unspecified
+    horizontalSizeClass = .unspecified
+    verticalSizeClass = .unspecified
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_Traits.self) }
+
+}
+struct Cutaway_Wire_GetEnvironment: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_GetEnvironment.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  static func startGetEnvironment(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 0) }
+  static func endGetEnvironment(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+
+  func unpack() -> Cutaway_Wire_GetEnvironmentT {
+    return Cutaway_Wire_GetEnvironmentT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_GetEnvironmentT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_GetEnvironmentT) -> Offset {
+    let __root = Cutaway_Wire_GetEnvironment.startGetEnvironment(&builder)
+    return Cutaway_Wire_GetEnvironment.endGetEnvironment(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_GetEnvironmentT: NativeObject {
+
+
+  init(_ _t: borrowing Cutaway_Wire_GetEnvironment) {
+  }
+
+  init() {
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_GetEnvironment.self) }
+
+}
+struct Cutaway_Wire_SetEnvironment: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_SetEnvironment.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case overrides = 4
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var overrides: Cutaway_Wire_Traits? { let o = _accessor.offset(VTOFFSET.overrides.v); return o == 0 ? nil : Cutaway_Wire_Traits(_accessor.bb, o: _accessor.indirect(o + _accessor.position)) }
+  static func startSetEnvironment(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 1) }
+  static func add(overrides: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: overrides, at: VTOFFSET.overrides.p) }
+  static func endSetEnvironment(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createSetEnvironment(
+    _ fbb: inout FlatBufferBuilder,
+    overridesOffset overrides: Offset = Offset()
+  ) -> Offset {
+    let __start = Cutaway_Wire_SetEnvironment.startSetEnvironment(&fbb)
+    Cutaway_Wire_SetEnvironment.add(overrides: overrides, &fbb)
+    return Cutaway_Wire_SetEnvironment.endSetEnvironment(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_SetEnvironmentT {
+    return Cutaway_Wire_SetEnvironmentT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_SetEnvironmentT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_SetEnvironmentT) -> Offset {
+    let __overrides = Cutaway_Wire_Traits.pack(&builder, obj: &obj.overrides)
+    let __root = Cutaway_Wire_SetEnvironment.startSetEnvironment(&builder)
+    Cutaway_Wire_SetEnvironment.add(overrides: __overrides, &builder)
+    return Cutaway_Wire_SetEnvironment.endSetEnvironment(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.overrides.p, fieldName: "overrides", required: false, type: ForwardOffset<Cutaway_Wire_Traits>.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_SetEnvironmentT: NativeObject {
+
+  var overrides: Cutaway_Wire_TraitsT?
+
+  init(_ _t: borrowing Cutaway_Wire_SetEnvironment) {
+    overrides = _t.overrides?.unpack()
+  }
+
+  init() {
+    overrides = Cutaway_Wire_TraitsT()
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_SetEnvironment.self) }
+
+}
+struct Cutaway_Wire_Environment: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_Environment.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case overrides = 4
+    case current = 6
+    case overridable = 8
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var overrides: Cutaway_Wire_Traits? { let o = _accessor.offset(VTOFFSET.overrides.v); return o == 0 ? nil : Cutaway_Wire_Traits(_accessor.bb, o: _accessor.indirect(o + _accessor.position)) }
+  var current: Cutaway_Wire_Traits? { let o = _accessor.offset(VTOFFSET.current.v); return o == 0 ? nil : Cutaway_Wire_Traits(_accessor.bb, o: _accessor.indirect(o + _accessor.position)) }
+  var overridable: FlatbufferVector<Cutaway_Wire_TraitKind> { return _accessor.vector(at: VTOFFSET.overridable.v, byteSize: 1) }
+  static func startEnvironment(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 3) }
+  static func add(overrides: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: overrides, at: VTOFFSET.overrides.p) }
+  static func add(current: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: current, at: VTOFFSET.current.p) }
+  static func addVectorOf(overridable: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: overridable, at: VTOFFSET.overridable.p) }
+  static func endEnvironment(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createEnvironment(
+    _ fbb: inout FlatBufferBuilder,
+    overridesOffset overrides: Offset = Offset(),
+    currentOffset current: Offset = Offset(),
+    overridableVectorOffset overridable: Offset = Offset()
+  ) -> Offset {
+    let __start = Cutaway_Wire_Environment.startEnvironment(&fbb)
+    Cutaway_Wire_Environment.add(overrides: overrides, &fbb)
+    Cutaway_Wire_Environment.add(current: current, &fbb)
+    Cutaway_Wire_Environment.addVectorOf(overridable: overridable, &fbb)
+    return Cutaway_Wire_Environment.endEnvironment(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_EnvironmentT {
+    return Cutaway_Wire_EnvironmentT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_EnvironmentT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_EnvironmentT) -> Offset {
+    let __overrides = Cutaway_Wire_Traits.pack(&builder, obj: &obj.overrides)
+    let __current = Cutaway_Wire_Traits.pack(&builder, obj: &obj.current)
+    let __overridable = builder.createVector(obj.overridable)
+    let __root = Cutaway_Wire_Environment.startEnvironment(&builder)
+    Cutaway_Wire_Environment.add(overrides: __overrides, &builder)
+    Cutaway_Wire_Environment.add(current: __current, &builder)
+    Cutaway_Wire_Environment.addVectorOf(overridable: __overridable, &builder)
+    return Cutaway_Wire_Environment.endEnvironment(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.overrides.p, fieldName: "overrides", required: false, type: ForwardOffset<Cutaway_Wire_Traits>.self)
+    try _v.visit(field: VTOFFSET.current.p, fieldName: "current", required: false, type: ForwardOffset<Cutaway_Wire_Traits>.self)
+    try _v.visit(field: VTOFFSET.overridable.p, fieldName: "overridable", required: false, type: ForwardOffset<Vector<Cutaway_Wire_TraitKind, Cutaway_Wire_TraitKind>>.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_EnvironmentT: NativeObject {
+
+  var overrides: Cutaway_Wire_TraitsT?
+  var current: Cutaway_Wire_TraitsT?
+  var overridable: [Cutaway_Wire_TraitKind]
+
+  init(_ _t: borrowing Cutaway_Wire_Environment) {
+    overrides = _t.overrides?.unpack()
+    current = _t.current?.unpack()
+    overridable = []
+    overridable.append(contentsOf: _t.overridable)
+  }
+
+  init() {
+    overrides = Cutaway_Wire_TraitsT()
+    current = Cutaway_Wire_TraitsT()
+    overridable = []
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_Environment.self) }
+
+}
 struct Cutaway_Wire_Error: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
 
   static func validateVersion() { FlatBuffersVersion_25_12_19() }
@@ -5020,6 +5630,12 @@ struct Cutaway_Wire_Frame: FlatBufferTable, FlatbuffersVectorInitializable, Veri
         try ForwardOffset<Cutaway_Wire_SetAttributeResult>.verify(&verifier, at: pos, of: Cutaway_Wire_SetAttributeResult.self)
       case .getsubtree:
         try ForwardOffset<Cutaway_Wire_GetSubtree>.verify(&verifier, at: pos, of: Cutaway_Wire_GetSubtree.self)
+      case .getenvironment:
+        try ForwardOffset<Cutaway_Wire_GetEnvironment>.verify(&verifier, at: pos, of: Cutaway_Wire_GetEnvironment.self)
+      case .setenvironment:
+        try ForwardOffset<Cutaway_Wire_SetEnvironment>.verify(&verifier, at: pos, of: Cutaway_Wire_SetEnvironment.self)
+      case .environment:
+        try ForwardOffset<Cutaway_Wire_Environment>.verify(&verifier, at: pos, of: Cutaway_Wire_Environment.self)
       }
     })
     _v.finish()
@@ -5076,6 +5692,15 @@ class Cutaway_Wire_FrameT: NativeObject {
     case .getsubtree:
       let _v = _t.body(type: Cutaway_Wire_GetSubtree.self)
       body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .getsubtree)
+    case .getenvironment:
+      let _v = _t.body(type: Cutaway_Wire_GetEnvironment.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .getenvironment)
+    case .setenvironment:
+      let _v = _t.body(type: Cutaway_Wire_SetEnvironment.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .setenvironment)
+    case .environment:
+      let _v = _t.body(type: Cutaway_Wire_Environment.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .environment)
     default: break
     }
   }

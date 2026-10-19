@@ -37,7 +37,7 @@ final class FrameSplitterTests: XCTestCase {
                 checked += 1
             }
         }
-        XCTAssertEqual(checked, 27, "every .stream fixture should have been checked")
+        XCTAssertEqual(checked, 31, "every .stream fixture should have been checked")
     }
 
     func test_S_CONN_05_framedOutputSplitsBackIntoThePayload() throws {
