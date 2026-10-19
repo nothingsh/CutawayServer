@@ -89,11 +89,13 @@ final class LayoutAttributeTests: CaptureTestCase {
         return label
     }
 
+    /// They end what the view group had before the accessibility of protocol 1.2.
     func test_S_ATTR_07_theViewGroupEndsWithTheLayoutAttributes() throws {
         let window = try makeWindow()
         let view = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
         window.addSubview(view)
-        let group = try XCTUnwrap(AttributeCatalog.standard.read(view.layer).first { $0.id == "view" })
+        var group = try XCTUnwrap(AttributeCatalog.standard.read(view.layer).first { $0.id == "view" })
+        group.attributes = Array(group.attributes.prefix { $0.section != .accessibility })
         XCTAssertEqual(group.attributes.suffix(8).map(\.id), Self.ids)
         XCTAssertEqual(group.attributes[group.attributes.count - 9].id, "view.layoutMargins")
         XCTAssertEqual(

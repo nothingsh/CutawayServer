@@ -7,7 +7,15 @@ enum AttributeChecks {
     /// What holds for the attributes of any app (PROTOCOL.md, "Attributes"). A member of the
     /// `AttributeValue` union that protocol 0.3 does not have cannot get this far: it fails
     /// verification when the frame is decoded (P-REQ-07).
-    static func structure(_ groups: [AttributeGroup], name: String, version: ProtocolVersion = .current) throws {
+    ///
+    /// - Parameter layerIDs: The layers of the hierarchy, which references may name (P-ATTR-18);
+    ///   `nil` when there is none to compare with.
+    static func structure(
+        _ groups: [AttributeGroup],
+        name: String,
+        version: ProtocolVersion = .current,
+        layerIDs: Set<UInt64>? = nil
+    ) throws {
         var groupIDs = Set<String>()
         for group in groups {
             guard !group.id.isEmpty else { throw ProbeFailure("\(name) has a group with an empty id") }
@@ -28,29 +36,48 @@ enum AttributeChecks {
                         "\(name): group \(group.id) has two attributes with the id \(attribute.id) (P-ATTR-01)"
                     )
                 }
-                guard !attribute.title.isEmpty else { throw ProbeFailure("\(label) has an empty title") }
-                guard attribute.valueKind != .none else {
-                    throw ProbeFailure("\(label) has no value_kind (P-ATTR-06)")
-                }
-                // P-ATTR-08: no section the negotiated version does not have.
-                if attribute.section.minorVersion > version.minor {
-                    throw ProbeFailure(
-                        "\(label) has the section \(attribute.section), which protocol 1.\(version.minor) does not have (P-ATTR-08)"
-                    )
-                }
-                try checkUnit(of: attribute, name: label, version: version)
-                try checkLimits(of: attribute, name: label)
-                if let value = attribute.value {
-                    guard value.kind == attribute.valueKind else {
-                        throw ProbeFailure(
-                            "\(label) is a \(value.kind) value, but its value_kind is \(attribute.valueKind) (P-ATTR-06)"
-                        )
-                    }
-                    try check(value, name: label)
-                }
+                try check(attribute, name: label, version: version, layerIDs: layerIDs)
             }
         }
         try checkLayer(groups, name: name, version: version)
+    }
+
+    /// What holds for one attribute on its own.
+    private static func check(
+        _ attribute: Attribute,
+        name label: String,
+        version: ProtocolVersion,
+        layerIDs: Set<UInt64>?
+    ) throws {
+        guard !attribute.title.isEmpty else { throw ProbeFailure("\(label) has an empty title") }
+        guard attribute.valueKind != .none else {
+            throw ProbeFailure("\(label) has no value_kind (P-ATTR-06)")
+        }
+        // P-ATTR-03: a value the negotiated version does not have is sent as text.
+        if attribute.valueKind.minorVersion > version.minor {
+            throw ProbeFailure(
+                "\(label) is a \(attribute.valueKind) value, which protocol 1.\(version.minor) does not have (P-ATTR-03)"
+            )
+        }
+        // P-ATTR-08: no section the negotiated version does not have.
+        if attribute.section.minorVersion > version.minor {
+            throw ProbeFailure(
+                "\(label) has the section \(attribute.section), which protocol 1.\(version.minor) does not have (P-ATTR-08)"
+            )
+        }
+        try checkUnit(of: attribute, name: label, version: version)
+        try checkLimits(of: attribute, name: label)
+        if attribute.valueKind == .layerReference, attribute.editable {
+            throw ProbeFailure("\(label) refers to objects, but is editable (P-ATTR-18)")
+        }
+        if let value = attribute.value {
+            guard value.kind == attribute.valueKind else {
+                throw ProbeFailure(
+                    "\(label) is a \(value.kind) value, but its value_kind is \(attribute.valueKind) (P-ATTR-06)"
+                )
+            }
+            try check(value, name: label, layerIDs: layerIDs)
+        }
     }
 
     /// The value kinds a unit may go with (P-ATTR-14).
@@ -89,12 +116,19 @@ enum AttributeChecks {
         }
         var slots: [String: String] = [:]
         var sections: [String: AttributeSection] = [:]
+        let table = AttributeTables.clusters(at: version)
         for attribute in attributes {
             let label = "\(name): attribute \(attribute.id)"
             guard (attribute.cluster == nil) == (attribute.slot == nil) else {
                 throw ProbeFailure("\(label) has a cluster without a slot, or a slot without a cluster (P-ATTR-12)")
             }
             if let cluster = attribute.cluster, let slot = attribute.slot {
+                // P-ATTR-12 (1.2): only the clusters and slots of the negotiated version's table.
+                guard table[cluster]?.contains(slot) == true else {
+                    throw ProbeFailure(
+                        "\(label) is the \(slot) of the cluster \(cluster), which protocol 1.\(version.minor) does not name (P-ATTR-12)"
+                    )
+                }
                 if let other = slots.updateValue(attribute.id, forKey: "\(cluster).\(slot)") {
                     throw ProbeFailure(
                         "\(label) and \(other) are both the \(slot) of the cluster \(cluster) (P-ATTR-12)"
@@ -122,25 +156,18 @@ enum AttributeChecks {
         }
     }
 
-    /// The clusters and slots outside the protocol's table. Not a failure: a later version of
-    /// the server may know more, and a client shows them attribute by attribute (P-ATTR-12).
-    static func unknownClusters(_ groups: [AttributeGroup], name: String) -> [String] {
-        groups.flatMap(\.attributes).compactMap { attribute in
-            guard let cluster = attribute.cluster, let slot = attribute.slot,
-                  AttributeTables.clusters[cluster]?.contains(slot) != true
-            else { return nil }
-            return "\(name): \(attribute.id) is the \(slot) of the cluster \(cluster), which the protocol does not name"
-        }
-    }
-
-    private static func check(_ value: AttributeValue, name: String) throws {
+    private static func check(_ value: AttributeValue, name: String, layerIDs: Set<UInt64>?) throws {
         let numbers: [Double]
         switch value {
-        case .bool, .int, .string, .layerReference:
+        case .bool, .int, .string:
+            numbers = []
+        case .layerReference(let references):
+            try check(references, name: name, layerIDs: layerIDs)
             numbers = []
         case .double(let number):
             numbers = [number]
         case let .color(color, _, light, dark):
+            try checkAppearances(light: light, dark: dark, name: name)
             numbers = ([color] + [light, dark].compactMap { $0 }).flatMap { color in
                 [color.red, color.green, color.blue, color.alpha].map(Double.init)
             }
@@ -175,6 +202,37 @@ enum AttributeChecks {
         }
         guard numbers.allSatisfy(\.isFinite) else {
             throw ProbeFailure("\(name) has a number that is not finite")
+        }
+    }
+
+    /// P-ATTR-17 (1.2): `light` and `dark` together, and only when they differ in 8 bits.
+    private static func checkAppearances(light: WireColor?, dark: WireColor?, name: String) throws {
+        switch (light, dark) {
+        case (nil, nil):
+            return
+        case let (light?, dark?):
+            func in8Bits(_ color: WireColor) -> [Int] {
+                [color.red, color.green, color.blue, color.alpha].map { Int(($0 * 255).rounded()) }
+            }
+            guard in8Bits(light) != in8Bits(dark) else {
+                throw ProbeFailure("\(name) has a light and a dark that are the same in 8 bits (P-ATTR-17)")
+            }
+        default:
+            throw ProbeFailure("\(name) has one of light and dark without the other (P-ATTR-17)")
+        }
+    }
+
+    /// P-ATTR-18 (1.2): each object named by its classes, and by a layer of the hierarchy or 0.
+    private static func check(_ references: [ObjectReference], name: String, layerIDs: Set<UInt64>?) throws {
+        for (index, reference) in references.enumerated() {
+            guard !reference.className.isEmpty, !reference.displayClassName.isEmpty else {
+                throw ProbeFailure("\(name): reference \(index) has no class_name or display_class_name (P-ATTR-18)")
+            }
+            if let layerIDs, reference.layerID != 0, !layerIDs.contains(reference.layerID) {
+                throw ProbeFailure(
+                    "\(name): reference \(index) names layer \(reference.layerID), which the hierarchy does not have (P-ATTR-18)"
+                )
+            }
         }
     }
 

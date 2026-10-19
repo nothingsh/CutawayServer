@@ -61,7 +61,7 @@ extension AttributeCatalog {
         let limits: [NumberLimit]
         /// `nil` for an attribute that cannot be changed.
         let write: AttributeWriter<Subject>?
-        let read: (Subject) -> AttributeValue?
+        let read: (Subject, AttributeReading) -> AttributeValue?
 
         var isEditable: Bool { write != nil }
 
@@ -79,6 +79,37 @@ extension AttributeCatalog {
             write: AttributeWriter<Subject>?,
             read: @escaping (Subject) -> AttributeValue?
         ) {
+            self.init(
+                name,
+                kind,
+                title: title,
+                acceptsNil: acceptsNil,
+                section: section,
+                cluster: cluster,
+                unit: unit,
+                limits: limits,
+                onlyWithoutView: onlyWithoutView,
+                inactiveCause: inactiveCause,
+                write: write,
+                readWith: { subject, _ in read(subject) }
+            )
+        }
+
+        /// For an attribute that needs more than its subject to be read.
+        init(
+            _ name: String,
+            _ kind: AttributeValueKind,
+            title: String? = nil,
+            acceptsNil: Bool = false,
+            section: AttributeSection,
+            cluster: (name: String, slot: String)? = nil,
+            unit: AttributeUnit = .unspecified,
+            limits: [NumberLimit] = [],
+            onlyWithoutView: Bool = false,
+            inactiveCause: ((Subject) -> String?)? = nil,
+            write: AttributeWriter<Subject>?,
+            readWith read: @escaping (Subject, AttributeReading) -> AttributeValue?
+        ) {
             self.name = name
             self.title = title
             self.kind = kind
@@ -91,6 +122,19 @@ extension AttributeCatalog {
             self.limits = limits
             self.write = write
             self.read = read
+        }
+
+        /// P-ATTR-18: the objects a property holds, in its order; `nil` when it holds none
+        /// that can be listed (a nil delegate). Read-only.
+        @MainActor static func references(
+            _ name: String,
+            title: String? = nil,
+            section: AttributeSection,
+            _ objects: @escaping (Subject) -> [AnyObject]?
+        ) -> Self {
+            Self(name, .layerReference, title: title, section: section, write: nil, readWith: { subject, reading in
+                objects(subject).map { objects in .layerReference(objects.map { reading.reference(to: $0) }) }
+            })
         }
     }
 
@@ -109,10 +153,10 @@ extension AttributeCatalog {
         /// IDs and titles of the attributes, in order.
         let attributes: [AttributeName]
         /// The attributes in the order of `attributes`; `nil` when the group does not apply.
-        private let values: (CALayer, UIView?) -> [Attribute]?
+        private let values: (CALayer, UIView?, AttributeReading) -> [Attribute]?
         /// The attribute with an ID, and how to change it; `nil` when the group does not apply or
         /// has no attribute with that ID.
-        private let edits: (String, CALayer, UIView?) -> AttributeEdit?
+        private let edits: (String, CALayer, UIView?, AttributeReading) -> AttributeEdit?
 
         init<Subject>(
             _ id: String,
@@ -127,7 +171,7 @@ extension AttributeCatalog {
                 AttributeName(id: "\(id).\($0.name)", title: $0.title ?? AttributeCatalog.title(for: $0.name))
             }
             self.attributes = attributes
-            values = { layer, view in
+            values = { layer, view, reading in
                 guard let subject = subject(layer, view) else { return nil }
                 return zip(attributes, definitions).compactMap { name, definition in
                     // P-ATTR-11: the view's attribute of a pair stands for the layer's.
@@ -135,13 +179,13 @@ extension AttributeCatalog {
                     return AttributeCatalog.attribute(
                         id: name.id,
                         title: name.title,
-                        value: definition.read(subject),
+                        value: definition.read(subject, reading),
                         inactiveCause: definition.inactiveCause?(subject),
                         definition: definition
                     )
                 }
             }
-            edits = { attributeID, layer, view in
+            edits = { attributeID, layer, view, reading in
                 guard let index = attributes.firstIndex(where: { $0.id == attributeID }),
                       let subject = subject(layer, view) else {
                     return nil
@@ -152,7 +196,7 @@ extension AttributeCatalog {
                 let attribute = AttributeCatalog.attribute(
                     id: attributeID,
                     title: attributes[index].title,
-                    value: definition.read(subject),
+                    value: definition.read(subject, reading),
                     inactiveCause: definition.inactiveCause?(subject),
                     definition: definition
                 )
@@ -163,13 +207,18 @@ extension AttributeCatalog {
             }
         }
 
-        func read(_ layer: CALayer, _ view: UIView?) -> AttributeGroup? {
-            guard let attributes = values(layer, view) else { return nil }
+        func read(_ layer: CALayer, _ view: UIView?, _ reading: AttributeReading) -> AttributeGroup? {
+            guard let attributes = values(layer, view, reading) else { return nil }
             return AttributeGroup(id: id, title: title, attributes: attributes, className: className)
         }
 
-        func attributeForEditing(_ attributeID: String, _ layer: CALayer, _ view: UIView?) -> AttributeEdit? {
-            edits(attributeID, layer, view)
+        func attributeForEditing(
+            _ attributeID: String,
+            _ layer: CALayer,
+            _ view: UIView?,
+            _ reading: AttributeReading
+        ) -> AttributeEdit? {
+            edits(attributeID, layer, view, reading)
         }
     }
 

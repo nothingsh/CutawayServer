@@ -51,6 +51,85 @@ extension AttributeChecks {
                 onlyWithoutView: onlyWithoutView
             )
         }
+        // Protocol 1.2: shared by several groups (S-ATTR-19 to 21).
+        func fonts(nullable: Bool) -> [Entry] {
+            [
+                entry("fontDescription", .string, "Font Description", .content, nullable: nullable, editable: false),
+                entry(
+                    "fontTextStyle",
+                    .string,
+                    "Text Style",
+                    .content,
+                    ("font", "textStyle"),
+                    nullable: true,
+                    editable: false
+                ),
+                entry(
+                    "adjustsFontForContentSizeCategory",
+                    .bool,
+                    "Adjusts to Text Size",
+                    .content,
+                    ("font", "scalable")
+                )
+            ]
+        }
+        let image = [
+            entry("imageName", .string, "Image", .content, ("image", "name"), nullable: true, editable: false),
+            entry(
+                "imageSize",
+                .size,
+                "Image Size",
+                .content,
+                ("image", "size"),
+                unit: .points,
+                nullable: true,
+                editable: false
+            ),
+            entry("imageScale", .double, "Image Scale", .content, ("image", "scale"), nullable: true, editable: false),
+            entry(
+                "imageRenderingMode",
+                .enumeration,
+                "Rendering Mode",
+                .content,
+                ("image", "renderingMode"),
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "symbolConfiguration",
+                .string,
+                "Symbol Configuration",
+                .content,
+                ("image", "symbolConfiguration"),
+                nullable: true,
+                editable: false
+            )
+        ]
+        // A collection view's counts are nil while it needs layout.
+        func list(items: String, title: String, perSection: String, countsMayBeNil: Bool) -> [Entry] {
+            [
+                entry("dataSource", .layerReference, "Data Source", .content, nullable: true, editable: false),
+                entry(
+                    "numberOfSections",
+                    .int,
+                    "Sections",
+                    .content,
+                    ("listCounts", "sections"),
+                    nullable: countsMayBeNil,
+                    editable: false
+                ),
+                entry(items, .int, title, .content, ("listCounts", "items"), nullable: countsMayBeNil, editable: false),
+                entry(perSection, .string, "\(title) per Section", .content, nullable: countsMayBeNil, editable: false),
+                entry("visibleIndexPaths", .string, "Visible \(title)", .content, editable: false)
+            ]
+        }
+        func cell(item: String, title: String) -> [Entry] {
+            [
+                entry("section", .int, "Section", .content, ("indexPath", "section"), nullable: true, editable: false),
+                entry(item, .int, title, .content, ("indexPath", "item"), nullable: true, editable: false),
+                entry("reuseIdentifier", .string, "Reuse Identifier", .identity, nullable: true, editable: false)
+            ]
+        }
         return [
             "layer": [
                 entry("frame", .rect, "Frame", .layout, ("geometry", "frame"), unit: .points, editable: false),
@@ -183,19 +262,50 @@ extension AttributeChecks {
                     .layout,
                     ("autoLayout", "ambiguous"),
                     editable: false
-                )
+                ),
+                entry("accessibilityLabel", .string, "Label", .accessibility, nullable: true, acceptsNil: true),
+                entry("accessibilityHint", .string, "Hint", .accessibility, nullable: true, acceptsNil: true),
+                entry("accessibilityValue", .string, "Value", .accessibility, nullable: true, acceptsNil: true),
+                entry(
+                    "accessibilityIdentifier",
+                    .string,
+                    "Identifier",
+                    .accessibility,
+                    nullable: true,
+                    acceptsNil: true
+                ),
+                entry("isAccessibilityElement", .bool, "Accessibility Element", .accessibility),
+                entry("accessibilityTraits", .string, "Traits", .accessibility, editable: false)
             ],
             "label": [
                 entry("text", .string, "Text", .content, nullable: true, acceptsNil: true),
                 entry("fontName", .string, "Font", .content, ("font", "name")),
-                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points),
+                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points)
+            ] + fonts(nullable: false) + [
                 entry("textColor", .color, "Text Color", .content, nullable: true, acceptsNil: true),
                 entry("textAlignment", .enumeration, "Text Alignment", .content),
                 entry("numberOfLines", .int, "Lines", .content, ("lines", "count")),
-                entry("lineBreakMode", .enumeration, "Line Break Mode", .content, ("lines", "lineBreak"))
+                entry("lineBreakMode", .enumeration, "Line Break Mode", .content, ("lines", "lineBreak")),
+                entry(
+                    "drawnLineCount",
+                    .int,
+                    "Drawn Lines",
+                    .content,
+                    ("lines", "drawn"),
+                    nullable: true,
+                    editable: false
+                ),
+                entry(
+                    "isTruncated",
+                    .bool,
+                    "Truncated",
+                    .content,
+                    ("lines", "truncated"),
+                    nullable: true,
+                    editable: false
+                )
             ],
-            "imageView": [
-                entry("imageSize", .size, "Image Size", .content, unit: .points, nullable: true, editable: false),
+            "imageView": image + [
                 entry("isHighlighted", .bool, "Highlighted", .content, ("state", "highlighted"))
             ],
             "control": [
@@ -206,7 +316,7 @@ extension AttributeChecks {
             "button": [
                 entry("currentTitle", .string, "Title", .content, nullable: true, acceptsNil: true),
                 entry("currentTitleColor", .color, "Title Color", .content, nullable: true, acceptsNil: true)
-            ],
+            ] + image,
             "scrollView": [
                 entry("contentOffset", .point, "Content Offset", .content, unit: .points),
                 entry("contentSize", .size, "Content Size", .content, unit: .points),
@@ -220,25 +330,44 @@ extension AttributeChecks {
                     editable: false
                 ),
                 entry("isScrollEnabled", .bool, "Scrolling", .content, ("scrolling", "enabled")),
-                entry("isPagingEnabled", .bool, "Paging", .content, ("scrolling", "paging"))
+                entry("isPagingEnabled", .bool, "Paging", .content, ("scrolling", "paging")),
+                entry("delegate", .layerReference, "Delegate", .content, nullable: true, editable: false)
             ],
+            "tableView": list(
+                items: "numberOfRows",
+                title: "Rows",
+                perSection: "rowsPerSection",
+                countsMayBeNil: false
+            ),
+            "collectionView": list(
+                items: "numberOfItems",
+                title: "Items",
+                perSection: "itemsPerSection",
+                countsMayBeNil: true
+            ),
+            "tableViewCell": cell(item: "row", title: "Row"),
+            "collectionViewCell": cell(item: "item", title: "Item"),
             "stackView": [
                 entry("axis", .enumeration, "Axis", .content),
                 entry("alignment", .enumeration, "Alignment", .content),
                 entry("distribution", .enumeration, "Distribution", .content),
-                entry("spacing", .double, "Spacing", .content, unit: .points)
+                entry("spacing", .double, "Spacing", .content, unit: .points),
+                entry("arrangedSubviews", .layerReference, "Arranged Subviews", .content, editable: false),
+                entry("customSpacing", .string, "Custom Spacing", .content, nullable: true, editable: false)
             ],
             "textField": [
                 entry("text", .string, "Text", .content, nullable: true, acceptsNil: true),
                 entry("placeholder", .string, "Placeholder", .content, nullable: true, acceptsNil: true),
                 entry("fontName", .string, "Font", .content, ("font", "name"), nullable: true),
-                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points, nullable: true),
+                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points, nullable: true)
+            ] + fonts(nullable: true) + [
                 entry("textColor", .color, "Text Color", .content, nullable: true, acceptsNil: true)
             ],
             "textView": [
                 entry("text", .string, "Text", .content),
                 entry("fontName", .string, "Font", .content, ("font", "name"), nullable: true),
-                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points, nullable: true),
+                entry("fontSize", .double, "Font Size", .content, ("font", "size"), unit: .points, nullable: true)
+            ] + fonts(nullable: true) + [
                 entry("textColor", .color, "Text Color", .content, nullable: true, acceptsNil: true),
                 entry("isEditable", .bool, "Editable", .content)
             ]
@@ -254,6 +383,10 @@ extension AttributeChecks {
         "control": "UIControl",
         "button": "UIButton",
         "scrollView": "UIScrollView",
+        "tableView": "UITableView",
+        "collectionView": "UICollectionView",
+        "tableViewCell": "UITableViewCell",
+        "collectionViewCell": "UICollectionViewCell",
         "stackView": "UIStackView",
         "textField": "UITextField",
         "textView": "UITextView"

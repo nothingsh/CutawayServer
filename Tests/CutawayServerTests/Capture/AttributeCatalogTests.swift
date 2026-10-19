@@ -40,7 +40,18 @@ final class AttributeCatalogTests: CaptureTestCase {
             ("UISwitch", UISwitch(), ["layer", "view", "control"]),
             ("UIButton", UIButton(type: .system), ["layer", "view", "control", "button"]),
             ("UIScrollView", UIScrollView(), ["layer", "view", "scrollView"]),
-            ("UITableView", UITableView(), ["layer", "view", "scrollView"]),
+            ("UITableView", UITableView(), ["layer", "view", "scrollView", "tableView"]),
+            (
+                "UICollectionView",
+                UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout()),
+                ["layer", "view", "scrollView", "collectionView"]
+            ),
+            (
+                "UITableViewCell",
+                UITableViewCell(style: .default, reuseIdentifier: "cell"),
+                ["layer", "view", "tableViewCell"]
+            ),
+            ("UICollectionViewCell", UICollectionViewCell(), ["layer", "view", "collectionViewCell"]),
             ("UIStackView", UIStackView(), ["layer", "view", "stackView"]),
             ("UITextField", UITextField(), ["layer", "view", "control", "textField"]),
             ("UITextView", UITextView(), ["layer", "view", "scrollView", "textView"])
@@ -615,7 +626,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 }
             }
         }
-        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 114, "every attribute of the list was looked at")
     }
 
     func test_S_ATTR_08_sectionsMatchTheList() throws {
@@ -630,7 +641,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 }
             }
         }
-        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 114, "every attribute of the list was looked at")
     }
 
     // MARK: - Protocol 1.1
@@ -670,7 +681,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 }
             }
         }
-        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 114, "every attribute of the list was looked at")
     }
 
     func test_S_ATTR_13_unitsMatchTheList() throws {
@@ -690,7 +701,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 }
             }
         }
-        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 114, "every attribute of the list was looked at")
     }
 
     func test_S_ATTR_15_groupsNameTheClassThatDeclaresThem() throws {
@@ -794,7 +805,7 @@ final class AttributeCatalogTests: CaptureTestCase {
                 )
             }
         }
-        XCTAssertEqual(seen.count, 69, "every attribute of the list was looked at")
+        XCTAssertEqual(seen.count, 114, "every attribute of the list was looked at")
         XCTAssertTrue(Set(ExpectedAttributes.limits.keys).isSubset(of: seen))
     }
 

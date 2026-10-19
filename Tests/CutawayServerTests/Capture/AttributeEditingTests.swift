@@ -186,9 +186,18 @@ final class AttributeEditingTests: CaptureTestCase {
             ("view.contentCompressionResistancePriority.horizontal", .double(700), []),
             ("view.contentCompressionResistancePriority.vertical", .double(999.5), []),
             ("view.translatesAutoresizingMaskIntoConstraints", .bool(false), []),
+            // v1.2 (S-SET-07).
+            ("view.accessibilityLabel", .string("Save"), []),
+            ("view.accessibilityHint", .string("Saves the page"), []),
+            ("view.accessibilityValue", .string("3"), []),
+            ("view.accessibilityIdentifier", .string("save"), []),
+            ("view.isAccessibilityElement", .bool(true), []),
+            ("label.adjustsFontForContentSizeCategory", .bool(true), []),
+            ("textField.adjustsFontForContentSizeCategory", .bool(true), []),
+            ("textView.adjustsFontForContentSizeCategory", .bool(true), []),
             ("label.text", .string("Changed"), intrinsic),
-            ("label.fontName", .string("Courier"), intrinsic),
-            ("label.fontSize", .double(21), intrinsic),
+            ("label.fontName", .string("Courier"), intrinsic.union(["label.fontDescription"])),
+            ("label.fontSize", .double(21), intrinsic.union(["label.fontDescription"])),
             ("label.textColor", color(0.5, 0, 0.5), []),
             ("label.textAlignment", enumeration(2), []),
             ("label.numberOfLines", .int(3), []),
@@ -214,12 +223,12 @@ final class AttributeEditingTests: CaptureTestCase {
             ("stackView.spacing", .double(12), []),
             ("textField.text", .string("Typed"), intrinsic),
             ("textField.placeholder", .string("Hint"), []),
-            ("textField.fontName", .string("Courier"), intrinsic),
-            ("textField.fontSize", .double(22), intrinsic),
+            ("textField.fontName", .string("Courier"), intrinsic.union(["textField.fontDescription"])),
+            ("textField.fontSize", .double(22), intrinsic.union(["textField.fontDescription"])),
             ("textField.textColor", color(0, 0, 1), []),
             ("textView.text", .string("Changed text"), contentSize),
-            ("textView.fontName", .string("Courier"), contentSize),
-            ("textView.fontSize", .double(19), contentSize),
+            ("textView.fontName", .string("Courier"), contentSize.union(["textView.fontDescription"])),
+            ("textView.fontSize", .double(19), contentSize.union(["textView.fontDescription"])),
             ("textView.textColor", color(1, 0, 0), []),
             ("textView.isEditable", .bool(false), [])
         ]
@@ -229,7 +238,7 @@ final class AttributeEditingTests: CaptureTestCase {
         // The table has every attribute the list lets a client change, and no other.
         let editable = ExpectedAttributes.groups.values.flatMap(\.attributes).filter(\.editable).map(\.id)
         XCTAssertEqual(Set(Self.writes.map(\.id)), Set(editable))
-        XCTAssertEqual(Self.writes.count, 63)
+        XCTAssertEqual(Self.writes.count, 71)
 
         for (id, value, alsoChanges) in Self.writes {
             let specimens = try makeSpecimens()
@@ -281,6 +290,10 @@ final class AttributeEditingTests: CaptureTestCase {
             ("layer.shadowColor", { $0.layer.shadowColor = nil }),
             ("view.backgroundColor", { $0.view.backgroundColor = nil }),
             ("view.tintColor", { $0.view.tintColor = nil }),
+            ("view.accessibilityLabel", { $0.view.accessibilityLabel = nil }),
+            ("view.accessibilityHint", { $0.view.accessibilityHint = nil }),
+            ("view.accessibilityValue", { $0.view.accessibilityValue = nil }),
+            ("view.accessibilityIdentifier", { $0.view.accessibilityIdentifier = nil }),
             ("label.text", { $0.label.text = nil }),
             ("label.textColor", { $0.label.textColor = nil }),
             ("button.currentTitle", { $0.button.setTitle(nil, for: $0.button.state) }),
@@ -296,12 +309,15 @@ final class AttributeEditingTests: CaptureTestCase {
         for (id, clear) in setNil {
             let specimens = try makeSpecimens()
             // Give each a value first, so that nil is a change.
-            if id.hasSuffix("Color") {
-                _ = try apply(id, color(0.3, 0.6, 0.9), on: specimens.target(of: id), in: specimens.window).get()
+            let first: AttributeValue? = id.hasSuffix("Color")
+                ? color(0.3, 0.6, 0.9)
+                : id.hasPrefix("view.accessibility") ? .string("Before") : nil
+            if let first {
+                _ = try apply(id, first, on: specimens.target(of: id), in: specimens.window).get()
             }
             let twin = try makeSpecimens()
-            if id.hasSuffix("Color") {
-                _ = try apply(id, color(0.3, 0.6, 0.9), on: twin.target(of: id), in: twin.window).get()
+            if let first {
+                _ = try apply(id, first, on: twin.target(of: id), in: twin.window).get()
             }
             clear(twin)
             twin.window.layoutIfNeeded()

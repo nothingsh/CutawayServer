@@ -73,7 +73,11 @@ enum ExpectedAttributes {
             scrollView,
             stackView,
             textField,
-            textView
+            textView,
+            tableView,
+            collectionView,
+            tableViewCell,
+            collectionViewCell
         ]
         .map { ($0.id, $0) }
     )
@@ -227,7 +231,21 @@ enum ExpectedAttributes {
                 .layout,
                 ("autoLayout", "ambiguous"),
                 editable: false
-            )
+            ),
+            // v1.2 (S-ATTR-16).
+            entry("view.accessibilityLabel", "Label", .string, .accessibility, nullable: true, acceptsNil: true),
+            entry("view.accessibilityHint", "Hint", .string, .accessibility, nullable: true, acceptsNil: true),
+            entry("view.accessibilityValue", "Value", .string, .accessibility, nullable: true, acceptsNil: true),
+            entry(
+                "view.accessibilityIdentifier",
+                "Identifier",
+                .string,
+                .accessibility,
+                nullable: true,
+                acceptsNil: true
+            ),
+            entry("view.isAccessibilityElement", "Accessibility Element", .bool, .accessibility),
+            entry("view.accessibilityTraits", "Traits", .string, .accessibility, editable: false)
         ]
     )
 
@@ -238,11 +256,31 @@ enum ExpectedAttributes {
         attributes: [
             entry("label.text", "Text", .string, .content, nullable: true, acceptsNil: true),
             entry("label.fontName", "Font", .string, .content, ("font", "name")),
-            entry("label.fontSize", "Font Size", .double, .content, ("font", "size"), unit: .points),
+            entry("label.fontSize", "Font Size", .double, .content, ("font", "size"), unit: .points)
+        ] + fontEntries("label", nullable: false) + [
             entry("label.textColor", "Text Color", .color, .content, nullable: true, acceptsNil: true),
             entry("label.textAlignment", "Text Alignment", .enumeration, .content),
             entry("label.numberOfLines", "Lines", .int, .content, ("lines", "count")),
-            entry("label.lineBreakMode", "Line Break Mode", .enumeration, .content, ("lines", "lineBreak"))
+            entry("label.lineBreakMode", "Line Break Mode", .enumeration, .content, ("lines", "lineBreak")),
+            // v1.2 (S-ATTR-22).
+            entry(
+                "label.drawnLineCount",
+                "Drawn Lines",
+                .int,
+                .content,
+                ("lines", "drawn"),
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "label.isTruncated",
+                "Truncated",
+                .bool,
+                .content,
+                ("lines", "truncated"),
+                nullable: true,
+                editable: false
+            )
         ]
     )
 
@@ -250,8 +288,7 @@ enum ExpectedAttributes {
         id: "imageView",
         title: "Image View",
         className: "UIImageView",
-        attributes: [
-            entry("imageView.imageSize", "Image Size", .size, .content, unit: .points, nullable: true, editable: false),
+        attributes: imageEntries("imageView") + [
             entry("imageView.isHighlighted", "Highlighted", .bool, .content, ("state", "highlighted"))
         ]
     )
@@ -274,7 +311,7 @@ enum ExpectedAttributes {
         attributes: [
             entry("button.currentTitle", "Title", .string, .content, nullable: true, acceptsNil: true),
             entry("button.currentTitleColor", "Title Color", .color, .content, nullable: true, acceptsNil: true)
-        ]
+        ] + imageEntries("button")
     )
 
     static let scrollView = Group(
@@ -294,7 +331,9 @@ enum ExpectedAttributes {
                 editable: false
             ),
             entry("scrollView.isScrollEnabled", "Scrolling", .bool, .content, ("scrolling", "enabled")),
-            entry("scrollView.isPagingEnabled", "Paging", .bool, .content, ("scrolling", "paging"))
+            entry("scrollView.isPagingEnabled", "Paging", .bool, .content, ("scrolling", "paging")),
+            // v1.2 (S-ATTR-18).
+            entry("scrollView.delegate", "Delegate", .layerReference, .content, nullable: true, editable: false)
         ]
     )
 
@@ -306,7 +345,10 @@ enum ExpectedAttributes {
             entry("stackView.axis", "Axis", .enumeration, .content),
             entry("stackView.alignment", "Alignment", .enumeration, .content),
             entry("stackView.distribution", "Distribution", .enumeration, .content),
-            entry("stackView.spacing", "Spacing", .double, .content, unit: .points)
+            entry("stackView.spacing", "Spacing", .double, .content, unit: .points),
+            // v1.2 (S-ATTR-18, 19).
+            entry("stackView.arrangedSubviews", "Arranged Subviews", .layerReference, .content, editable: false),
+            entry("stackView.customSpacing", "Custom Spacing", .string, .content, nullable: true, editable: false)
         ]
     )
 
@@ -326,7 +368,8 @@ enum ExpectedAttributes {
                 ("font", "size"),
                 unit: .points,
                 nullable: true
-            ),
+            )
+        ] + fontEntries("textField", nullable: true) + [
             entry("textField.textColor", "Text Color", .color, .content, nullable: true, acceptsNil: true)
         ]
     )
@@ -338,11 +381,185 @@ enum ExpectedAttributes {
         attributes: [
             entry("textView.text", "Text", .string, .content),
             entry("textView.fontName", "Font", .string, .content, ("font", "name"), nullable: true),
-            entry("textView.fontSize", "Font Size", .double, .content, ("font", "size"), unit: .points, nullable: true),
+            entry("textView.fontSize", "Font Size", .double, .content, ("font", "size"), unit: .points, nullable: true)
+        ] + fontEntries("textView", nullable: true) + [
             entry("textView.textColor", "Text Color", .color, .content, nullable: true, acceptsNil: true),
             entry("textView.isEditable", "Editable", .bool, .content)
         ]
     )
+
+    // MARK: - Protocol 1.2
+
+    /// S-ATTR-21: the font of a label, a text field or a text view.
+    private static func fontEntries(_ group: String, nullable: Bool) -> [Entry] {
+        [
+            entry(
+                "\(group).fontDescription",
+                "Font Description",
+                .string,
+                .content,
+                nullable: nullable,
+                editable: false
+            ),
+            entry(
+                "\(group).fontTextStyle",
+                "Text Style",
+                .string,
+                .content,
+                ("font", "textStyle"),
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "\(group).adjustsFontForContentSizeCategory",
+                "Adjusts to Text Size",
+                .bool,
+                .content,
+                ("font", "scalable")
+            )
+        ]
+    }
+
+    /// S-ATTR-20: the image of an image view, or the current image of a button.
+    private static func imageEntries(_ group: String) -> [Entry] {
+        [
+            entry("\(group).imageName", "Image", .string, .content, ("image", "name"), nullable: true, editable: false),
+            entry(
+                "\(group).imageSize",
+                "Image Size",
+                .size,
+                .content,
+                ("image", "size"),
+                unit: .points,
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "\(group).imageScale",
+                "Image Scale",
+                .double,
+                .content,
+                ("image", "scale"),
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "\(group).imageRenderingMode",
+                "Rendering Mode",
+                .enumeration,
+                .content,
+                ("image", "renderingMode"),
+                nullable: true,
+                editable: false
+            ),
+            entry(
+                "\(group).symbolConfiguration",
+                "Symbol Configuration",
+                .string,
+                .content,
+                ("image", "symbolConfiguration"),
+                nullable: true,
+                editable: false
+            )
+        ]
+    }
+
+    /// S-ATTR-19. A table answers its counts from what it has; a collection view only once it
+    /// is laid out (S-D-184), so they may be nil.
+    static let tableView = Group(
+        id: "tableView",
+        title: "Table View",
+        className: "UITableView",
+        attributes: listEntries(
+            "tableView",
+            item: "Rows",
+            items: "numberOfRows",
+            perSection: "rowsPerSection",
+            countsMayBeNil: false
+        )
+    )
+
+    static let collectionView = Group(
+        id: "collectionView",
+        title: "Collection View",
+        className: "UICollectionView",
+        attributes: listEntries(
+            "collectionView",
+            item: "Items",
+            items: "numberOfItems",
+            perSection: "itemsPerSection",
+            countsMayBeNil: true
+        )
+    )
+
+    private static func listEntries(
+        _ group: String,
+        item: String,
+        items: String,
+        perSection: String,
+        countsMayBeNil: Bool
+    ) -> [Entry] {
+        [
+            entry("\(group).dataSource", "Data Source", .layerReference, .content, nullable: true, editable: false),
+            entry(
+                "\(group).numberOfSections",
+                "Sections",
+                .int,
+                .content,
+                ("listCounts", "sections"),
+                nullable: countsMayBeNil,
+                editable: false
+            ),
+            entry(
+                "\(group).\(items)",
+                item,
+                .int,
+                .content,
+                ("listCounts", "items"),
+                nullable: countsMayBeNil,
+                editable: false
+            ),
+            entry(
+                "\(group).\(perSection)",
+                "\(item) per Section",
+                .string,
+                .content,
+                nullable: countsMayBeNil,
+                editable: false
+            ),
+            entry("\(group).visibleIndexPaths", "Visible \(item)", .string, .content, editable: false)
+        ]
+    }
+
+    static let tableViewCell = Group(
+        id: "tableViewCell",
+        title: "Table View Cell",
+        className: "UITableViewCell",
+        attributes: cellEntries("tableViewCell", item: "row", title: "Row")
+    )
+
+    static let collectionViewCell = Group(
+        id: "collectionViewCell",
+        title: "Collection View Cell",
+        className: "UICollectionViewCell",
+        attributes: cellEntries("collectionViewCell", item: "item", title: "Item")
+    )
+
+    private static func cellEntries(_ group: String, item: String, title: String) -> [Entry] {
+        [
+            entry(
+                "\(group).section",
+                "Section",
+                .int,
+                .content,
+                ("indexPath", "section"),
+                nullable: true,
+                editable: false
+            ),
+            entry("\(group).\(item)", title, .int, .content, ("indexPath", "item"), nullable: true, editable: false),
+            entry("\(group).reuseIdentifier", "Reuse Identifier", .string, .identity, nullable: true, editable: false)
+        ]
+    }
 
     // MARK: - Protocol 1.1
 

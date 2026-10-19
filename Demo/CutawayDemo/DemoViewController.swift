@@ -184,13 +184,26 @@ final class DemoDetailViewController: UIViewController {
         // Ten thousand layers, for trying a large hierarchy.
         let many = UIButton(type: .system)
         many.setTitle("Many layers", for: .normal)
-        many.frame = CGRect(x: 104, y: 72, width: 120, height: 30)
+        many.frame = CGRect(x: 104, y: 72, width: 100, height: 30)
         many.addTarget(self, action: #selector(openManyLayers), for: .touchUpInside)
         view.addSubview(many)
+
+        // The attributes of protocol 1.2.
+        let lists = UIButton(type: .system)
+        lists.setTitle("Lists", for: .normal)
+        lists.frame = CGRect(x: 208, y: 72, width: 48, height: 30)
+        lists.addTarget(self, action: #selector(openLists), for: .touchUpInside)
+        view.addSubview(lists)
     }
 
     @objc private func openPage() {
         navigationController?.pushViewController(DemoPageViewController(), animated: true)
+    }
+
+    @objc private func openLists() {
+        let page = DemoListsViewController()
+        page.modalPresentationStyle = .fullScreen
+        present(page, animated: true)
     }
 
     @objc private func openManyLayers() {

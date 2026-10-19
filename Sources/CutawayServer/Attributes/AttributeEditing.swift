@@ -27,7 +27,8 @@ enum AttributeEditing {
             return .failure(.layerNotFound(request.layerID))
         }
         let id = request.attributeID
-        guard let edit = catalog.attributeForEditing(id, of: layer) else {
+        let reading = AttributeReading(registry: registry, windows: windows)
+        guard let edit = catalog.attributeForEditing(id, of: layer, reading: reading) else {
             // P-ATTR-11: the layer's side of a pair is left out when the layer backs a view.
             if let pair = AttributeTables.pairs.first(where: { $0.layer == id }),
                LayerTopology.backingView(of: layer) != nil {
@@ -64,7 +65,7 @@ enum AttributeEditing {
         window?.layoutIfNeeded()
         CATransaction.commit()
         return .success(
-            SetAttributeResult(layerID: request.layerID, attributeGroups: catalog.read(layer))
+            SetAttributeResult(layerID: request.layerID, attributeGroups: catalog.read(layer, reading: reading))
         )
     }
 

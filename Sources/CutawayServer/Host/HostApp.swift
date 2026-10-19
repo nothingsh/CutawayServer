@@ -118,13 +118,15 @@ struct LiveHostApp: HostApp {
         registry: LayerRegistry,
         stopFlag: StopFlag
     ) -> CapturedDetail? {
-        DetailCapture.capture(
+        let windows = HostWindows.all()
+        let reading = AttributeReading(registry: registry, windows: windows)
+        return DetailCapture.capture(
             request,
             maxTextureDimension: maxTextureDimension,
-            windows: HostWindows.all(),
+            windows: windows,
             registry: registry,
             stopFlag: stopFlag,
-            readAttributes: AttributeCatalog.standard.read
+            readAttributes: { AttributeCatalog.standard.read($0, reading: reading) }
         )
     }
 
