@@ -20,28 +20,32 @@ struct AttributeCatalog {
 
     /// The layer's groups, from the most general to the most specific: `layer` always, `view`
     /// when the layer backs a view, then one group for each kind of view it is.
-    func read(_ layer: CALayer) -> [AttributeGroup] {
+    func read(_ layer: CALayer, reading: AttributeReading) -> [AttributeGroup] {
         let view = LayerTopology.backingView(of: layer)
-        return groups.compactMap { $0.read(layer, view) }
+        return groups.compactMap { $0.read(layer, view, reading) }
     }
 
     /// The attribute `id` of the layer as it reads now, and how to change it; `nil` when none
     /// of the layer's groups has it. An attribute that reads as read-only now is returned too,
     /// with no `prepare`.
-    func attributeForEditing(_ id: String, of layer: CALayer) -> AttributeEdit? {
+    func attributeForEditing(_ id: String, of layer: CALayer, reading: AttributeReading) -> AttributeEdit? {
         let view = LayerTopology.backingView(of: layer)
-        return groups.lazy.compactMap { $0.attributeForEditing(id, layer, view) }.first
+        return groups.lazy.compactMap { $0.attributeForEditing(id, layer, view, reading) }.first
     }
 
     /// The standard groups, from the most general to the most specific. Within
     /// UIKit the specific kinds are related only along one line of inheritance (UIControl
     /// before UIButton and UITextField, UIScrollView before UITextView), so this order holds
-    /// for every class.
+    /// for every class. Cells are views of their own and relate to none of these.
     static let standard = Self(groups: [
         layerGroup,
         viewGroup,
         controlGroup,
         scrollViewGroup,
+        tableViewGroup,
+        collectionViewGroup,
+        tableViewCellGroup,
+        collectionViewCellGroup,
         labelGroup,
         imageViewGroup,
         buttonGroup,
@@ -369,7 +373,50 @@ struct AttributeCatalog {
                 section: .layout,
                 cluster: ("autoLayout", "ambiguous"),
                 write: nil
-            ) { .bool($0.hasAmbiguousLayout) }
+            ) { .bool($0.hasAmbiguousLayout) },
+            // Protocol 1.2 (S-ATTR-16).
+            .init(
+                "accessibilityLabel",
+                .string,
+                title: "Label",
+                acceptsNil: true,
+                section: .accessibility,
+                write: .string(\.accessibilityLabel)
+            ) { $0.accessibilityLabel.map { .string($0) } },
+            .init(
+                "accessibilityHint",
+                .string,
+                title: "Hint",
+                acceptsNil: true,
+                section: .accessibility,
+                write: .string(\.accessibilityHint)
+            ) { $0.accessibilityHint.map { .string($0) } },
+            .init(
+                "accessibilityValue",
+                .string,
+                title: "Value",
+                acceptsNil: true,
+                section: .accessibility,
+                write: .string(\.accessibilityValue)
+            ) { $0.accessibilityValue.map { .string($0) } },
+            .init(
+                "accessibilityIdentifier",
+                .string,
+                title: "Identifier",
+                acceptsNil: true,
+                section: .accessibility,
+                write: .string(\.accessibilityIdentifier)
+            ) { $0.accessibilityIdentifier.map { .string($0) } },
+            .init(
+                "isAccessibilityElement",
+                .bool,
+                title: "Accessibility Element",
+                section: .accessibility,
+                write: .bool(\.isAccessibilityElement)
+            ) { .bool($0.isAccessibilityElement) },
+            .init("accessibilityTraits", .string, title: "Traits", section: .accessibility, write: nil) {
+                .string(AttributeTexts.traits($0.accessibilityTraits))
+            }
         ] as [AttributeDefinition<UIView>]
     )
 }

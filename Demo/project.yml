@@ -55,6 +55,8 @@ targets:
       - path: ../Tests/CutawayServerTests
       # The demo's large tree, so that the stability tests measure what its page shows.
       - path: CutawayDemo/ManyLayersView.swift
+      # The demo's Lists page, so that a test reads what the probe checks on it.
+      - path: CutawayDemo/DemoListsViewController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.servertests

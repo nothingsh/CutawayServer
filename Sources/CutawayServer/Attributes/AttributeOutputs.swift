@@ -71,12 +71,27 @@ enum AttributeOutputs {
 
     /// A dynamic colour is taken as it looks in `view`: in its light or dark appearance. A
     /// system colour is named (P-ATTR-15), before resolving, which makes it a colour of its own.
+    /// P-ATTR-17: it is also resolved with only the appearance changed to light and to dark,
+    /// and the two are given when they differ in 8 bits.
     @MainActor
     static func color(_ color: UIColor?, in view: UIView) -> AttributeValue? {
         guard let color else { return nil }
-        let value = self.color(color.resolvedColor(with: view.traitCollection).cgColor)
+        let traits = view.traitCollection
+        let value = self.color(color.resolvedColor(with: traits).cgColor)
         guard case .color(let resolved, _, _, _)? = value else { return value }
-        return .color(resolved, systemName: SystemColors.name(of: color))
+        func resolvedColor(in style: UIUserInterfaceStyle) -> WireColor? {
+            let styled = UITraitCollection(traitsFrom: [traits, UITraitCollection(userInterfaceStyle: style)])
+            guard case .color(let color, _, _, _)? = self.color(color.resolvedColor(with: styled).cgColor) else {
+                return nil
+            }
+            return color
+        }
+        let systemName = SystemColors.name(of: color)
+        guard let light = resolvedColor(in: .light), let dark = resolvedColor(in: .dark),
+              light.in8Bits != dark.in8Bits else {
+            return .color(resolved, systemName: systemName)
+        }
+        return .color(resolved, systemName: systemName, light: light, dark: dark)
     }
 
     /// `names` are the enumeration's cases in declaration order; a case's index is its raw
@@ -118,6 +133,7 @@ enum AttributeOutputs {
         "byTruncatingMiddle"
     ]
     static let axisNames = ["horizontal", "vertical"]
+    static let renderingModeNames = ["automatic", "alwaysOriginal", "alwaysTemplate"]
     static let distributionNames = [
         "fill",
         "fillEqually",
@@ -133,6 +149,14 @@ enum AttributeOutputs {
         axis == .horizontal
             ? ["fill", "top", "firstBaseline", "center", "bottom", "lastBaseline"]
             : ["fill", "leading", "firstBaseline", "center", "trailing", "lastBaseline"]
+    }
+}
+
+extension WireColor {
+    /// Each channel rounded to 8 bits, to tell two colours apart as a person sees them
+    /// (P-ATTR-17).
+    var in8Bits: [Int] {
+        [red, green, blue, alpha].map { Int(($0 * 255).rounded()) }
     }
 }
 #endif

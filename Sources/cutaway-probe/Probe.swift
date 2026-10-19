@@ -2,7 +2,8 @@ import CutawayWire
 import Foundation
 
 // The probe's flow: find a server, then check the handshake, the first app state event, the
-// app icon, the layer hierarchy, and the screenshots and attributes of every layer.
+// app icon, the layer hierarchy, the screenshots and attributes of every layer, and the
+// environment.
 
 /// The request IDs of the probe's steps, each used once on its connection (P-REQ-02).
 enum ProbeRequestID {
@@ -23,6 +24,17 @@ enum ProbeRequestID {
     static let restoreResistance: UInt32 = 13
     static let constraintsRestored: UInt32 = 14
     static let restoreResistanceAfterFailure: UInt32 = 15
+    // The environment (protocol 1.2).
+    static let environment: UInt32 = 16
+    static let darkAppearance: UInt32 = 17
+    static let removeOverrides: UInt32 = 18
+    static let removeOverridesAfterFailure: UInt32 = 19
+}
+
+/// What `--expect-demo` checks: the demo app's main screen, or its Lists page when that is open.
+enum DemoPage {
+    case screen(DemoScene)
+    case lists(DemoListsScene)
 }
 
 func check(_ options: Options) throws {
@@ -44,13 +56,23 @@ func check(_ options: Options) throws {
         print("app icon: the app has none")
     }
 
-    let (hierarchy, scene) = try checkHierarchy(on: server, options: options)
-    try checkLayerDetails(of: hierarchy, scene: scene, on: server, options: options)
+    let (hierarchy, page) = try checkHierarchy(on: server, options: options)
+    try checkLayerDetails(of: hierarchy, page: page, on: server, options: options)
+
+    let environment = try EnvironmentChecks.environment(
+        try request(.getEnvironment, id: ProbeRequestID.environment, on: server.connection),
+        answering: "GetEnvironment"
+    )
+    print(
+        "environment: \(environment.overridable.count) kinds can be overridden; the appearance is "
+            + "\(environment.current.userInterfaceStyle)"
+    )
+    if case .lists? = page { try checkDemoEnvironment(environment, on: server.connection) }
 }
 
 /// Asks for the hierarchy, prints what it holds, and checks the demo app's screen when asked to:
-/// the scene is what the later demo checks work on.
-private func checkHierarchy(on server: FoundServer, options: Options) throws -> (Hierarchy, DemoScene?) {
+/// the page is what the later demo checks work on.
+private func checkHierarchy(on server: FoundServer, options: Options) throws -> (Hierarchy, DemoPage?) {
     let hierarchy = try HierarchyChecks.hierarchy(
         try request(.getHierarchy, id: ProbeRequestID.hierarchy, on: server.connection),
         version: server.version
@@ -62,19 +84,22 @@ private func checkHierarchy(on server: FoundServer, options: Options) throws -> 
         "hierarchy: \(hierarchy.nodes.count) nodes, \(windows) windows, key window \(hierarchy.keyWindowID), "
             + "\(controllers) view controllers, \(references) member references"
     )
-    var scene: DemoScene?
-    if options.expectDemo {
-        scene = try HierarchyChecks.demoScene(hierarchy)
-        print("hierarchy: shows the demo app's screen")
+    guard options.expectDemo else { return (hierarchy, nil) }
+    if DemoListsScene.isShown(in: hierarchy) {
+        let lists = try DemoListsScene(hierarchy)
+        print("hierarchy: shows the demo app's Lists page; checking it instead of the main screen")
+        return (hierarchy, .lists(lists))
     }
-    return (hierarchy, scene)
+    let scene = try HierarchyChecks.demoScene(hierarchy)
+    print("hierarchy: shows the demo app's screen")
+    return (hierarchy, .screen(scene))
 }
 
 /// Streams the details of every layer of `hierarchy`, prints what they hold, and runs the
-/// demo app's checks when `scene` is given.
+/// demo app's checks when `page` is given.
 private func checkLayerDetails(
     of hierarchy: Hierarchy,
-    scene: DemoScene?,
+    page: DemoPage?,
     on server: FoundServer,
     options: Options
 ) throws {
@@ -125,7 +150,13 @@ private func checkLayerDetails(
             +
             "\(constraints.satisfied) satisfied, \(constraints.unsatisfied) unsatisfied, \(constraints.unknown) unknown"
     )
-    if let scene {
+    switch page {
+    case nil:
+        return
+    case .lists(let lists):
+        try AttributeChecks.demoLists(details, hierarchy: hierarchy, scene: lists)
+        print("layer details: show the demo app's Lists page and the attributes of protocol 1.2")
+    case .screen(let scene):
         try DetailChecks.demoPixels(
             details,
             hierarchy: hierarchy,
@@ -179,15 +210,6 @@ private func reportAttributeNotes(of details: [LayerDetail]) {
     // P-SET-07: the app may have set them itself, so they are only reported.
     let outside = details.flatMap {
         AttributeChecks.valuesOutsideLimits($0.attributeGroups, name: "layer \($0.layerID)")
-    }
-    // P-ATTR-12: a cluster the protocol does not name is shown attribute by attribute.
-    let unknownClusters = details.flatMap {
-        AttributeChecks.unknownClusters($0.attributeGroups, name: "layer \($0.layerID)")
-    }
-    if !unknownClusters.isEmpty {
-        print(
-            "attributes: \(unknownClusters.count) in clusters the protocol does not name: \(unknownClusters.prefix(3).joined(separator: "; "))"
-        )
     }
     if !outside.isEmpty {
         print(
