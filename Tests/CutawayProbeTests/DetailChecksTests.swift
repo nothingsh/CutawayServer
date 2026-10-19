@@ -140,17 +140,17 @@ final class DetailChecksTests: XCTestCase {
 
         let (request, id, frames) = try layerDetails()
         let details = try DetailChecks.stream(frames, answering: id, request: request, hierarchy: hierarchy)
-        XCTAssertEqual(details.map(\.layerID), [3, 4, 99])
+        XCTAssertEqual(details.map(\.layerID), [3, 4, 99, 6])
         XCTAssertEqual(
             DetailChecks.summary(of: details, chunks: 2),
             DetailChecks.Summary(
-                layers: 3,
+                layers: 4,
                 chunks: 2,
                 images: 3,
                 captureFailed: 0,
                 notFound: 1,
-                attributeGroups: 3,
-                attributes: 19
+                attributeGroups: 5,
+                attributes: 24
             )
         )
 
@@ -176,9 +176,9 @@ final class DetailChecksTests: XCTestCase {
             )
         )
 
-        // One detail per chunk is as good as several.
+        // Fewer details per chunk are as good as more: the second chunk split in two.
         var oneEach = frames
-        changeChunk(&oneEach[1]) { $0.details.removeLast() }
+        changeChunk(&oneEach[1]) { $0.details = [$0.details[0]] }
         var third = frames[1]
         changeChunk(&third) {
             $0.sequence = 2
@@ -287,7 +287,7 @@ final class DetailChecksTests: XCTestCase {
         }
 
         // Which layers, and in which order.
-        try assertStreamRejects("2 details arrived for 3 requested layers") { frames in
+        try assertStreamRejects("3 details arrived for 4 requested layers") { frames in
             self.changeChunk(&frames[1]) { $0.details.removeLast() }
         }
         try assertStreamRejects("detail 1 is for layer 99, but the request's item 1 is layer 4") { frames in
@@ -296,7 +296,7 @@ final class DetailChecksTests: XCTestCase {
         try assertStreamRejects("detail 2 is for layer 4, but the request's item 2 is layer 99") { frames in
             self.changeChunk(&frames[1]) { $0.details[1] = $0.details[0] }
         }
-        try assertStreamRejects("4 details arrived for 3 requested layers") { frames in
+        try assertStreamRejects("5 details arrived for 4 requested layers") { frames in
             self.changeChunk(&frames[1]) { $0.details.append($0.details[1]) }
         }
     }
@@ -331,7 +331,7 @@ final class DetailChecksTests: XCTestCase {
         // The attributes themselves are checked too.
         try assertStreamRejects("layer 3: attribute label.numberOfLines of group view") { frames in
             self.change(&frames[0], detail: 0) {
-                $0.attributeGroups[2].attributes.append($0.attributeGroups[1].attributes[2])
+                $0.attributeGroups[2].attributes.append($0.attributeGroups[1].attributes[4])
             }
         }
 

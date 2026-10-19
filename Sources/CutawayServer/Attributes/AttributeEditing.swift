@@ -109,7 +109,8 @@ extension AttributeValue {
         case .rect: return ["x", "y", "width", "height"]
         case .insets: return ["top", "left", "bottom", "right"]
         case .transform: return (1...4).flatMap { row in (1...4).map { "m\(row)\($0)" } }
-        case .bool, .int, .double, .string, .color, .enumeration: return components.map { _ in "value" }
+        case .bool, .int, .double, .string, .color, .enumeration, .layerReference:
+            return components.map { _ in "value" }
         }
     }
 }
@@ -156,6 +157,7 @@ extension AttributeValueKind {
         case .insets: return "InsetsValue"
         case .transform: return "TransformValue"
         case .enumeration: return "EnumValue"
+        case .layerReference: return "LayerReferenceValue"
         }
     }
 }

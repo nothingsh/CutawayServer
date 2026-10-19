@@ -28,6 +28,15 @@ protocol HostApp: Sendable {
         registry: LayerRegistry,
         stopFlag: StopFlag
     ) -> CapturedDetail?
+    /// The environment for a `GetEnvironment`, with the connection's overrides (PROTOCOL.md,
+    /// P-ENV-01).
+    @MainActor func environment(overrides: EnvironmentOverrides) -> Environment
+    /// Replaces the connection's overrides for a `SetEnvironment`, or refuses and changes
+    /// nothing (PROTOCOL.md, P-ENV-02, P-ENV-04, P-APP-01).
+    @MainActor func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides)
+        -> Result<Environment, WireError>
+    /// Removes the connection's overrides when it closes (PROTOCOL.md, P-ENV-03).
+    @MainActor func removeOverrides(_ overrides: EnvironmentOverrides)
 }
 
 /// The app the server runs in.
@@ -117,6 +126,28 @@ struct LiveHostApp: HostApp {
             stopFlag: stopFlag,
             readAttributes: AttributeCatalog.standard.read
         )
+    }
+
+    @MainActor
+    func environment(overrides: EnvironmentOverrides) -> Environment {
+        overrides.environment(windows: HostWindows.all())
+    }
+
+    @MainActor
+    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
+        // P-APP-01 before P-ENV-04, as the state is checked again here (see `setAttribute`).
+        guard AppStateObserver.currentState() == .active else { return .failure(.appNotActive) }
+        if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: overrides.overridable) {
+            return .failure(refusal)
+        }
+        let windows = HostWindows.all()
+        overrides.replace(with: traits, windows: windows)
+        return .success(overrides.environment(windows: windows))
+    }
+
+    @MainActor
+    func removeOverrides(_ overrides: EnvironmentOverrides) {
+        overrides.removeAll()
     }
 
     // MARK: - Info

@@ -24,7 +24,22 @@ struct TestHostApp: HostApp {
         }
     }
 
-    // No test replaces these two.
+    // No test replaces these.
+
+    @MainActor
+    func environment(overrides: EnvironmentOverrides) -> Environment {
+        base.environment(overrides: overrides)
+    }
+
+    @MainActor
+    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
+        base.setEnvironment(traits, overrides: overrides)
+    }
+
+    @MainActor
+    func removeOverrides(_ overrides: EnvironmentOverrides) {
+        base.removeOverrides(overrides)
+    }
 
     @MainActor
     func appInfo() -> AppInfo {

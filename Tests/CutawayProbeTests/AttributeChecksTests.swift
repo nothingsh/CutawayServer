@@ -26,7 +26,7 @@ final class AttributeChecksTests: XCTestCase {
 
     /// Layer 3 of `layer-details`: three groups that use all eleven kinds of value and a nil, with
     /// sections and limits (1.1). In the `layer` group, `shadowOpacity` is at 3 and `borderColor`
-    /// at 6; in the `label` group, `textAlignment` is at 3; in the `view` group, the nil
+    /// at 6; in the `label` group, `numberOfLines` is at 4 and `textAlignment` at 5; in the `view` group, the nil
     /// `backgroundColor` is at 3 and `isUserInteractionEnabled` at 5.
     private func layer3() throws -> [AttributeGroup] {
         try fixtureGroups("layer-details/02-s2c-chunk-0.bin", layer: 3)
@@ -109,7 +109,7 @@ final class AttributeChecksTests: XCTestCase {
             $0[0].attributes[6].value = .color(WireColor(red: .nan, green: 0, blue: 0, alpha: 1))
         }
         try assertStructureRejects("attribute label.textAlignment is the case \"middle\"") {
-            $0[1].attributes[3].value = .enumeration(
+            $0[1].attributes[5].value = .enumeration(
                 value: 1,
                 cases: ["left", "center"],
                 caseName: "middle",
@@ -117,12 +117,12 @@ final class AttributeChecksTests: XCTestCase {
             )
         }
         try assertStructureRejects("attribute label.textAlignment is an enumeration with no cases") {
-            $0[1].attributes[3].value = .enumeration(value: 0, cases: [], caseName: "", caseValues: [])
+            $0[1].attributes[5].value = .enumeration(value: 0, cases: [], caseName: "", caseValues: [])
         }
         try assertStructureRejects(
             "attribute label.textAlignment is an enumeration with no cases, or a case without a name"
         ) {
-            $0[1].attributes[3].value = .enumeration(
+            $0[1].attributes[5].value = .enumeration(
                 value: 0,
                 cases: ["", "center"],
                 caseName: "center",
@@ -154,20 +154,20 @@ final class AttributeChecksTests: XCTestCase {
             )
         }
         try assertStructureRejects("they must be as many, each once (P-ATTR-07)") {
-            $0[1].attributes[3].value = alignment(1, "center", [0, 1])
+            $0[1].attributes[5].value = alignment(1, "center", [0, 1])
         }
         try assertStructureRejects("they must be as many, each once (P-ATTR-07)") {
-            $0[1].attributes[3].value = alignment(1, "center", [0, 1, 1])
+            $0[1].attributes[5].value = alignment(1, "center", [0, 1, 1])
         }
         try assertStructureRejects("has the value 7 and the case \"center\"") {
-            $0[1].attributes[3].value = alignment(7, "center", [0, 1, 2])
+            $0[1].attributes[5].value = alignment(7, "center", [0, 1, 2])
         }
         try assertStructureRejects("has the value 2 and the case \"center\"") {
-            $0[1].attributes[3].value = alignment(2, "center", [0, 1, 2])
+            $0[1].attributes[5].value = alignment(2, "center", [0, 1, 2])
         }
         // Raw values need not start at 0 or be in order.
         var groups = try layer3()
-        groups[1].attributes[3].value = alignment(-3, "right", [10, 4, -3])
+        groups[1].attributes[5].value = alignment(-3, "right", [10, 4, -3])
         XCTAssertNoThrow(try AttributeChecks.structure(groups, name: "layer 3"))
     }
 
@@ -227,7 +227,7 @@ final class AttributeChecksTests: XCTestCase {
         try assertStructureRejects(
             "attribute label.numberOfLines: limit 0 bounds an integer by a fraction (P-ATTR-10)"
         ) {
-            $0[1].attributes[2].limits = [NumberLimit(minimum: 0.5)]
+            $0[1].attributes[4].limits = [NumberLimit(minimum: 0.5)]
         }
         // A single value between equal bounds is fine.
         var groups = try layer3()
@@ -336,7 +336,13 @@ final class AttributeChecksTests: XCTestCase {
                 entries.map { ("\(group).\($0.name)", $0) }
             }
         )
-        for attribute in try layer3().flatMap(\.attributes) {
+        // The attributes of protocol 1.2 come to the list with milestone 31.
+        let notYetListed: Set = [
+            "label.fontTextStyle",
+            "label.adjustsFontForContentSizeCategory",
+            "view.accessibilityLabel"
+        ]
+        for attribute in try layer3().flatMap(\.attributes) where !notYetListed.contains(attribute.id) {
             let entry = try XCTUnwrap(entries[attribute.id], attribute.id)
             XCTAssertEqual(attribute.section, entry.section, attribute.id)
             XCTAssertEqual(attribute.title, entry.title, attribute.id)
@@ -423,6 +429,7 @@ final class AttributeChecksTests: XCTestCase {
         case .insets: .insets(WireInsets(top: 1, left: 2, bottom: 3, right: 4))
         case .transform: .transform(.identity)
         case .enumeration: .enumeration(value: 0, cases: ["only"], caseName: "only", caseValues: [0])
+        case .layerReference: .layerReference([])
         }
     }
 

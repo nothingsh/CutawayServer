@@ -21,6 +21,12 @@ public enum Message: Sendable, Equatable {
     case setAttributeResult(SetAttributeResult)
     /// Answered with a `Hierarchy` (P-HIER-10).
     case getSubtree(rootID: UInt64)
+    /// Answered with an `Environment` (P-ENV-01). Protocol 1.2.
+    case getEnvironment
+    /// Replaces every override; `nil` removes them all (P-ENV-02). Protocol 1.2.
+    case setEnvironment(overrides: Traits?)
+    /// The answer to `getEnvironment` and `setEnvironment`. Protocol 1.2.
+    case environment(Environment)
 }
 
 public struct Frame: Sendable, Equatable {

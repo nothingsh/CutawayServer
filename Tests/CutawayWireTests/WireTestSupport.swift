@@ -63,7 +63,9 @@ enum WireTestSupport {
         "set-attribute",
         "set-attribute-rejected",
         "subtree",
-        "layout-constraints"
+        "layout-constraints",
+        "environment",
+        "environment-rejected"
     ]
 }
 
@@ -86,6 +88,9 @@ extension WireTestSupport {
         case .setAttribute: return "SetAttribute"
         case .setAttributeResult: return "SetAttributeResult"
         case .getSubtree: return "GetSubtree"
+        case .getEnvironment: return "GetEnvironment"
+        case .setEnvironment: return "SetEnvironment"
+        case .environment: return "Environment"
         }
     }
 
@@ -103,7 +108,10 @@ extension WireTestSupport {
         "AppStateChanged",
         "SetAttribute",
         "SetAttributeResult",
-        "GetSubtree"
+        "GetSubtree",
+        "GetEnvironment",
+        "SetEnvironment",
+        "Environment"
     ]
 
     /// One message of every kind, each with as many of its fields filled in as the schema has.
@@ -139,12 +147,27 @@ extension WireTestSupport {
             .double(-0.5),
             .string("text ✓"),
             .color(WireColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)),
+            .color(
+                WireColor(red: 0, green: 0.47843137, blue: 1, alpha: 1),
+                systemName: "systemBlue",
+                light: WireColor(red: 0, green: 0.47843137, blue: 1, alpha: 1),
+                dark: WireColor(red: 0.039215688, green: 0.5176471, blue: 1, alpha: 1)
+            ),
             .point(WirePoint(x: 1, y: -1)),
             .size(WireSize(width: 3, height: 4)),
             .rect(WireRect(x: 1, y: 2, width: 3, height: 4)),
             .insets(WireInsets(top: 1, left: 2, bottom: 3, right: 4)),
             .transform(transform),
-            .enumeration(value: 2, cases: ["a", "b", "c"], caseName: "c", caseValues: [0, 1, 2])
+            .enumeration(value: 2, cases: ["a", "b", "c"], caseName: "c", caseValues: [0, 1, 2]),
+            .layerReference([
+                ObjectReference(
+                    layerID: 2,
+                    className: "Demo.HomeViewController",
+                    displayClassName: "HomeViewController"
+                ),
+                ObjectReference(layerID: 0, className: "NSObject", displayClassName: "NSObject")
+            ]),
+            .layerReference([])
         ]
         let attributes = values.enumerated().map { index, value in
             Attribute(
@@ -290,7 +313,25 @@ extension WireTestSupport {
                 SetAttribute(layerID: 3, attributeID: "sample.value9", value: .transform(transform))
             ),
             .setAttributeResult(SetAttributeResult(layerID: 3, attributeGroups: groups)),
-            .getSubtree(rootID: 3)
+            .getSubtree(rootID: 3),
+            .getEnvironment,
+            .setEnvironment(
+                overrides: Traits(userInterfaceStyle: .dark, layoutDirection: .rightToLeft, verticalSizeClass: .compact)
+            ),
+            .setEnvironment(overrides: nil),
+            .environment(
+                Environment(
+                    overrides: Traits(contentSizeCategory: .accessibilityExtraExtraExtraLarge),
+                    current: Traits(
+                        userInterfaceStyle: .light,
+                        contentSizeCategory: .accessibilityExtraExtraExtraLarge,
+                        layoutDirection: .leftToRight,
+                        horizontalSizeClass: .compact,
+                        verticalSizeClass: .regular
+                    ),
+                    overridable: TraitKind.allCases
+                )
+            )
         ]
     }()
 
