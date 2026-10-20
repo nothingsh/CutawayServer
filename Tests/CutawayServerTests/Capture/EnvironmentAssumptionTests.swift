@@ -3,8 +3,8 @@ import XCTest
 
 @testable import CutawayServer
 
-/// What overriding the environment rests on (assumptions H1 and H2 of protocol 1.2): UIKit's own
-/// behavior, tested without the server. H1 is also run on a device.
+/// What overriding the environment rests on (assumptions H1, H2 and H9 of protocol 1.2): UIKit's
+/// and the main queue's own behavior, tested without the server. H1 is also run on a device.
 final class EnvironmentAssumptionTests: CaptureTestCase {
     // MARK: - H1: the layout direction
 
@@ -168,7 +168,39 @@ final class EnvironmentAssumptionTests: CaptureTestCase {
         XCTAssertGreaterThan(label.font.pointSize, before)
     }
 
+    // MARK: - H9: turns of the main run loop
+
+    /// H9: a block queued on the main queue from a block of the main queue runs in a later turn
+    /// of the main run loop, so that each block the server queues after another is one more turn.
+    func test_S_ENV_05_H9_eachBlockQueuedFromTheMainQueueRunsInALaterTurn() {
+        let turns = MainRunLoopTurns()
+        defer { turns.stop() }
+        let seen = SeenTurns()
+        let done = expectation(description: "four blocks ran")
+        @Sendable func queue(_ remaining: Int) {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    seen.turns.append(turns.count)
+                    if remaining > 1 { queue(remaining - 1) } else { done.fulfill() }
+                }
+            }
+        }
+        queue(4)
+        wait(for: [done], timeout: 5)
+
+        print("H9: the blocks ran in turns \(seen.turns)")
+        XCTAssertEqual(seen.turns.count, 4)
+        for (earlier, later) in zip(seen.turns, seen.turns.dropFirst()) {
+            XCTAssertGreaterThan(later, earlier, "turns \(seen.turns)")
+        }
+    }
+
     // MARK: - Support
+
+    @MainActor
+    private final class SeenTurns {
+        var turns: [Int] = []
+    }
 
     /// A shown window with a root view controller, and that controller's view.
     private func makeContentWindow() throws -> (UIWindow, UIView) {

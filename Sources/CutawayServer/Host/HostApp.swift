@@ -32,9 +32,11 @@ protocol HostApp: Sendable {
     /// P-ENV-01).
     @MainActor func environment(overrides: EnvironmentOverrides) -> Environment
     /// Replaces the connection's overrides for a `SetEnvironment`, or refuses and changes
-    /// nothing (PROTOCOL.md, P-ENV-02, P-ENV-04, P-APP-01).
-    @MainActor func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides)
-        -> Result<Environment, WireError>
+    /// nothing (PROTOCOL.md, P-ENV-02, P-ENV-04, P-APP-01). `nil` when they were replaced.
+    @MainActor func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError?
+    /// After the app responded to `setEnvironment`: lays the windows out, commits, and reads the
+    /// environment for the answer (PROTOCOL.md, P-ENV-02).
+    @MainActor func settleEnvironment(overrides: EnvironmentOverrides) -> Environment
     /// Removes the connection's overrides when it closes (PROTOCOL.md, P-ENV-03).
     @MainActor func removeOverrides(_ overrides: EnvironmentOverrides)
 }
@@ -148,15 +150,22 @@ struct LiveHostApp: HostApp {
     }
 
     @MainActor
-    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
+    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
         // P-APP-01 before P-ENV-04, as the state is checked again here (see `setAttribute`).
-        guard AppStateObserver.currentState() == .active else { return .failure(.appNotActive) }
+        guard AppStateObserver.currentState() == .active else { return .appNotActive }
         if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: overrides.overridable) {
-            return .failure(refusal)
+            return refusal
         }
+        overrides.replace(with: traits, windows: HostWindows.all())
+        return nil
+    }
+
+    @MainActor
+    func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
+        // The app may have added windows while it responded.
         let windows = HostWindows.all()
-        overrides.replace(with: traits, windows: windows)
-        return .success(overrides.environment(windows: windows))
+        overrides.finish(windows: windows)
+        return overrides.environment(windows: windows)
     }
 
     @MainActor
