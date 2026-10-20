@@ -101,13 +101,18 @@ final class SessionHarness: @unchecked Sendable {
         }
 
         @MainActor
-        func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
+        func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
             if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: environment.overridable) {
-                return .failure(refusal)
+                return refusal
             }
             environment.overrides = traits
             environment.applied.append(traits)
-            return .success(self.environment(overrides: overrides))
+            return nil
+        }
+
+        @MainActor
+        func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
+            environment(overrides: overrides)
         }
 
         @MainActor
