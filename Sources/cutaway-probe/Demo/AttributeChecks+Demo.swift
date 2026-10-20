@@ -38,7 +38,8 @@ extension AttributeChecks {
         func expect(_ what: String, _ node: LayerNode, _ id: String, _ expected: AttributeValue) throws {
             let actual = value(id, in: byID[node.id]?.attributeGroups ?? [])
             let matches: Bool
-            if case let .color(actualColor, _, _, _)? = actual, case let .color(expectedColor, _, _, _) = expected {
+            if case let .color(actualColor, _, _, _, _)? = actual,
+               case let .color(expectedColor, _, _, _, _) = expected {
                 // Colours went through a colour space conversion.
                 matches = zip(
                     [actualColor.red, actualColor.green, actualColor.blue, actualColor.alpha],
@@ -97,12 +98,14 @@ extension AttributeChecks {
         try expect("the label Layout", scene.layoutLabel, "label.text", .string("Layout"))
     }
 
-    /// Every layer of the demo app's screen or its Lists page: the groups of the list, `layer`
-    /// first and `view` second for a view, and geometry that agrees with the hierarchy.
+    /// Every layer of one of the demo app's pages: the groups of the list, `layer` first and
+    /// `view` second for a view, and geometry that agrees with the hierarchy. The host app's
+    /// groups follow, and virtual nodes have only those: the demo's checks of its Extensions
+    /// page look at them.
     static func checkDemoLayers(_ nodes: [LayerNode], byID: [UInt64: LayerDetail]) throws {
-        for node in nodes {
+        for node in nodes where node.nodeKind == .layer {
             let name = "demo: layer \(node.id) (\(node.viewClassName ?? node.className))"
-            guard let groups = byID[node.id]?.attributeGroups else {
+            guard let groups = byID[node.id]?.attributeGroups.filter({ !$0.fromApp }) else {
                 throw ProbeFailure("\(name) has no detail")
             }
             let ids = groups.map(\.id)

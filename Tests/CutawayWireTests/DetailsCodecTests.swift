@@ -38,7 +38,9 @@ final class DetailsCodecTests: XCTestCase {
                             request(3, attributes: true),
                             request(4, solo: true),
                             request(99),
-                            request(6, group: false, attributes: true)
+                            request(6, group: false, attributes: true),
+                            request(10, solo: true, attributes: true),
+                            request(13, attributes: true)
                         ],
                         maxTextureDimension: 16384
                     )
@@ -46,16 +48,16 @@ final class DetailsCodecTests: XCTestCase {
             )
         )
 
-        // Two chunks, numbered from 0; four details in the order of the request.
+        // Two chunks, numbered from 0; six details in the order of the request.
         XCTAssertEqual(try fixture("layer-details/02-s2c-chunk-0.bin").requestID, 3)
         let first = try chunk("layer-details/02-s2c-chunk-0.bin")
         let second = try chunk("layer-details/03-s2c-chunk-1.bin")
         XCTAssertEqual([first.sequence, second.sequence], [0, 1])
         XCTAssertEqual(first.details.map(\.layerID), [3])
-        XCTAssertEqual(second.details.map(\.layerID), [4, 99, 6])
+        XCTAssertEqual(second.details.map(\.layerID), [4, 99, 6, 10, 13])
         XCTAssertEqual(
             (first.details + second.details).map(\.status),
-            [.ok, .ok, .layerNotFound, .ok]
+            [.ok, .ok, .layerNotFound, .ok, .ok, .excluded]
         )
 
         XCTAssertEqual(
@@ -357,10 +359,56 @@ final class DetailsCodecTests: XCTestCase {
         )
     }
 
+    func test_S_SHOT_12_decodesTheVirtualNodeAndTheExcludedLayer() throws {
+        // Protocol 1.2 (Protocol/fixtures/README.md, "The host app's group and registered colors").
+        let details = try chunk("layer-details/03-s2c-chunk-1.bin").details
+        let row = try XCTUnwrap(details.first { $0.layerID == 10 })
+        XCTAssertEqual(row.status, .ok)
+        XCTAssertNil(row.solo)
+        XCTAssertNil(row.group)
+        XCTAssertEqual(row.attributeGroups.map(\.id), ["app.row"])
+        XCTAssertEqual(row.attributeGroups.map(\.fromApp), [true])
+        XCTAssertEqual(row.attributeGroups.first?.className, "Demo.CardRow")
+        XCTAssertEqual(
+            row.attributeGroups.first?.attributes.last?.value,
+            .color(WireColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1), name: "brandBlue")
+        )
+        let excluded = try XCTUnwrap(details.first { $0.layerID == 13 })
+        XCTAssertEqual(excluded.status, .excluded)
+        XCTAssertNil(excluded.group)
+        XCTAssertEqual(excluded.attributeGroups.map(\.id), ["view"])
+        XCTAssertEqual(excluded.attributeGroups.map(\.fromApp), [false])
+    }
+
+    func test_S_SHOT_13_newDetailFieldsRoundTrip() throws {
+        let detail = LayerDetail(
+            layerID: 5,
+            status: .excluded,
+            attributeGroups: [
+                AttributeGroup(
+                    id: "app.chart",
+                    title: "Chart",
+                    attributes: [
+                        Attribute(
+                            id: "app.chart.color",
+                            title: "Color",
+                            value: .color(WireColor(red: 1, green: 0, blue: 0, alpha: 1), name: "brand"),
+                            valueKind: .color
+                        )
+                    ],
+                    className: "Demo.Chart",
+                    fromApp: true
+                )
+            ]
+        )
+        let frame = Frame(requestID: 2, body: .layerDetailsChunk(LayerDetailsChunk(sequence: 0, details: [detail])))
+        XCTAssertEqual(try FrameCodec.decode(try FrameCodec.encode(frame)), frame)
+    }
+
     func test_S_CONN_12_decodesObjectReferences() throws {
         // Layer 6 of `layer-details` (1.2, P-ATTR-18): a view controller by its root view's
         // layer, and two objects that are not views.
-        let layer6 = try XCTUnwrap(try chunk("layer-details/03-s2c-chunk-1.bin").details.last)
+        let layer6 = try XCTUnwrap(try chunk("layer-details/03-s2c-chunk-1.bin").details.first { $0.layerID == 6 })
         XCTAssertEqual(layer6.layerID, 6)
         XCTAssertEqual(
             layer6.attributeGroups,
@@ -483,7 +531,11 @@ final class DetailsCodecTests: XCTestCase {
         let attributes = alpha.attributeGroups.flatMap(\.attributes)
         XCTAssertEqual(attributes.first { $0.id == "view.alpha" }?.value, .double(0.5))
         XCTAssertFalse(attributes.contains { $0.id == "layer.opacity" })
-        XCTAssertEqual(attributes.first { $0.id == "view.backgroundColor" }?.value, color(0.2, 0.4, 0.8))
+        // P-ATTR-20 (1.2): the value set equals the color the host app registered as brandBlue.
+        XCTAssertEqual(
+            attributes.first { $0.id == "view.backgroundColor" }?.value,
+            .color(WireColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1), name: "brandBlue")
+        )
         XCTAssertFalse(attributes.contains { $0.id == "layer.backgroundColor" })
         // P-ATTR-12 (1.1): one cluster across two groups.
         XCTAssertEqual(

@@ -35,6 +35,14 @@ public enum ViewControllerVisibility: Sendable, Equatable, CaseIterable {
     case notShown
 }
 
+/// What a hierarchy node stands for (P-HIER-19, protocol 1.2).
+public enum NodeKind: Sendable, Equatable, CaseIterable {
+    /// A layer of the app.
+    case layer
+    /// A part of the interface the host app draws itself and describes to the server.
+    case virtual
+}
+
 /// The protocol's tables of known classes (P-HIER-17, protocol 1.1): only appended to, each
 /// entry with the minor version of protocol 1 that added it.
 public enum KnownClasses {
@@ -137,6 +145,14 @@ public struct LayerNode: Sendable, Equatable {
     public var viewBaseClassName: String?
     /// Given exactly when `viewControllerClassName` is (P-HIER-18, protocol 1.1).
     public var viewControllerVisibility: ViewControllerVisibility
+    /// A layer or a virtual node (P-HIER-19, protocol 1.2).
+    public var nodeKind: NodeKind
+    /// A virtual node's short label (P-HIER-20, protocol 1.2); layers have none.
+    public var name: String?
+    /// The host app would like the node shown collapsed at first (P-HIER-23, protocol 1.2).
+    public var isCollapsedByDefault: Bool
+    /// The host app excludes the node, with its subtree, from images (P-DET-10, protocol 1.2).
+    public var isCaptureExcluded: Bool
 
     public init(
         id: UInt64,
@@ -164,7 +180,11 @@ public struct LayerNode: Sendable, Equatable {
         viewControllerClassOrigin: Origin = .unknown,
         layerBaseClassName: String? = nil,
         viewBaseClassName: String? = nil,
-        viewControllerVisibility: ViewControllerVisibility = .unknown
+        viewControllerVisibility: ViewControllerVisibility = .unknown,
+        nodeKind: NodeKind = .layer,
+        name: String? = nil,
+        isCollapsedByDefault: Bool = false,
+        isCaptureExcluded: Bool = false
     ) {
         self.id = id
         self.parentID = parentID
@@ -192,6 +212,10 @@ public struct LayerNode: Sendable, Equatable {
         self.layerBaseClassName = layerBaseClassName
         self.viewBaseClassName = viewBaseClassName
         self.viewControllerVisibility = viewControllerVisibility
+        self.nodeKind = nodeKind
+        self.name = name
+        self.isCollapsedByDefault = isCollapsedByDefault
+        self.isCaptureExcluded = isCaptureExcluded
     }
 }
 

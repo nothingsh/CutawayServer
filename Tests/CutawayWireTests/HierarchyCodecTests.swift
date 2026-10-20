@@ -4,7 +4,8 @@ import XCTest
 
 /// The hierarchy decodes into the project's value types and encodes back.
 final class HierarchyCodecTests: XCTestCase {
-    private func fixtureHierarchy() throws -> Hierarchy {
+    /// The whole fixture: nodes 1 to 9, and the virtual and excluded nodes 10 to 14 of 1.2.
+    private func fullFixtureHierarchy() throws -> Hierarchy {
         let frame = try FrameCodec.decode(RepositoryFiles.fixture("hierarchy/02-s2c-hierarchy.bin"))
         XCTAssertEqual(frame.requestID, 2)
         guard case .hierarchy(let hierarchy)? = frame.body else {
@@ -14,15 +15,25 @@ final class HierarchyCodecTests: XCTestCase {
         return hierarchy
     }
 
+    /// Nodes 1 to 9 of the fixture, the layers before 1.2, in order.
+    private func fixtureHierarchy() throws -> Hierarchy {
+        var hierarchy = try fullFixtureHierarchy()
+        hierarchy.nodes.removeAll { $0.id > 9 }
+        return hierarchy
+    }
+
     func test_S_HIER_01_decodesTheHierarchyFixture() throws {
         XCTAssertEqual(
             try FrameCodec.decode(RepositoryFiles.fixture("hierarchy/01-c2s-get-hierarchy.bin")),
             Frame(requestID: 2, body: .getHierarchy)
         )
 
+        // Pre-order, siblings back to front, virtual children first (Protocol/fixtures/README.md).
+        let full = try fullFixtureHierarchy()
+        XCTAssertEqual(full.nodes.map(\.id), [1, 2, 3, 4, 10, 11, 12, 5, 6, 7, 8, 9, 13, 14])
+        XCTAssertEqual(full.nodes.map(\.parentID), [0, 1, 2, 2, 4, 10, 4, 4, 2, 6, 2, 2, 2, 13])
         let hierarchy = try fixtureHierarchy()
         XCTAssertEqual(hierarchy.keyWindowID, 1)
-        // Pre-order, siblings back to front (Protocol/fixtures/README.md).
         XCTAssertEqual(hierarchy.nodes.map(\.id), [1, 2, 3, 4, 5, 6, 7, 8, 9])
         XCTAssertEqual(hierarchy.nodes.map(\.parentID), [0, 1, 2, 2, 4, 2, 6, 2, 2])
         XCTAssertEqual(
@@ -274,10 +285,71 @@ final class HierarchyCodecTests: XCTestCase {
             Frame(
                 requestID: 1,
                 body: .hierarchy(
-                    Hierarchy(nodes: whole.nodes.filter { [4, 5].contains($0.id) }, keyWindowID: 1)
+                    Hierarchy(nodes: whole.nodes.filter { [4, 10, 11, 12, 5].contains($0.id) }, keyWindowID: 1)
                 )
             )
         )
+        // P-HIER-10, 22 (1.2): the subtree of a virtual node; its root keeps its parent node.
+        XCTAssertEqual(try frame("05-c2s-get-subtree.bin"), Frame(requestID: 3, body: .getSubtree(rootID: 10)))
+        XCTAssertEqual(
+            try frame("06-s2c-hierarchy.bin"),
+            Frame(
+                requestID: 3,
+                body: .hierarchy(Hierarchy(nodes: whole.nodes.filter { [10, 11].contains($0.id) }, keyWindowID: 1))
+            )
+        )
+    }
+
+    func test_S_HIER_17_decodesTheFixtureVirtualNodes() throws {
+        // Protocol 1.2 (Protocol/fixtures/README.md, "Virtual nodes and excluded subtrees").
+        let nodes = try fullFixtureHierarchy().nodes
+        let byID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+        XCTAssertEqual(nodes.filter { $0.nodeKind == .virtual }.map(\.id), [10, 11, 12])
+        XCTAssertEqual(nodes.compactMap(\.name), ["Total", "New", "Tax"])
+        let row = try XCTUnwrap(byID[10])
+        XCTAssertEqual(row.className, "Demo.CardRow")
+        XCTAssertEqual(row.displayClassName, "CardRow")
+        XCTAssertEqual(row.layerClassOrigin, .app)
+        XCTAssertEqual(row.bounds, WireRect(x: 0, y: 0, width: 300, height: 40))
+        XCTAssertEqual(row.position, WirePoint(x: 150, y: 20))
+        XCTAssertEqual(row.layerAddress, 0)
+        XCTAssertNil(row.viewClassName)
+        XCTAssertEqual(byID[11]?.position, WirePoint(x: 270, y: 20))
+    }
+
+    func test_S_HIER_18_decodesTheFixtureFlags() throws {
+        let nodes = try fullFixtureHierarchy().nodes
+        XCTAssertEqual(nodes.filter(\.isCollapsedByDefault).map(\.id), [10])
+        XCTAssertEqual(nodes.filter(\.isCaptureExcluded).map(\.id), [13, 14])
+    }
+
+    func test_S_HIER_17_newNodeFieldsRoundTrip() throws {
+        var node = LayerNode(
+            id: 21,
+            parentID: 4,
+            className: "Demo.Bar",
+            displayClassName: "Bar",
+            bounds: WireRect(x: 0, y: 0, width: 10, height: 30),
+            position: WirePoint(x: 5, y: 15),
+            layerClassOrigin: .app,
+            nodeKind: .virtual,
+            name: "March",
+            isCollapsedByDefault: true,
+            isCaptureExcluded: true
+        )
+        func roundTrip(_ node: LayerNode) throws -> LayerNode? {
+            let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
+            guard case .hierarchy(let decoded)? = try FrameCodec.decode(try FrameCodec.encode(frame)).body else {
+                return nil
+            }
+            return decoded.nodes.first
+        }
+        XCTAssertEqual(try roundTrip(node), node)
+        node.nodeKind = .layer
+        node.name = nil
+        node.isCollapsedByDefault = false
+        node.isCaptureExcluded = false
+        XCTAssertEqual(try roundTrip(node), node)
     }
 
     func test_S_HIER_13_decodesTheFixtureAddresses() throws {

@@ -78,10 +78,10 @@ enum AttributeOutputs {
         guard let color else { return nil }
         let traits = view.traitCollection
         let value = self.color(color.resolvedColor(with: traits).cgColor)
-        guard case .color(let resolved, _, _, _)? = value else { return value }
+        guard case .color(let resolved, _, _, _, _)? = value else { return value }
         func resolvedColor(in style: UIUserInterfaceStyle) -> WireColor? {
             let styled = UITraitCollection(traitsFrom: [traits, UITraitCollection(userInterfaceStyle: style)])
-            guard case .color(let color, _, _, _)? = self.color(color.resolvedColor(with: styled).cgColor) else {
+            guard case .color(let color, _, _, _, _)? = self.color(color.resolvedColor(with: styled).cgColor) else {
                 return nil
             }
             return color

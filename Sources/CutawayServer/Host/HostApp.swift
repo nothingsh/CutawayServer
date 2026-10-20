@@ -87,7 +87,12 @@ struct LiveHostApp: HostApp {
 
     @MainActor
     func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
-        HierarchyCapture.capture(windows: HostWindows.all(), registry: registry, version: version)
+        HierarchyCapture.capture(
+            windows: HostWindows.all(),
+            registry: registry,
+            version: version,
+            extensions: .shared
+        )
     }
 
     @MainActor
@@ -96,7 +101,8 @@ struct LiveHostApp: HostApp {
             rootID: rootID,
             windows: HostWindows.all(),
             registry: registry,
-            version: version
+            version: version,
+            extensions: .shared
         )
     }
 
@@ -107,7 +113,8 @@ struct LiveHostApp: HostApp {
             change,
             windows: HostWindows.all(),
             registry: registry,
-            appState: AppStateObserver.currentState()
+            appState: AppStateObserver.currentState(),
+            extensions: .shared
         )
     }
 
@@ -119,14 +126,19 @@ struct LiveHostApp: HostApp {
         stopFlag: StopFlag
     ) -> CapturedDetail? {
         let windows = HostWindows.all()
-        let reading = AttributeReading(registry: registry, windows: windows)
+        let attributes = NodeAttributes(
+            reading: AttributeReading(registry: registry, windows: windows),
+            extensions: .shared
+        )
         return DetailCapture.capture(
             request,
             maxTextureDimension: maxTextureDimension,
             windows: windows,
             registry: registry,
             stopFlag: stopFlag,
-            readAttributes: { AttributeCatalog.standard.read($0, reading: reading) }
+            extensions: .shared,
+            readAttributes: { attributes.read($0) },
+            readVirtualAttributes: { attributes.read($0) }
         )
     }
 

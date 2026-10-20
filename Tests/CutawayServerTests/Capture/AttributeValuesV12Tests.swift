@@ -164,7 +164,7 @@ final class AttributeValuesV12Tests: CaptureTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> (value: WireColor, light: WireColor?, dark: WireColor?) {
-        guard case let .color(color, _, light, dark)? = try value(id, of: view, file: file, line: line) else {
+        guard case let .color(color, _, light, dark, _)? = try value(id, of: view, file: file, line: line) else {
             throw XCTSkip("\(id) is not a colour")
         }
         return (color, light, dark)
@@ -239,7 +239,7 @@ final class AttributeValuesV12Tests: CaptureTestCase {
         let group = try XCTUnwrap(
             AttributeCatalog.standard.read(bare, reading: reading([window])).first { $0.id == "layer" }
         )
-        guard case let .color(_, _, light, dark)? = group.attributes.first(where: { $0.id == "layer.borderColor" })?
+        guard case let .color(_, _, light, dark, _)? = group.attributes.first(where: { $0.id == "layer.borderColor" })?
             .value else {
             return XCTFail("layer.borderColor is not a colour")
         }

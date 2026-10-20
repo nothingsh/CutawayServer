@@ -6,8 +6,8 @@ import Foundation
 /// first thing that is wrong.
 enum EditChecks {
     /// The answer to a change of `attributeID` on the layer `layerID`: all of the layer's
-    /// groups, sound and as the attribute list has them, with the attribute at `value`
-    /// (P-SET-01).
+    /// groups, sound and, apart from the host app's, as the attribute list has them, with the
+    /// attribute at `value` (P-SET-01).
     static func result(
         _ frame: Frame,
         layerID: UInt64,
@@ -23,7 +23,7 @@ enum EditChecks {
         let name = "SetAttributeResult for layer \(layerID)"
         try AttributeChecks.structure(result.attributeGroups, name: name)
         let backsView = result.attributeGroups.contains { $0.id == "view" }
-        for group in result.attributeGroups {
+        for group in result.attributeGroups where !group.fromApp {
             try AttributeChecks.matchesList(group, name: name, backsView: backsView)
         }
         let actual = AttributeChecks.value(attributeID, in: result.attributeGroups)

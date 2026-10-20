@@ -140,17 +140,17 @@ final class DetailChecksTests: XCTestCase {
 
         let (request, id, frames) = try layerDetails()
         let details = try DetailChecks.stream(frames, answering: id, request: request, hierarchy: hierarchy)
-        XCTAssertEqual(details.map(\.layerID), [3, 4, 99, 6])
+        XCTAssertEqual(details.map(\.layerID), [3, 4, 99, 6, 10, 13])
         XCTAssertEqual(
             DetailChecks.summary(of: details, chunks: 2),
             DetailChecks.Summary(
-                layers: 4,
+                layers: 6,
                 chunks: 2,
                 images: 3,
                 captureFailed: 0,
                 notFound: 1,
-                attributeGroups: 5,
-                attributes: 24
+                attributeGroups: 7,
+                attributes: 28
             )
         )
 
@@ -199,6 +199,76 @@ final class DetailChecksTests: XCTestCase {
                 hierarchy: hierarchy
             )
         )
+    }
+
+    /// Rewrites the detail of `layerID`, in whichever chunk of `frames` it is.
+    private func change(_ frames: inout [Frame], layer layerID: UInt64, _ body: (inout LayerDetail) -> Void) {
+        for index in frames.indices {
+            guard case .layerDetailsChunk(let chunk)? = frames[index].body,
+                  let detail = chunk.details.firstIndex(where: { $0.layerID == layerID }) else {
+                continue
+            }
+            return change(&frames[index], detail: detail, body)
+        }
+        XCTFail("no detail of layer \(layerID)")
+    }
+
+    func test_S_PROBE_08_detailChecksCoverVirtualAndExcludedNodes() throws {
+        try assertStreamRejects("the detail of layer 10 is a virtual node with the server's group layer (P-DET-09)") {
+            change(&$0, layer: 10) { $0.attributeGroups.insert(
+                AttributeGroup(id: "layer", title: "Layer", attributes: [], className: "CALayer"),
+                at: 0
+            ) }
+        }
+        try assertStreamRejects("the detail of layer 13 is ok, but the hierarchy excludes it from images (P-DET-10)") {
+            change(&$0, layer: 13) { $0.status = .ok }
+        }
+        try assertStreamRejects("the detail of layer 6 is Excluded, but the hierarchy does not exclude it") {
+            change(&$0, layer: 6) { $0.status = .excluded }
+        }
+
+        // A layer whose only children are virtual nodes has no sublayers: its solo may be left
+        // out when its group was requested too (P-DET-04).
+        let scenario = try layerDetails()
+        var frames = scenario.frames
+        change(&frames, layer: 4) { $0.solo = nil }
+        var onlyVirtual = try fixtureHierarchy()
+        onlyVirtual.nodes.removeAll { $0.id == 5 }
+        XCTAssertNoThrow(try DetailChecks.stream(
+            frames,
+            answering: scenario.id,
+            request: scenario.request,
+            hierarchy: onlyVirtual
+        ))
+        try assertStreamRejects("the detail of layer 4 has no solo image") {
+            change(&$0, layer: 4) { $0.solo = nil }
+        }
+
+        // Before 1.2: no Excluded; CaptureFailed when an image was asked for, Ok otherwise.
+        let hierarchy = try fixtureHierarchy()
+        let excluded = try XCTUnwrap(hierarchy.nodes.first { $0.id == 13 })
+        let v11 = ProtocolVersion(major: 1, minor: 1)
+        func detail(_ status: DetailStatus) -> LayerDetail {
+            LayerDetail(layerID: 13, status: status, solo: nil, group: nil, attributeGroups: [])
+        }
+        let image = LayerDetailRequest(layerID: 13, wantSolo: false, wantGroup: true, wantAttributes: false)
+        let none = LayerDetailRequest(layerID: 13, wantSolo: false, wantGroup: false, wantAttributes: false)
+        XCTAssertNoThrow(try DetailChecks.checkExtensions(
+            of: detail(.captureFailed),
+            for: image,
+            node: excluded,
+            version: v11
+        ))
+        XCTAssertNoThrow(try DetailChecks.checkExtensions(of: detail(.ok), for: none, node: excluded, version: v11))
+        assertRejects("is Excluded, which protocol 1.1 does not have (P-DET-10)") {
+            try DetailChecks.checkExtensions(of: detail(.excluded), for: image, node: excluded, version: v11)
+        }
+        assertRejects("is ok, but the hierarchy excludes it from images: expected captureFailed before protocol 1.2") {
+            try DetailChecks.checkExtensions(of: detail(.ok), for: image, node: excluded, version: v11)
+        }
+        assertRejects("expected ok before protocol 1.2") {
+            try DetailChecks.checkExtensions(of: detail(.captureFailed), for: none, node: excluded, version: v11)
+        }
     }
 
     // MARK: - Constraints (protocol 0.4)
@@ -287,7 +357,7 @@ final class DetailChecksTests: XCTestCase {
         }
 
         // Which layers, and in which order.
-        try assertStreamRejects("3 details arrived for 4 requested layers") { frames in
+        try assertStreamRejects("5 details arrived for 6 requested layers") { frames in
             self.changeChunk(&frames[1]) { $0.details.removeLast() }
         }
         try assertStreamRejects("detail 1 is for layer 99, but the request's item 1 is layer 4") { frames in
@@ -296,7 +366,7 @@ final class DetailChecksTests: XCTestCase {
         try assertStreamRejects("detail 2 is for layer 4, but the request's item 2 is layer 99") { frames in
             self.changeChunk(&frames[1]) { $0.details[1] = $0.details[0] }
         }
-        try assertStreamRejects("5 details arrived for 4 requested layers") { frames in
+        try assertStreamRejects("7 details arrived for 6 requested layers") { frames in
             self.changeChunk(&frames[1]) { $0.details.append($0.details[1]) }
         }
     }

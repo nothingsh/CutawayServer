@@ -525,7 +525,7 @@ private final class StreamObserver: LayerDetailsStreamDelegate, @unchecked Senda
 
     var unsentByteCount: Int { unsent?.value ?? 0 }
 
-    func streamDidProduce(_ detail: LayerDetail) {
+    func streamDidProduce(_ detail: LayerDetail, for _: LayerDetailRequest) {
         log.add(detail)
     }
 

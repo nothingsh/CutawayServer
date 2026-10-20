@@ -6,8 +6,8 @@ import Foundation
 protocol LayerDetailsStreamDelegate: AnyObject {
     /// The bytes the connection has not sent yet; read before each layer.
     var unsentByteCount: Int { get }
-    /// Once per request, in the order of the request.
-    func streamDidProduce(_ detail: LayerDetail)
+    /// Once per request, in the order of the request, with the item it answers.
+    func streamDidProduce(_ detail: LayerDetail, for item: LayerDetailRequest)
     /// Once, after the last detail, unless the stream is stopped first.
     func streamDidComplete()
 }
@@ -112,16 +112,16 @@ final class LayerDetailsStream: @unchecked Sendable {
         let estimate = Self.estimatedByteCount(of: detail)
         pendingByteCount += estimate
         pipeline.encodeDetail(detail, stopFlag: stopFlag) { [weak self] encoded in
-            self?.didEncode(encoded, estimate: estimate)
+            self?.didEncode(encoded, of: item, estimate: estimate)
         }
         advance()
     }
 
-    private func didEncode(_ detail: LayerDetail, estimate: Int) {
+    private func didEncode(_ detail: LayerDetail, of item: LayerDetailRequest, estimate: Int) {
         guard !isOver else { return }
         pendingByteCount -= estimate
         reportedCount += 1
-        delegate?.streamDidProduce(detail)
+        delegate?.streamDidProduce(detail, for: item)
         advance()
     }
 }

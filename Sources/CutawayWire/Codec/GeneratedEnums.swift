@@ -198,12 +198,29 @@ extension DeviceKind {
     }
 }
 
+extension NodeKind {
+    init(_ generated: Cutaway_Wire_NodeKind) {
+        switch generated {
+        case .layer: self = .layer
+        case .virtual: self = .virtual
+        }
+    }
+
+    var generated: Cutaway_Wire_NodeKind {
+        switch self {
+        case .layer: return .layer
+        case .virtual: return .virtual
+        }
+    }
+}
+
 extension DetailStatus {
     init(_ generated: Cutaway_Wire_DetailStatus) {
         switch generated {
         case .ok: self = .ok
         case .layernotfound: self = .layerNotFound
         case .capturefailed: self = .captureFailed
+        case .excluded: self = .excluded
         }
     }
 
@@ -212,6 +229,7 @@ extension DetailStatus {
         case .ok: return .ok
         case .layerNotFound: return .layernotfound
         case .captureFailed: return .capturefailed
+        case .excluded: return .excluded
         }
     }
 }
