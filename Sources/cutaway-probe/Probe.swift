@@ -29,12 +29,23 @@ enum ProbeRequestID {
     static let darkAppearance: UInt32 = 17
     static let removeOverrides: UInt32 = 18
     static let removeOverridesAfterFailure: UInt32 = 19
+    // The host app's extensions (protocol 1.2).
+    static let eastSubtree: UInt32 = 20
+    static let raiseBar: UInt32 = 21
+    static let barAfterRaising: UInt32 = 22
+    static let restoreBar: UInt32 = 23
+    static let barAfterRestoring: UInt32 = 24
+    static let restoreBarAfterFailure: UInt32 = 25
+    static let barTooTall: UInt32 = 26
+    static let viewAttributeOnBar: UInt32 = 27
 }
 
-/// What `--expect-demo` checks: the demo app's main screen, or its Lists page when that is open.
+/// What `--expect-demo` checks: the demo app's main screen, or its Lists or Extensions page
+/// when that is open.
 enum DemoPage {
     case screen(DemoScene)
     case lists(DemoListsScene)
+    case extensions(DemoExtensionsScene)
 }
 
 func check(_ options: Options) throws {
@@ -85,6 +96,15 @@ private func checkHierarchy(on server: FoundServer, options: Options) throws -> 
             + "\(controllers) view controllers, \(references) member references"
     )
     guard options.expectDemo else { return (hierarchy, nil) }
+    if DemoExtensionsScene.isShown(in: hierarchy) {
+        let extensions = try DemoExtensionsScene(hierarchy)
+        try ExtensionsChecks.hierarchy(extensions, hierarchy: hierarchy)
+        print(
+            "hierarchy: shows the demo app's Extensions page, its virtual nodes and excluded view; "
+                + "checking it instead of the main screen"
+        )
+        return (hierarchy, .extensions(extensions))
+    }
     if DemoListsScene.isShown(in: hierarchy) {
         let lists = try DemoListsScene(hierarchy)
         print("hierarchy: shows the demo app's Lists page; checking it instead of the main screen")
@@ -156,6 +176,8 @@ private func checkLayerDetails(
     case .lists(let lists):
         try AttributeChecks.demoLists(details, hierarchy: hierarchy, scene: lists)
         print("layer details: show the demo app's Lists page and the attributes of protocol 1.2")
+    case .extensions(let extensions):
+        try checkDemoExtensionsPage(details, hierarchy: hierarchy, scene: extensions, on: server.connection)
     case .screen(let scene):
         try DetailChecks.demoPixels(
             details,
@@ -183,6 +205,22 @@ private func checkLayerDetails(
         try checkDemoEditing(scene: scene, hierarchy: hierarchy, on: server.connection)
         try checkDemoConstraints(demo, hierarchy: hierarchy, on: server.connection)
     }
+}
+
+/// The demo app's Extensions page: its layers' details, the host app's extensions in them, and
+/// the changes made to a virtual node.
+private func checkDemoExtensionsPage(
+    _ details: [LayerDetail],
+    hierarchy: Hierarchy,
+    scene: DemoExtensionsScene,
+    on connection: ProbeConnection
+) throws {
+    var byID: [UInt64: LayerDetail] = [:]
+    for detail in details { byID[detail.layerID] = detail }
+    try AttributeChecks.checkDemoLayers(hierarchy.nodes, byID: byID)
+    try ExtensionsChecks.details(details, scene: scene)
+    print("layer details: show the app's groups, the registered color, the virtual nodes and the excluded view")
+    try checkDemoExtensions(scene: scene, hierarchy: hierarchy, on: connection)
 }
 
 /// The probe's exit code: 0 when every check passed, 1 when one failed, 2 when the

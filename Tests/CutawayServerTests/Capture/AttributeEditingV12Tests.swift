@@ -195,7 +195,7 @@ final class AttributeEditingV12Tests: CaptureTestCase {
             in: apply("view.backgroundColor", .color(color, light: other, dark: other), on: styled, in: window)
         )
         XCTAssertEqual(written, withBoth)
-        guard case let .color(_, _, light, dark)? = withBoth else { return XCTFail("not a colour") }
+        guard case let .color(_, _, light, dark, _)? = withBoth else { return XCTFail("not a colour") }
         XCTAssertNil(light)
         XCTAssertNil(dark)
     }

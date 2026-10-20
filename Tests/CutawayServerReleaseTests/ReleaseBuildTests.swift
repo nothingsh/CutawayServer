@@ -72,4 +72,20 @@ final class ReleaseBuildTests: XCTestCase {
         }
         #endif
     }
+
+    /// S-API-04: the extension interface compiles and can be called in Release, with and
+    /// without the trait; without it, registering does nothing.
+    @MainActor
+    func test_S_API_04_theExtensionInterfaceCanBeCalledInRelease() {
+        final class ChartView: UIView {}
+        var description = CutawayServer.Description<ChartView>()
+        description.attributes = { _ in
+            [CutawayServer.AttributeGroup("chart", [.int("bars", 3, limits: [.atLeast(0)], set: { _ in })])]
+        }
+        description.virtualChildren = { _ in [CutawayServer.VirtualNode(id: 1, typeName: "Bar", frame: .zero)] }
+        description.isExcludedFromCapture = true
+        CutawayServer.describe(ChartView.self, description)
+        CutawayServer.describe(CAShapeLayer.self, CutawayServer.Description(isCollapsedByDefault: true))
+        CutawayServer.registerColor(.red, named: "brand")
+    }
 }

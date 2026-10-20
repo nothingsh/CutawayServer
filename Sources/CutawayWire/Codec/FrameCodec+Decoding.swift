@@ -170,7 +170,11 @@ extension FrameCodec {
             viewControllerClassOrigin: Origin(node.viewControllerClassOrigin),
             layerBaseClassName: node.layerBaseClassName,
             viewBaseClassName: node.viewBaseClassName,
-            viewControllerVisibility: ViewControllerVisibility(node.viewControllerVisibility)
+            viewControllerVisibility: ViewControllerVisibility(node.viewControllerVisibility),
+            nodeKind: NodeKind(node.nodeKind),
+            name: node.name,
+            isCollapsedByDefault: node.collapsedByDefault,
+            isCaptureExcluded: node.captureExcluded
         )
     }
 
@@ -291,7 +295,8 @@ extension FrameCodec {
                     unit: AttributeUnit(attribute.unit)
                 )
             },
-            className: group.className
+            className: group.className,
+            fromApp: group.fromApp
         )
     }
 
@@ -320,7 +325,8 @@ extension FrameCodec {
                 wireColor(of: colorValue.value ?? Cutaway_Wire_Color()),
                 systemName: colorValue.systemName,
                 light: colorValue.light.map(wireColor(of:)),
-                dark: colorValue.dark.map(wireColor(of:))
+                dark: colorValue.dark.map(wireColor(of:)),
+                name: colorValue.name
             )
         case .pointvalue:
             return .point(wirePoint(of: try member(Cutaway_Wire_PointValue.self).value))

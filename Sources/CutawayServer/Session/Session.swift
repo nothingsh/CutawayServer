@@ -413,14 +413,14 @@ final class Session: @unchecked Sendable {
 
     /// One detail per chunk: the client sees each layer as soon as it is ready, and no chunk
     /// holds more than P-DET-06 allows unless a single detail does. Only what the negotiated
-    /// version names is sent (P-HELLO-04, P-LAYOUT-08).
-    private func sendChunk(with detail: LayerDetail) {
+    /// version names is sent (P-HELLO-04, P-LAYOUT-08, P-DET-10).
+    private func sendChunk(with detail: LayerDetail, for item: LayerDetailRequest) {
         guard state == .ready, let active = activeStream else { return }
         transport.send(
             Frame(
                 requestID: active.requestID,
                 body: .layerDetailsChunk(
-                    LayerDetailsChunk(sequence: active.chunkCount, details: [detail.adapted(to: version)])
+                    LayerDetailsChunk(sequence: active.chunkCount, details: [detail.adapted(to: version, for: item)])
                 )
             )
         )
@@ -494,8 +494,8 @@ extension Session: SessionTransportDelegate {
 extension Session: LayerDetailsStreamDelegate {
     var unsentByteCount: Int { transport.unsentByteCount }
 
-    func streamDidProduce(_ detail: LayerDetail) {
-        sendChunk(with: detail)
+    func streamDidProduce(_ detail: LayerDetail, for item: LayerDetailRequest) {
+        sendChunk(with: detail, for: item)
     }
 
     func streamDidComplete() {

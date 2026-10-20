@@ -106,7 +106,7 @@ final class AttributeCatalogTests: CaptureTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        guard case .color(let color, _, _, _)? = value else {
+        guard case .color(let color, _, _, _, _)? = value else {
             return XCTFail("\(String(describing: value)) is not a colour", file: file, line: line)
         }
         for (actual, expected) in zip(
@@ -585,7 +585,7 @@ final class AttributeCatalogTests: CaptureTestCase {
         // sRGB: colours outside its gamut are clipped, by Core Graphics.
         let displayP3 = CGColorSpace(name: CGColorSpace.displayP3)!
         assertColor(AttributeOutputs.color(CGColor(colorSpace: displayP3, components: [1, 0, 0, 1])), 1, 0, 0)
-        guard case .color(let wide, _, _, _)? = AttributeOutputs
+        guard case .color(let wide, _, _, _, _)? = AttributeOutputs
             .color(UIColor(red: 1.5, green: -0.5, blue: 0.5, alpha: 1).cgColor)
         else { return XCTFail("an extended sRGB colour is not a colour") }
         for component in [wide.red, wide.green, wide.blue, wide.alpha] {
@@ -756,7 +756,7 @@ final class AttributeCatalogTests: CaptureTestCase {
         window.addSubview(view)
         window.addSubview(label)
         func color(_ id: String, of layer: CALayer) throws -> (WireColor, String?) {
-            guard case let .color(color, name, _, _)? = try attribute(id, of: layer).value else {
+            guard case let .color(color, name, _, _, _)? = try attribute(id, of: layer).value else {
                 throw XCTSkip("\(id) is not a color")
             }
             return (color, name)

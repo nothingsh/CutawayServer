@@ -42,6 +42,8 @@ public enum DetailStatus: Sendable, Equatable {
     case ok
     case layerNotFound
     case captureFailed
+    /// The host app excludes the node from images (P-DET-10, protocol 1.2).
+    case excluded
 }
 
 public struct WireInsets: Sendable, Equatable {
@@ -81,8 +83,15 @@ public enum AttributeValue: Sendable, Equatable {
     case string(String)
     /// `systemName` is the UIKit system color the server recognized it as (P-ATTR-15, protocol
     /// 1.1); `light` and `dark` are the value in either appearance, both or neither (P-ATTR-17,
+    /// protocol 1.2); `name` is a color the host app registered that equals it (P-ATTR-20,
     /// protocol 1.2). A server reads only the color (P-SET-02).
-    case color(WireColor, systemName: String? = nil, light: WireColor? = nil, dark: WireColor? = nil)
+    case color(
+        WireColor,
+        systemName: String? = nil,
+        light: WireColor? = nil,
+        dark: WireColor? = nil,
+        name: String? = nil
+    )
     case point(WirePoint)
     case size(WireSize)
     case rect(WireRect)
@@ -124,7 +133,7 @@ public enum AttributeValue: Sendable, Equatable {
             return [Double(number)]
         case .double(let number):
             return [number]
-        case .color(let color, _, _, _):
+        case .color(let color, _, _, _, _):
             return [color.red, color.green, color.blue, color.alpha].map(Double.init)
         case .point(let point):
             return [point.x, point.y]
@@ -399,12 +408,21 @@ public struct AttributeGroup: Sendable, Equatable {
     /// The runtime name of the class that declares the group's properties (P-ATTR-16,
     /// protocol 1.1).
     public var className: String?
+    /// The group comes from the host app, not the server's own list (P-ATTR-19, protocol 1.2).
+    public var fromApp: Bool
 
-    public init(id: String, title: String, attributes: [Attribute], className: String? = nil) {
+    public init(
+        id: String,
+        title: String,
+        attributes: [Attribute],
+        className: String? = nil,
+        fromApp: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.attributes = attributes
         self.className = className
+        self.fromApp = fromApp
     }
 }
 
@@ -446,6 +464,19 @@ extension LayerDetail {
         var detail = self
         detail.attributeGroups = attributeGroups.map { $0.adapted(to: version) }
         detail.constraints = constraints.map { $0.adapted(to: version) }
+        return detail
+    }
+}
+
+extension LayerDetail {
+    /// The same for the detail that answers `request`: before 1.2 there is no `excluded`, and a
+    /// node excluded from images is `captureFailed` when an image was requested and `ok`
+    /// otherwise (P-DET-10).
+    public func adapted(to version: ProtocolVersion, for request: LayerDetailRequest) -> LayerDetail {
+        var detail = adapted(to: version)
+        if detail.status == .excluded, version.major == 1, version.minor < 2 {
+            detail.status = request.wantSolo || request.wantGroup ? .captureFailed : .ok
+        }
         return detail
     }
 }

@@ -23,8 +23,17 @@ final class HierarchyChecksTests: XCTestCase {
         )
     }
 
-    private func fixtureHierarchy() throws -> Hierarchy {
+    /// The whole fixture: nodes 1 to 9, and the virtual and excluded nodes 10 to 14 of 1.2.
+    private func fullFixtureHierarchy() throws -> Hierarchy {
         try HierarchyChecks.hierarchy(try fixtureFrame())
+    }
+
+    /// Nodes 1 to 9 of the fixture, the layers before 1.2: each at the index of its ID less one,
+    /// which the tests below that change one node rely on.
+    private func fixtureHierarchy() throws -> Hierarchy {
+        var hierarchy = try fullFixtureHierarchy()
+        hierarchy.nodes.removeAll { $0.id > 9 }
+        return hierarchy
     }
 
     /// Asserts that the check fails and that its message contains `expected`.
@@ -63,8 +72,8 @@ final class HierarchyChecksTests: XCTestCase {
     // MARK: - Structure
 
     func test_S_PROBE_01_structureChecksAcceptTheHierarchyFixture() throws {
+        XCTAssertEqual(try fullFixtureHierarchy().nodes.map(\.id), [1, 2, 3, 4, 10, 11, 12, 5, 6, 7, 8, 9, 13, 14])
         let hierarchy = try fixtureHierarchy()
-        XCTAssertEqual(hierarchy.nodes.count, 9)
         XCTAssertNoThrow(try HierarchyChecks.structure(hierarchy))
 
         // Several windows, and no key window, are fine too.
@@ -140,18 +149,18 @@ final class HierarchyChecksTests: XCTestCase {
         let subtree = try HierarchyChecks.subtree(
             try subtreeFrame(),
             rootID: 4,
-            hierarchy: try fixtureHierarchy()
+            hierarchy: try fullFixtureHierarchy()
         )
-        XCTAssertEqual(subtree.nodes.map(\.id), [4, 5])
+        XCTAssertEqual(subtree.nodes.map(\.id), [4, 10, 11, 12, 5])
 
         // The subtree of a window is the whole window.
-        let hierarchy = try fixtureHierarchy()
+        let hierarchy = try fullFixtureHierarchy()
         let whole = Frame(requestID: 1, body: .hierarchy(hierarchy))
         XCTAssertNoThrow(try HierarchyChecks.subtree(whole, rootID: 1, hierarchy: hierarchy))
     }
 
     func test_S_HIER_11_subtreeCheckRejectsOtherSubtrees() throws {
-        let hierarchy = try fixtureHierarchy()
+        let hierarchy = try fullFixtureHierarchy()
         guard case .hierarchy(let fixture)? = try subtreeFrame().body else {
             return XCTFail("the fixture is not a Hierarchy")
         }
@@ -188,11 +197,14 @@ final class HierarchyChecksTests: XCTestCase {
         assertSubtreeRejects("differs from the hierarchy at node 0 (id 4, expected 4)") {
             $0.nodes[0].parentID = 0
         }
-        assertSubtreeRejects("differs from the hierarchy at node 1 (id 5, expected 5)") {
-            $0.nodes[1].memberReferences = []
+        assertSubtreeRejects("differs from the hierarchy at node 4 (id 5, expected 5)") {
+            $0.nodes[4].memberReferences = []
         }
-        assertSubtreeRejects("the subtree of 4 has 1 nodes, the hierarchy 2") { $0.nodes.removeLast() }
-        assertSubtreeRejects("the subtree of 4 has 3 nodes, the hierarchy 2") {
+        assertSubtreeRejects("differs from the hierarchy at node 1 (id 10, expected 10)") {
+            $0.nodes[1].name = "Other"
+        }
+        assertSubtreeRejects("the subtree of 4 has 4 nodes, the hierarchy 5") { $0.nodes.removeLast() }
+        assertSubtreeRejects("the subtree of 4 has 6 nodes, the hierarchy 5") {
             $0.nodes.append(hierarchy.nodes[2])
         }
         assertSubtreeRejects("the subtree's key_window_id is 0, the hierarchy's 1") { $0.keyWindowID = 0 }
@@ -300,6 +312,65 @@ final class HierarchyChecksTests: XCTestCase {
         }
         XCTAssertNoThrow(try HierarchyChecks.structure(plain, version: ProtocolVersion(major: 1, minor: 0)))
         XCTAssertThrowsError(try HierarchyChecks.structure(plain))
+    }
+
+    /// Changes the whole fixture, virtual and excluded nodes included, and expects the
+    /// structure check at `version` to object.
+    private func assertFullStructureRejects(
+        _ expected: String,
+        version: ProtocolVersion = .current,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ change: (inout Hierarchy) -> Void
+    ) throws {
+        var hierarchy = try fullFixtureHierarchy()
+        change(&hierarchy)
+        assertRejects(expected, file: file, line: line) { try HierarchyChecks.structure(hierarchy, version: version) }
+    }
+
+    func test_S_PROBE_08_structureChecksCoverVirtualAndExcludedNodes() throws {
+        // Indices of the full fixture: 3 is node 4; 4, 5, 6 the virtual nodes 10, 11, 12; 7 is
+        // node 5, node 4's sublayer; 12 and 13 the excluded nodes 13 and 14.
+        XCTAssertNoThrow(try HierarchyChecks.structure(try fullFixtureHierarchy()))
+        try assertFullStructureRejects(
+            "is a virtual node, sent to a client of protocol 1.1",
+            version: ProtocolVersion(major: 1, minor: 1)
+        ) { _ in }
+        try assertFullStructureRejects("nodes[7] (id 12) is a virtual node after a sublayer of 4") { $0.nodes.swapAt(
+            6,
+            7
+        ) }
+        try assertFullStructureRejects("(id 11) is a layer under the virtual node 10") {
+            $0.nodes[5].nodeKind = .layer
+            $0.nodes[5].name = nil
+            $0.nodes[5].layerAddress = 0x1000
+            $0.nodes[5].layerClassOrigin = .system
+        }
+        try assertFullStructureRejects("(id 4) is a layer with a name") { $0.nodes[3].name = "Card" }
+        try assertFullStructureRejects("(id 10) is a virtual node without a parent") { $0.nodes[4].parentID = 0 }
+        try assertFullStructureRejects("(id 10) is a virtual node with layer_address") {
+            $0.nodes[4].layerAddress = 0x1000
+        }
+        try assertFullStructureRejects("(id 10) is a virtual node with a view") {
+            $0.nodes[4].viewClassName = "UIView"
+            $0.nodes[4].viewDisplayClassName = "UIView"
+            $0.nodes[4].viewAddress = 0x1000
+            $0.nodes[4].viewClassOrigin = .system
+        }
+        try assertFullStructureRejects("(id 11) is a virtual node with member_references") {
+            $0.nodes[5].memberReferences = [
+                MemberReference(ownerClassName: "Demo.CardView", ownerDisplayClassName: "CardView", name: "badge")
+            ]
+        }
+        try assertFullStructureRejects("(id 12) is a virtual node with a base class") {
+            $0.nodes[6].layerBaseClassName = "CAShapeLayer"
+        }
+        try assertFullStructureRejects("(id 12) is a virtual node whose layer_class_origin is system, not App") {
+            $0.nodes[6].layerClassOrigin = .system
+        }
+        try assertFullStructureRejects("(id 14) has no capture_excluded, but its parent 13 has") {
+            $0.nodes[13].isCaptureExcluded = false
+        }
     }
 
     // MARK: - The demo app's screen

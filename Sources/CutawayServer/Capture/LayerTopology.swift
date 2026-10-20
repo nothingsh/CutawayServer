@@ -39,6 +39,17 @@ enum LayerTopology {
         return view
     }
 
+    /// The view `layer` backs, or else the view of its nearest ancestor that backs one: whose
+    /// traits its colors resolve with (P-ATTR-20).
+    static func nearestView(of layer: CALayer) -> UIView? {
+        var current: CALayer? = layer
+        while let next = current {
+            if let view = backingView(of: next) { return view }
+            current = next.superlayer
+        }
+        return nil
+    }
+
     /// P-HIER-07: a view controller's root view has the controller as its next responder.
     /// `viewIfLoaded` never loads a view.
     static func controller(ofRootView view: UIView) -> UIViewController? {

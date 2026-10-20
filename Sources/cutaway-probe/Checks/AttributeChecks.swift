@@ -25,6 +25,15 @@ enum AttributeChecks {
             guard !group.title.isEmpty else {
                 throw ProbeFailure("\(name): group \(group.id) has an empty title")
             }
+            // P-ATTR-19: the host app's groups, and so their attributes, begin with "app.";
+            // no other does.
+            guard group.fromApp == group.id.hasPrefix("app.") else {
+                throw ProbeFailure(
+                    group.fromApp
+                        ? "\(name): group \(group.id) is from the app but does not begin with \"app.\" (P-ATTR-19)"
+                        : "\(name): group \(group.id) begins with \"app.\" but is not from the app (P-ATTR-19)"
+                )
+            }
             var attributeIDs = Set<String>()
             for attribute in group.attributes {
                 let label = "\(name): attribute \(attribute.id)"
@@ -146,7 +155,7 @@ enum AttributeChecks {
                     "\(label) has no effect because of \(cause), which the layer does not have (P-ATTR-13)"
                 )
             }
-            if case .color(_, let systemName?, _, _)? = attribute.value, cgColorAttributes.contains(attribute.id) {
+            if case .color(_, let systemName?, _, _, _)? = attribute.value, cgColorAttributes.contains(attribute.id) {
                 throw ProbeFailure("\(label) is a CGColor, but has the system name \(systemName) (P-ATTR-15)")
             }
         }
@@ -166,7 +175,7 @@ enum AttributeChecks {
             numbers = []
         case .double(let number):
             numbers = [number]
-        case let .color(color, _, light, dark):
+        case let .color(color, _, light, dark, _):
             try checkAppearances(light: light, dark: dark, name: name)
             numbers = ([color] + [light, dark].compactMap { $0 }).flatMap { color in
                 [color.red, color.green, color.blue, color.alpha].map(Double.init)

@@ -54,6 +54,22 @@ final class VersionAdaptationTests: XCTestCase {
         )
     }
 
+    func test_S_CONN_12_excludedIsCaptureFailedOrOkBefore1_2() {
+        let excluded = LayerDetail(layerID: 4, status: .excluded)
+        let image = LayerDetailRequest(layerID: 4, wantSolo: false, wantGroup: true, wantAttributes: true)
+        let solo = LayerDetailRequest(layerID: 4, wantSolo: true, wantGroup: false, wantAttributes: false)
+        let attributes = LayerDetailRequest(layerID: 4, wantSolo: false, wantGroup: false, wantAttributes: true)
+        for minor: UInt16 in [0, 1] {
+            XCTAssertEqual(excluded.adapted(to: version(minor), for: image).status, .captureFailed)
+            XCTAssertEqual(excluded.adapted(to: version(minor), for: solo).status, .captureFailed)
+            XCTAssertEqual(excluded.adapted(to: version(minor), for: attributes).status, .ok)
+        }
+        XCTAssertEqual(excluded.adapted(to: version(2), for: image).status, .excluded)
+        XCTAssertEqual(excluded.adapted(to: version(2), for: attributes).status, .excluded)
+        // Other statuses are left alone.
+        XCTAssertEqual(LayerDetail(layerID: 4, status: .ok).adapted(to: version(1), for: image).status, .ok)
+    }
+
     func test_S_CONN_12_negotiatedVersionIsTheLowerMinor() {
         let current = ProtocolVersion.current
         XCTAssertEqual(current, version(2))

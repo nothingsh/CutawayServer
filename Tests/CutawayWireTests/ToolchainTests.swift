@@ -54,7 +54,7 @@ final class ToolchainTests: XCTestCase {
         XCTAssertEqual(reencoded.bodyType, .hierarchy)
         let hierarchy = try XCTUnwrap(reencoded.body(type: Cutaway_Wire_Hierarchy.self))
         XCTAssertEqual(hierarchy.keyWindowId, 1)
-        XCTAssertEqual(hierarchy.nodes.map(\.id), [1, 2, 3, 4, 5, 6, 7, 8, 9])
+        XCTAssertEqual(hierarchy.nodes.map(\.id), [1, 2, 3, 4, 10, 11, 12, 5, 6, 7, 8, 9, 13, 14])
     }
 
     func test_S_API_03_verifierRejectsDamagedBuffersWithoutCrashing() throws {

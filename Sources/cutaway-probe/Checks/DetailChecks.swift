@@ -40,10 +40,11 @@ enum DetailChecks {
         try checkOrder(of: details, request: request)
 
         var nodes: [UInt64: LayerNode] = [:]
+        // Layers with sublayers: a virtual node is not one (P-DET-04, P-HIER-19).
         var parents = Set<UInt64>()
         for node in hierarchy.nodes {
             nodes[node.id] = node
-            parents.insert(node.parentID)
+            if node.nodeKind != .virtual { parents.insert(node.parentID) }
         }
         var tables = ConstraintChecks.Tables()
         let layerIDs = Set(nodes.keys)
@@ -55,6 +56,7 @@ enum DetailChecks {
                 version: version,
                 layerIDs: layerIDs
             )
+            try checkExtensions(of: detail, for: item, node: nodes[detail.layerID], version: version)
             try check(
                 detail,
                 for: item,
@@ -168,24 +170,7 @@ enum DetailChecks {
     ) throws {
         let name = "the detail of layer \(detail.layerID)"
         let wantsImage = request.wantSolo || request.wantGroup
-        switch detail.status {
-        case .layerNotFound:
-            guard detail.solo == nil, detail.group == nil else {
-                throw ProbeFailure("\(name) is LayerNotFound and has an image (P-DET-02)")
-            }
-            return
-        case .captureFailed:
-            guard detail.solo == nil, detail.group == nil else {
-                throw ProbeFailure("\(name) is CaptureFailed and has an image (P-DET-03)")
-            }
-            return
-        case .ok:
-            break
-        }
-
-        guard let node else {
-            throw ProbeFailure("\(name) is Ok, but the hierarchy has no such layer")
-        }
+        guard let node = try nodeWithImages(detail, node: node, name: name) else { return }
         let size = node.bounds.size
         if wantsImage {
             guard size.width > 0, size.height > 0 else {
@@ -211,6 +196,62 @@ enum DetailChecks {
         for (kind, image) in [("solo", detail.solo), ("group", detail.group)] {
             guard let image else { continue }
             try check(image, name: "\(name): \(kind)", bounds: size, maxTextureDimension: maxTextureDimension)
+        }
+    }
+
+    /// The node of a detail that may have images: one that is `Ok` and a layer. Any other has
+    /// none (P-DET-02, 03, 09, 10), and gives `nil`.
+    private static func nodeWithImages(_ detail: LayerDetail, node: LayerNode?, name: String) throws -> LayerNode? {
+        let reason: String
+        switch detail.status {
+        case .layerNotFound: reason = "is LayerNotFound and has an image (P-DET-02)"
+        case .captureFailed: reason = "is CaptureFailed and has an image (P-DET-03)"
+        case .excluded: reason = "is Excluded and has an image (P-DET-10)"
+        case .ok:
+            guard let node else {
+                throw ProbeFailure("\(name) is Ok, but the hierarchy has no such layer")
+            }
+            // P-DET-09: a virtual node's appearance is in its nearest layer ancestor's images.
+            guard node.nodeKind == .virtual else { return node }
+            reason = "is a virtual node and has an image (P-DET-09)"
+        }
+        guard detail.solo == nil, detail.group == nil else { throw ProbeFailure("\(name) \(reason)") }
+        return nil
+    }
+
+    /// P-DET-09, 10 (protocol 1.2): a virtual node has only the host app's groups; a node the
+    /// hierarchy shows as excluded from images is `Excluded`, and no other is. Before 1.2 there
+    /// is no `Excluded`: `CaptureFailed` when an image was requested, `Ok` otherwise.
+    static func checkExtensions(
+        of detail: LayerDetail,
+        for request: LayerDetailRequest,
+        node: LayerNode?,
+        version: ProtocolVersion
+    ) throws {
+        let name = "the detail of layer \(detail.layerID)"
+        guard detail.status != .layerNotFound, let node else { return }
+        if node.nodeKind == .virtual, let group = detail.attributeGroups.first(where: { !$0.fromApp }) {
+            throw ProbeFailure("\(name) is a virtual node with the server's group \(group.id) (P-DET-09)")
+        }
+        guard version.minor >= 2 else {
+            if detail.status == .excluded {
+                throw ProbeFailure("\(name) is Excluded, which protocol 1.\(version.minor) does not have (P-DET-10)")
+            }
+            let expected: DetailStatus = request.wantSolo || request.wantGroup ? .captureFailed : .ok
+            if node.isCaptureExcluded, detail.status != expected {
+                throw ProbeFailure(
+                    "\(name) is \(detail.status), but the hierarchy excludes it from images: expected \(expected) before protocol 1.2 (P-DET-10)"
+                )
+            }
+            return
+        }
+        switch (node.isCaptureExcluded, detail.status == .excluded) {
+        case (true, false):
+            throw ProbeFailure("\(name) is \(detail.status), but the hierarchy excludes it from images (P-DET-10)")
+        case (false, true):
+            throw ProbeFailure("\(name) is Excluded, but the hierarchy does not exclude it from images (P-DET-10)")
+        default:
+            break
         }
     }
 

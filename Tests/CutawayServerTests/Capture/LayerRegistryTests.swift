@@ -45,6 +45,45 @@ final class LayerRegistryTests: XCTestCase {
         XCTAssertEqual(registry.releasedIDs, [])
     }
 
+    func test_S_HIER_17_virtualNodesShareTheCounterAndKeepTheirIDs() {
+        let registry = LayerRegistry()
+        let first = CALayer()
+        let second = CALayer()
+        let firstID = registry.register(first)
+        let secondID = registry.register(second)
+        let bar = registry.register(virtual: "bar", under: firstID)
+        XCTAssertEqual(bar, 3)
+        // The same identity under the same layer keeps its ID; under another layer it is
+        // another node.
+        XCTAssertEqual(registry.register(virtual: "bar", under: firstID), bar)
+        let otherBar = registry.register(virtual: "bar", under: secondID)
+        XCTAssertEqual(otherBar, 4)
+        XCTAssertEqual(registry.register(virtual: AnyHashable(7), under: firstID), 5)
+        // Layers and virtual nodes are told apart by their IDs.
+        XCTAssertEqual(registry.virtualNode(for: bar), LayerRegistry.VirtualKey(layerID: firstID, identity: "bar"))
+        XCTAssertNil(registry.virtualNode(for: firstID))
+        XCTAssertNil(registry.layer(for: bar))
+        XCTAssertEqual(registry.register(CALayer()), 6)
+    }
+
+    func test_S_HIER_17_virtualNodesAreForgottenWithTheirLayer() {
+        let registry = LayerRegistry()
+        let kept = CALayer()
+        let keptID = registry.register(kept)
+        let keptBar = registry.register(virtual: "bar", under: keptID)
+        var releasedBar: UInt64 = 0
+        autoreleasepool {
+            let layer = CALayer()
+            releasedBar = registry.register(virtual: "bar", under: registry.register(layer))
+        }
+        registry.removeReleased()
+        XCTAssertNil(registry.virtualNode(for: releasedBar))
+        XCTAssertEqual(registry.virtualIDs.count, 1)
+        XCTAssertEqual(registry.virtualNode(for: keptBar)?.layerID, keptID)
+        // A new node never takes an ID that was given out.
+        XCTAssertGreaterThan(registry.register(virtual: "new", under: keptID), releasedBar)
+    }
+
     func test_S_HIER_02_registryFindsTheLayerByID() {
         let registry = LayerRegistry()
         let layer = CALayer()
