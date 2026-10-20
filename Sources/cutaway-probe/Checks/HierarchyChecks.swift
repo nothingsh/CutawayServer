@@ -65,6 +65,7 @@ enum HierarchyChecks {
         var ancestors: [UInt64] = []
         // The z_position of the last child seen of each parent.
         var lastZPosition: [UInt64: Double] = [:]
+        var virtualNodes = VirtualNodeOrder()
         for (index, node) in hierarchy.nodes.enumerated() {
             let name = "Hierarchy.nodes[\(index)]"
             guard node.id != 0 else { throw ProbeFailure("\(name) has id 0 (P-HIER-03)") }
@@ -94,12 +95,13 @@ enum HierarchyChecks {
             try checkAddresses(of: node, name: name, version: version)
             try checkClassFacts(of: node, name: name, version: version)
             try checkMemberReferences(of: node, name: name)
+            try virtualNodes.check(node, name: name, version: version)
             guard numbers(of: node).allSatisfy(\.isFinite) else {
                 throw ProbeFailure("\(name) (id \(node.id)) has a number that is not finite (P-HIER-05)")
             }
             // Siblings back to front: z_position never goes down (P-HIER-01). Windows are ordered
-            // by the window list instead (P-HIER-02).
-            if node.parentID != 0 {
+            // by the window list instead (P-HIER-02), and virtual nodes by the host app (P-HIER-21).
+            if node.parentID != 0, node.nodeKind == .layer {
                 if let previous = lastZPosition[node.parentID], node.zPosition < previous {
                     throw ProbeFailure(
                         "\(name) (id \(node.id)) has z_position \(node.zPosition), less than the \(previous) "
@@ -116,11 +118,80 @@ enum HierarchyChecks {
         }
     }
 
+    /// P-HIER-19 to 23, P-DET-10 (protocol 1.2), node by node in the order of the hierarchy:
+    /// where virtual nodes are, what they lack, and that an excluded node's children are too.
+    private struct VirtualNodeOrder {
+        private var kinds: [UInt64: NodeKind] = [:]
+        private var excluded = Set<UInt64>()
+        /// The parents with a layer child seen: no virtual child may follow it.
+        private var parentsWithLayers = Set<UInt64>()
+
+        mutating func check(_ node: LayerNode, name: String, version: ProtocolVersion) throws {
+            let label = "\(name) (id \(node.id))"
+            kinds[node.id] = node.nodeKind
+            if node.isCaptureExcluded { excluded.insert(node.id) }
+            if excluded.contains(node.parentID), !node.isCaptureExcluded {
+                throw ProbeFailure(
+                    "\(label) has no capture_excluded, but its parent \(node.parentID) has (P-DET-10)"
+                )
+            }
+            guard node.nodeKind == .virtual else {
+                if kinds[node.parentID] == .virtual {
+                    throw ProbeFailure("\(label) is a layer under the virtual node \(node.parentID) (P-HIER-19)")
+                }
+                if node.name != nil {
+                    throw ProbeFailure("\(label) is a layer with a name; only a virtual node has one (P-HIER-20)")
+                }
+                parentsWithLayers.insert(node.parentID)
+                return
+            }
+            guard version.minor >= 2 else {
+                throw ProbeFailure(
+                    "\(label) is a virtual node, sent to a client of protocol 1.\(version.minor) (P-HIER-19)"
+                )
+            }
+            guard node.parentID != 0
+            else { throw ProbeFailure("\(label) is a virtual node without a parent (P-HIER-19)") }
+            if kinds[node.parentID] == .layer, parentsWithLayers.contains(node.parentID) {
+                throw ProbeFailure(
+                    "\(label) is a virtual node after a sublayer of \(node.parentID); virtual nodes come first (P-HIER-21)"
+                )
+            }
+            try Self.checkFields(of: node, label: label)
+        }
+
+        /// P-HIER-20: a virtual node has no address, view, view controller, member reference or
+        /// base class, and its class comes from the app.
+        private static func checkFields(of node: LayerNode, label: String) throws {
+            let present: [(String, Bool)] = [
+                ("layer_address", node.layerAddress != 0),
+                ("a view", node.viewClassName != nil || node.viewDisplayClassName != nil || node.viewAddress != nil),
+                (
+                    "a view controller",
+                    node.viewControllerClassName != nil || node.viewControllerDisplayClassName != nil
+                        || node.viewControllerAddress != nil
+                ),
+                ("member_references", !node.memberReferences.isEmpty),
+                ("a base class", node.layerBaseClassName != nil || node.viewBaseClassName != nil)
+            ]
+            if let (field, _) = present.first(where: \.1) {
+                throw ProbeFailure("\(label) is a virtual node with \(field) (P-HIER-20)")
+            }
+            guard node.layerClassOrigin == .app else {
+                throw ProbeFailure(
+                    "\(label) is a virtual node whose layer_class_origin is \(node.layerClassOrigin), not App (P-HIER-20)"
+                )
+            }
+        }
+    }
+
     /// P-HIER-14 (protocol 1.1): the layer's address always; the view's and the view
     /// controller's exactly when their class names are given. A 1.0 server sends none.
     private static func checkAddresses(of node: LayerNode, name: String, version: ProtocolVersion) throws {
         guard version.minor >= 1 else { return }
         let label = "\(name) (id \(node.id))"
+        // A virtual node has no addresses (P-HIER-20); the rules for it are S-PROBE-08's.
+        if node.nodeKind == .virtual { return }
         guard node.layerAddress != 0 else { throw ProbeFailure("\(label) has no layer_address (P-HIER-14)") }
         guard (node.viewAddress != nil) == (node.viewClassName != nil) else {
             throw ProbeFailure(

@@ -57,6 +57,8 @@ targets:
       - path: CutawayDemo/ManyLayersView.swift
       # The demo's Lists page, so that a test reads what the probe checks on it.
       - path: CutawayDemo/DemoListsViewController.swift
+      # The demo's Extensions page and what it registers.
+      - path: CutawayDemo/DemoExtensionsViewController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.cutaway.servertests

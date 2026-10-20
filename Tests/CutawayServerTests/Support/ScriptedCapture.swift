@@ -13,6 +13,8 @@ final class ScriptedCapture: @unchecked Sendable {
 
     /// Layers the registry does not know.
     let missing: Set<UInt64>
+    /// Layers the host app excludes from images (P-DET-10).
+    let excluded: Set<UInt64>
     /// The side, in pixels, of the square group image each layer gets.
     let side: (UInt64) -> Int
     /// The constraints each layer gets.
@@ -28,6 +30,7 @@ final class ScriptedCapture: @unchecked Sendable {
 
     init(
         missing: Set<UInt64> = [],
+        excluded: Set<UInt64> = [],
         side: @escaping (UInt64) -> Int = { _ in 2 },
         constraints: @escaping (UInt64) -> [LayoutConstraint] = { _ in [] },
         incompressible: Bool = false,
@@ -36,6 +39,7 @@ final class ScriptedCapture: @unchecked Sendable {
     ) {
         self.attributeGroups = attributeGroups
         self.missing = missing
+        self.excluded = excluded
         self.side = side
         self.constraints = constraints
         self.incompressible = incompressible
@@ -102,6 +106,15 @@ final class ScriptedCapture: @unchecked Sendable {
                 solo: nil,
                 group: nil,
                 attributeGroups: []
+            )
+        }
+        guard !excluded.contains(layerID) else {
+            return CapturedDetail(
+                layerID: layerID,
+                status: .excluded,
+                solo: nil,
+                group: nil,
+                attributeGroups: attributeGroups(layerID)
             )
         }
         let side = side(layerID)

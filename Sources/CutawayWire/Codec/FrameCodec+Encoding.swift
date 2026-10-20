@@ -169,6 +169,10 @@ extension FrameCodec {
         object.layerBaseClassName = node.layerBaseClassName
         object.viewBaseClassName = node.viewBaseClassName
         object.viewControllerVisibility = node.viewControllerVisibility.generated
+        object.nodeKind = node.nodeKind.generated
+        object.name = node.name
+        object.collapsedByDefault = node.isCollapsedByDefault
+        object.captureExcluded = node.isCaptureExcluded
         return object
     }
 
@@ -233,6 +237,7 @@ extension FrameCodec {
         object.id = group.id
         object.title = group.title
         object.className = group.className
+        object.fromApp = group.fromApp
         object.attributes = group.attributes.map { attribute in
             let attributeObject = Cutaway_Wire_AttributeT()
             attributeObject.id = attribute.id
@@ -282,9 +287,10 @@ extension FrameCodec {
             let object = Cutaway_Wire_StringValueT()
             object.value = value
             return Cutaway_Wire_AttributeValueUnion(object, type: .stringvalue)
-        case let .color(color, systemName, light, dark):
+        case let .color(color, systemName, light, dark, name):
             let object = Cutaway_Wire_ColorValueT()
             object.systemName = systemName
+            object.name = name
             object.value = colorStruct(for: color)
             object.light = light.map(colorStruct(for:))
             object.dark = dark.map(colorStruct(for:))

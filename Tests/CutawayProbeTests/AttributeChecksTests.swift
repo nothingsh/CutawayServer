@@ -131,6 +131,32 @@ final class AttributeChecksTests: XCTestCase {
         }
     }
 
+    func test_S_PROBE_08_onlyTheAppsGroupsBeginWithApp() throws {
+        var row = AttributeGroup(
+            id: "app.row",
+            title: "Row",
+            attributes: [
+                Attribute(
+                    id: "app.row.title",
+                    title: "Title",
+                    value: .string("Total"),
+                    valueKind: .string,
+                    section: .content
+                )
+            ],
+            className: "Demo.CardRow",
+            fromApp: true
+        )
+        XCTAssertNoThrow(try AttributeChecks.structure(try layer3() + [row], name: "layer 3"))
+        row.fromApp = false
+        assertRejects("group app.row begins with \"app.\" but is not from the app (P-ATTR-19)") {
+            try AttributeChecks.structure([row], name: "layer 10")
+        }
+        try assertStructureRejects("group label is from the app but does not begin with \"app.\" (P-ATTR-19)") {
+            $0[1].fromApp = true
+        }
+    }
+
     func test_S_ATTR_05_attributeChecksRequireAValueKindThatFits() throws {
         try assertStructureRejects("attribute layer.shadowOpacity has no value_kind (P-ATTR-06)") {
             $0[0].attributes[3].valueKind = .none
@@ -341,7 +367,7 @@ final class AttributeChecksTests: XCTestCase {
     func test_S_PROBE_07_lightAndDarkComeTogetherAndDiffer() throws {
         let groups = try layer3()
         let tint = try XCTUnwrap(groups[2].attributes.firstIndex { $0.id == "view.tintColor" })
-        guard case let .color(value, name, light?, _?)? = groups[2].attributes[tint].value else {
+        guard case let .color(value, name, light?, _?, _)? = groups[2].attributes[tint].value else {
             return XCTFail("the fixture's tint has a light and a dark")
         }
         try assertStructureRejects("has one of light and dark without the other (P-ATTR-17)") {

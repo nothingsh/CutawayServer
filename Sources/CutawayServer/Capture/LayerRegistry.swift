@@ -16,7 +16,19 @@ final class LayerRegistry {
     /// object. Read by the tests.
     private(set) var entries: [ObjectIdentifier: Entry] = [:]
     private var keys: [UInt64: ObjectIdentifier] = [:]
+    /// Virtual nodes (P-HIER-19): by their nearest layer ancestor and the identity the host app
+    /// gave, and back. Read by the tests.
+    private(set) var virtualIDs: [VirtualKey: UInt64] = [:]
+    private var virtualKeys: [UInt64: VirtualKey] = [:]
     private var lastID: UInt64 = 0
+
+    /// What identifies a virtual node within a connection.
+    struct VirtualKey: Hashable {
+        /// The ID of its nearest layer ancestor; layer IDs are never given out again, so neither
+        /// are the keys under a released layer.
+        let layerID: UInt64
+        let identity: AnyHashable
+    }
 
     /// The registry is created on the server queue and used on the main thread.
     nonisolated init() {}
@@ -36,6 +48,23 @@ final class LayerRegistry {
         return lastID
     }
 
+    /// The ID of the virtual node with this identity under the layer `layerID`; a new one the
+    /// first time, from the same counter as the layers' (P-HIER-19).
+    func register(virtual identity: AnyHashable, under layerID: UInt64) -> UInt64 {
+        let key = VirtualKey(layerID: layerID, identity: identity)
+        if let id = virtualIDs[key] { return id }
+        lastID += 1
+        virtualIDs[key] = lastID
+        virtualKeys[lastID] = key
+        return lastID
+    }
+
+    /// The nearest layer ancestor and the identity of the virtual node with this ID; `nil` for
+    /// any other ID.
+    func virtualNode(for id: UInt64) -> VirtualKey? {
+        virtualKeys[id]
+    }
+
     /// The layer with this ID, if it is still alive; `nil` for the ID of another kind of
     /// object.
     func layer(for id: UInt64) -> CALayer? {
@@ -43,12 +72,17 @@ final class LayerRegistry {
         return entries[key]?.object as? CALayer
     }
 
-    /// Forgets the objects that were released.
+    /// Forgets the objects that were released, and the virtual nodes under released layers.
     func removeReleased() {
         let released = entries.filter { $0.value.object == nil }
         for (key, entry) in released {
             entries[key] = nil
             keys[entry.id] = nil
+        }
+        guard !released.isEmpty, !virtualKeys.isEmpty else { return }
+        for (id, key) in virtualKeys where keys[key.layerID] == nil {
+            virtualKeys[id] = nil
+            virtualIDs[key] = nil
         }
     }
 }

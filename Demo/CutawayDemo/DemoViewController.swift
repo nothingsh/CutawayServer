@@ -177,23 +177,35 @@ final class DemoDetailViewController: UIViewController {
         // A page that can be closed: its layers are released when it is.
         let open = UIButton(type: .system)
         open.setTitle("Open", for: .normal)
-        open.frame = CGRect(x: 16, y: 72, width: 80, height: 30)
+        open.frame = CGRect(x: 12, y: 72, width: 40, height: 30)
         open.addTarget(self, action: #selector(openPage), for: .touchUpInside)
         view.addSubview(open)
 
         // Ten thousand layers, for trying a large hierarchy.
         let many = UIButton(type: .system)
         many.setTitle("Many layers", for: .normal)
-        many.frame = CGRect(x: 104, y: 72, width: 100, height: 30)
+        many.frame = CGRect(x: 56, y: 72, width: 80, height: 30)
         many.addTarget(self, action: #selector(openManyLayers), for: .touchUpInside)
         view.addSubview(many)
 
         // The attributes of protocol 1.2.
         let lists = UIButton(type: .system)
         lists.setTitle("Lists", for: .normal)
-        lists.frame = CGRect(x: 208, y: 72, width: 48, height: 30)
+        lists.frame = CGRect(x: 140, y: 72, width: 40, height: 30)
         lists.addTarget(self, action: #selector(openLists), for: .touchUpInside)
         view.addSubview(lists)
+
+        // The host app's extensions: virtual nodes, an excluded view, a registered color.
+        let extensions = UIButton(type: .system)
+        extensions.setTitle("Extensions", for: .normal)
+        extensions.frame = CGRect(x: 184, y: 72, width: 72, height: 30)
+        extensions.addTarget(self, action: #selector(openExtensions), for: .touchUpInside)
+        view.addSubview(extensions)
+
+        // Four buttons in the width of the detail page.
+        for button in [open, many, lists, extensions] {
+            button.titleLabel?.font = .systemFont(ofSize: 13)
+        }
     }
 
     @objc private func openPage() {
@@ -202,6 +214,12 @@ final class DemoDetailViewController: UIViewController {
 
     @objc private func openLists() {
         let page = DemoListsViewController()
+        page.modalPresentationStyle = .fullScreen
+        present(page, animated: true)
+    }
+
+    @objc private func openExtensions() {
+        let page = DemoExtensionsViewController()
         page.modalPresentationStyle = .fullScreen
         present(page, animated: true)
     }

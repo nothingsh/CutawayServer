@@ -119,6 +119,89 @@ final class SessionVersionTests: XCTestCase {
         }
     }
 
+    /// P-DET-10: before 1.2 an excluded layer is `CaptureFailed` when an image was requested and
+    /// `Ok` otherwise.
+    func test_S_CONN_12_excludedLayersBefore1_2() async throws {
+        func request(_ layerID: UInt64, group: Bool) -> LayerDetailRequest {
+            LayerDetailRequest(layerID: layerID, wantSolo: false, wantGroup: group, wantAttributes: true)
+        }
+        let frame = Frame(
+            requestID: 5,
+            body: .getLayerDetails(
+                GetLayerDetails(requests: [request(3, group: true), request(4, group: false)], maxTextureDimension: 0)
+            )
+        )
+        for (minor, expected) in [(UInt16(1), [DetailStatus.captureFailed, .ok]), (2, [.excluded, .excluded])] {
+            let harness = SessionHarness(capture: ScriptedCapture(excluded: [3, 4]))
+            try await harness.handshake(version: version(minor))
+            harness.receive(frame)
+            let frames = try await harness.frames(5)
+            let details = frames[2...3].flatMap { frame -> [LayerDetail] in
+                guard case .layerDetailsChunk(let chunk)? = frame.body else { return [] }
+                return chunk.details
+            }
+            XCTAssertEqual(details.map(\.status), expected, "1.\(minor)")
+            XCTAssertTrue(details.allSatisfy { $0.group == nil }, "1.\(minor)")
+        }
+    }
+
+    /// P-ATTR-19: the host app's groups go to every protocol 1 client, adapted like the
+    /// server's own; a reference becomes text before 1.2.
+    func test_S_ATTR_24_theAppsGroupsReachA1_1Client() async throws {
+        let reference = ObjectReference(layerID: 7, className: "Demo.ChartView", displayClassName: "ChartView")
+        let group = AttributeGroup(
+            id: "app.chart",
+            title: "Chart",
+            attributes: [
+                Attribute(
+                    id: "app.chart.barColor",
+                    title: "Bar Color",
+                    value: .color(WireColor(red: 1, green: 0, blue: 0, alpha: 1), name: "brand"),
+                    valueKind: .color,
+                    section: .appearance
+                ),
+                Attribute(
+                    id: "app.chart.legend",
+                    title: "Legend",
+                    value: .layerReference([reference]),
+                    valueKind: .layerReference,
+                    section: .accessibility
+                )
+            ],
+            className: "Demo.ChartView",
+            fromApp: true
+        )
+        let frame = Frame(
+            requestID: 5,
+            body: .getLayerDetails(
+                GetLayerDetails(
+                    requests: [LayerDetailRequest(layerID: 3, wantSolo: false, wantGroup: false, wantAttributes: true)],
+                    maxTextureDimension: 0
+                )
+            )
+        )
+        for minor: UInt16 in [1, 2] {
+            let harness = SessionHarness(capture: ScriptedCapture(attributeGroups: { _ in [group] }))
+            try await harness.handshake(version: version(minor))
+            harness.receive(frame)
+            let frames = try await harness.frames(4)
+            guard case .layerDetailsChunk(let chunk)? = frames[2].body,
+                  let sent = chunk.details.first?.attributeGroups.first
+            else {
+                return XCTFail("1.\(minor): no chunk with a group, got \(frames[2])")
+            }
+            XCTAssertEqual(sent.id, "app.chart", "1.\(minor)")
+            XCTAssertTrue(sent.fromApp, "1.\(minor)")
+            XCTAssertEqual(sent.attributes[0].value, group.attributes[0].value, "1.\(minor)")
+            if minor == 1 {
+                XCTAssertEqual(sent.attributes[1].value, .string("ChartView"))
+                XCTAssertEqual(sent.attributes[1].section, .unspecified)
+            } else {
+                XCTAssertEqual(sent.attributes, group.attributes)
+            }
+        }
+    }
+
     func test_S_CONN_12_versionHoldsForTheConnection() async throws {
         let harness = harness()
         try await harness.handshake(version: version(0))
