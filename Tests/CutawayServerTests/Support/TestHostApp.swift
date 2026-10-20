@@ -13,6 +13,8 @@ struct TestHostApp: HostApp {
         @MainActor @Sendable (SetAttribute, LayerRegistry) -> Result<SetAttributeResult, WireError>
     var captureDetail:
         @MainActor @Sendable (LayerDetailRequest, UInt32, LayerRegistry, StopFlag) -> CapturedDetail?
+    var setEnvironment: @MainActor @Sendable (Traits, EnvironmentOverrides) -> WireError?
+    var settleEnvironment: @MainActor @Sendable (EnvironmentOverrides) -> Environment
 
     init(_ base: any HostApp = LiveHostApp()) {
         self.base = base
@@ -22,6 +24,8 @@ struct TestHostApp: HostApp {
         captureDetail = {
             base.captureDetail($0, maxTextureDimension: $1, registry: $2, stopFlag: $3)
         }
+        setEnvironment = { base.setEnvironment($0, overrides: $1) }
+        settleEnvironment = { base.settleEnvironment(overrides: $0) }
     }
 
     // No test replaces these.
@@ -32,8 +36,13 @@ struct TestHostApp: HostApp {
     }
 
     @MainActor
-    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> Result<Environment, WireError> {
-        base.setEnvironment(traits, overrides: overrides)
+    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
+        setEnvironment(traits, overrides)
+    }
+
+    @MainActor
+    func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
+        settleEnvironment(overrides)
     }
 
     @MainActor

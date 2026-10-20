@@ -318,16 +318,11 @@ final class Session: @unchecked Sendable {
                 reply: { _, environment in .environment(environment) }
             )
         case .setEnvironment(let overrides):
-            // P-APP-01, then P-ENV-04 on the main thread.
+            // P-APP-01, then P-ENV-04 on the main thread, then the app's response (P-ENV-02).
             answer(
                 requestID,
                 requiresActiveApp: true,
-                perform: { [host] in
-                    host.performOnEnvironment(
-                        { app, environment in app.setEnvironment(overrides ?? .none, overrides: environment) },
-                        then: $0
-                    )
-                },
+                perform: { [host] in host.setEnvironment(overrides ?? .none, then: $0) },
                 reply: { _, result in
                     // As for `SetAttribute`: the overrides may have been applied, so the answer
                     // goes out whatever the state is now.

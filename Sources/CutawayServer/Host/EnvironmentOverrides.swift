@@ -30,6 +30,12 @@ final class EnvironmentOverrides {
         var verticalSizeClass: UIUserInterfaceSizeClass?
     }
 
+    /// P-ENV-02: the turns of the main run loop the app gets to respond to a `SetEnvironment`
+    /// before the windows are settled: the two the protocol asks for, and one more for work
+    /// that goes through the main queue three times (a block that posts a notification whose
+    /// observer is on the main queue, for example).
+    nonisolated static let responseTurns = 3
+
     let method: Method
     /// What the client set on this connection. Read by the tests.
     private(set) var overrides = Traits.none
@@ -97,6 +103,13 @@ final class EnvironmentOverrides {
         } else {
             observeWindows()
         }
+    }
+
+    /// P-ENV-02: after the app responded to the changed traits, `windows` are laid out and
+    /// the changes committed, so that what is captured next shows them.
+    func finish(windows: [UIWindow]) {
+        settle(windows) {}
+        CATransaction.flush()
     }
 
     /// P-ENV-03: every window back to its own values; nothing is overridden any more.

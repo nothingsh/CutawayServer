@@ -30,6 +30,27 @@ struct HostAccess: Sendable {
         onMain(answeringOn: queue, to: answer) { [app, environment] in work(app, environment) }
     }
 
+    /// P-ENV-02: replaces the connection's overrides on the main thread. Unless refused, it then
+    /// lets the main run loop go round `EnvironmentOverrides.responseTurns` times, so that what
+    /// the app queued there in response has run, and settles the windows before the answer. The
+    /// session starts no other request meanwhile (P-REQ-06), and nothing runs the run loop here.
+    func setEnvironment(
+        _ traits: Traits,
+        then answer: @escaping @Sendable (Result<Environment, WireError>) -> Void
+    ) {
+        let queue = self.queue
+        onMain { [app, environment] in
+            if let refusal = app.setEnvironment(traits, overrides: environment) {
+                queue.async { answer(.failure(refusal)) }
+                return
+            }
+            onMain(afterTurns: EnvironmentOverrides.responseTurns) {
+                let settled = app.settleEnvironment(overrides: environment)
+                queue.async { answer(.success(settled)) }
+            }
+        }
+    }
+
     /// P-ENV-03: removes the connection's overrides on the main thread. Work the connection
     /// queued there before runs first, and a later connection's after.
     func removeOverrides() {
