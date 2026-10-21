@@ -41,7 +41,7 @@ private final class LateRecolouringView: UIView {
     }
 }
 
-/// `SetEnvironment` lets the app respond before it answers (protocol 1.2 dev.3; PROTOCOL.md,
+/// `SetEnvironment` lets the app respond before it answers (protocol 1.2; PROTOCOL.md,
 /// P-ENV-02), on real windows of the test host, through `HostAccess` as a session uses it.
 /// Every test removes its overrides before it ends.
 final class EnvironmentResponseTests: CaptureTestCase {
