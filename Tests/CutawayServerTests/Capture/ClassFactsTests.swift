@@ -85,7 +85,7 @@ final class ClassFactsTests: CaptureTestCase {
         window.layoutIfNeeded()
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let mineNode = try node(of: mine.layer, in: hierarchy, registry: registry)
         XCTAssertEqual(mineNode.layerClassOrigin, .system)
         XCTAssertEqual(mineNode.viewClassOrigin, .app)
@@ -109,7 +109,7 @@ final class ClassFactsTests: CaptureTestCase {
 
         // P-HIER-10: a subtree gives the same.
         let subtree = try XCTUnwrap(
-            HierarchyCapture.captureSubtree(rootID: mineNode.id, windows: [window], registry: registry)
+            HierarchyCapture.captureSubtree(rootID: mineNode.id, in: .testing(windows: [window], registry: registry))
         )
         XCTAssertEqual(subtree.nodes.first, mineNode)
     }
@@ -181,7 +181,7 @@ final class ClassFactsTests: CaptureTestCase {
         mine.layer.addSublayer(shape)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let windowNode = try node(of: window.layer, in: hierarchy, registry: registry)
         XCTAssertEqual(windowNode.viewBaseClassName, "UIWindow")
         let labelNode = try node(of: label.layer, in: hierarchy, registry: registry)
@@ -197,7 +197,7 @@ final class ClassFactsTests: CaptureTestCase {
         }
 
         // A 1.0 client knows no table: neither is given.
-        let old = HierarchyCapture.capture(windows: [window], registry: registry, version: version10)
+        let old = HierarchyCapture.capture(.testing(windows: [window], registry: registry, version: version10))
         for node in old.nodes {
             XCTAssertNil(node.viewBaseClassName, "\(node.id)")
             XCTAssertNil(node.layerBaseClassName, "\(node.id)")
@@ -205,9 +205,7 @@ final class ClassFactsTests: CaptureTestCase {
         let oldSubtree = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: labelNode.id,
-                windows: [window],
-                registry: registry,
-                version: version10
+                in: .testing(windows: [window], registry: registry, version: version10)
             )
         )
         XCTAssertNil(oldSubtree.nodes.first?.viewBaseClassName)

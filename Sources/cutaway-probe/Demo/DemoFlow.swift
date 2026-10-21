@@ -1,9 +1,17 @@
 import CutawayWire
 import Foundation
 
-// The steps of `--expect-demo` that change the demo app and change it back.
+// The pages `--expect-demo` knows, and its steps that change the demo app and change it back.
 
-/// GetSubtree and SetAttribute on the demo app's screen (S-PROBE-03; PROTOCOL.md, P-HIER-10,
+/// What `--expect-demo` checks: the demo app's main screen, or its Lists or Extensions page
+/// when that is open.
+enum DemoPage {
+    case screen(DemoScene)
+    case lists(DemoListsScene)
+    case extensions(DemoExtensionsScene)
+}
+
+/// GetSubtree and SetAttribute on the demo app's screen (PROTOCOL.md, P-HIER-10,
 /// P-SET-01 to P-SET-05): the subtree of the card, and the text of the label "Push" in the
 /// stack view, which pushes the block below it down. The text is changed back before the end,
 /// also when a check fails on the way, so that the demo app is left as it was.
@@ -71,7 +79,7 @@ func checkDemoEditing(scene: DemoScene, hierarchy: Hierarchy, on connection: Pro
 }
 
 /// Lowers the compression resistance of the demo's label "Layout" so that its losing width
-/// wins, then changes it back (S-PROBE-04; PROTOCOL.md, P-SET-05, P-LAYOUT-03, P-LAYOUT-06).
+/// wins, then changes it back (PROTOCOL.md, P-SET-05, P-LAYOUT-03, P-LAYOUT-06).
 /// The resistance is changed back before the end, also when a check fails on the way.
 func checkDemoConstraints(
     _ demo: ConstraintChecks.DemoConstraints,
@@ -132,8 +140,8 @@ func checkDemoConstraints(
     )
 }
 
-/// Overrides the appearance to dark and removes the override again (S-PROBE-07; PROTOCOL.md,
-/// P-ENV-01, P-ENV-02). The override is removed before the end, also when a check fails on the
+/// Overrides the appearance to dark and removes the override again (PROTOCOL.md, P-ENV-01,
+/// P-ENV-02). The override is removed before the end, also when a check fails on the
 /// way, so that the demo app is left as it was.
 func checkDemoEnvironment(_ before: Environment, on connection: ProbeConnection) throws {
     guard before.overridable.contains(.userInterfaceStyle) else {

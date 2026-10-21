@@ -1,5 +1,5 @@
 # The same project with the package trait ReleaseEnabled switched on.
-# scripts/verify.sh uses it to check that a Release build can enable the server (S-API-02).
+# scripts/verify.sh uses it to check that a Release build can enable the server.
 include:
   - project.yml
 name: CutawayDemoReleaseEnabled

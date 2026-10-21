@@ -70,7 +70,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         let screen = try makeScreen()
         let windows = HostWindows.all()
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: windows, registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: windows, registry: registry))
 
         for (name, layer) in [
             ("the window", screen.window.layer),
@@ -81,8 +81,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
             let subtree = try XCTUnwrap(
                 HierarchyCapture.captureSubtree(
                     rootID: registry.register(layer),
-                    windows: windows,
-                    registry: registry
+                    in: .testing(windows: windows, registry: registry)
                 ),
                 name
             )
@@ -94,8 +93,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         let leaf = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(screen.leaf.layer),
-                windows: windows,
-                registry: registry
+                in: .testing(windows: windows, registry: registry)
             )
         )
         XCTAssertEqual(
@@ -109,8 +107,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         let outer = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(screen.root.layer),
-                windows: windows,
-                registry: registry
+                in: .testing(windows: windows, registry: registry)
             )
         )
         XCTAssertEqual(outer.nodes[0].viewControllerDisplayClassName, "OrderController")
@@ -122,8 +119,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         let subtree = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(screen.window.layer),
-                windows: HostWindows.all(),
-                registry: registry
+                in: .testing(windows: HostWindows.all(), registry: registry)
             )
         )
         XCTAssertEqual(subtree.nodes[0].parentID, 0)
@@ -131,7 +127,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         // The whole window: what reading that one window gives.
         XCTAssertEqual(
             subtree.nodes,
-            HierarchyCapture.capture(windows: [screen.window], registry: registry).nodes
+            HierarchyCapture.capture(.testing(windows: [screen.window], registry: registry)).nodes
         )
     }
 
@@ -144,8 +140,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         let subtree = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(screen.leaf.layer),
-                windows: windows,
-                registry: registry
+                in: .testing(windows: windows, registry: registry)
             )
         )
         XCTAssertFalse(screen.window.isKeyWindow)
@@ -165,7 +160,10 @@ final class SubtreeCaptureTests: CaptureTestCase {
             view = strongView
             sublayer = strongSublayer
             let id = registry.register(strongView.layer)
-            let subtree = HierarchyCapture.captureSubtree(rootID: id, windows: [window], registry: registry)
+            let subtree = HierarchyCapture.captureSubtree(
+                rootID: id,
+                in: .testing(windows: [window], registry: registry)
+            )
             XCTAssertEqual(subtree?.nodes.count, 2)
             strongView.removeFromSuperview()
         }
@@ -193,8 +191,8 @@ final class SubtreeCaptureTests: CaptureTestCase {
         view.setNeedsDisplay()
         let registry = LayerRegistry()
         let id = registry.register(view.layer)
-        let first = HierarchyCapture.captureSubtree(rootID: id, windows: [window], registry: registry)
-        let second = HierarchyCapture.captureSubtree(rootID: id, windows: [window], registry: registry)
+        let first = HierarchyCapture.captureSubtree(rootID: id, in: .testing(windows: [window], registry: registry))
+        let second = HierarchyCapture.captureSubtree(rootID: id, in: .testing(windows: [window], registry: registry))
         XCTAssertNotNil(first)
         XCTAssertEqual(first, second)
         XCTAssertEqual(view.layoutCount, layoutCount, "the capture laid the view out")
@@ -242,7 +240,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
             ("zero", 0)
         ] {
             XCTAssertNil(
-                HierarchyCapture.captureSubtree(rootID: id, windows: windows, registry: registry),
+                HierarchyCapture.captureSubtree(rootID: id, in: .testing(windows: windows, registry: registry)),
                 name
             )
         }
@@ -250,8 +248,7 @@ final class SubtreeCaptureTests: CaptureTestCase {
         XCTAssertNotNil(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(window.layer),
-                windows: windows,
-                registry: registry
+                in: .testing(windows: windows, registry: registry)
             )
         )
     }

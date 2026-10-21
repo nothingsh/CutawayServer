@@ -339,7 +339,7 @@ final class HierarchyCodecTests: XCTestCase {
         )
         func roundTrip(_ node: LayerNode) throws -> LayerNode? {
             let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
-            guard case .hierarchy(let decoded)? = try FrameCodec.decode(try FrameCodec.encode(frame)).body else {
+            guard case .hierarchy(let decoded)? = try FrameCodec.decode(FrameCodec.encode(frame)).body else {
                 return nil
             }
             return decoded.nodes.first

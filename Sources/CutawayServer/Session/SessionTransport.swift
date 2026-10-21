@@ -29,7 +29,7 @@ protocol SessionTransport: AnyObject {
     func finish(with frame: Frame)
     func close()
     /// No more frames are delivered until `resumeReceiving()`, and no more input is read:
-    /// once the socket's buffers are full, the peer cannot send (S-CONN-14).
+    /// once the socket's buffers are full, the peer cannot send.
     func pauseReceiving()
     func resumeReceiving()
 }

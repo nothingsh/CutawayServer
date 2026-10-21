@@ -614,8 +614,7 @@ final class ConstraintCheckTests: CaptureTestCase {
                     wantConstraints: true
                 ),
                 maxTextureDimension: 0,
-                windows: [window],
-                registry: registry,
+                in: .testing(windows: [window], registry: registry),
                 stopFlag: StopFlag(),
                 screenScale: 2,
                 readAttributes: { _ in [] }
@@ -637,8 +636,7 @@ final class ConstraintCheckTests: CaptureTestCase {
                     wantConstraints: true
                 ),
                 maxTextureDimension: 0,
-                windows: [window],
-                registry: registry,
+                in: .testing(windows: [window], registry: registry),
                 stopFlag: StopFlag(),
                 screenScale: 1,
                 readAttributes: { _ in [] }
@@ -654,8 +652,7 @@ final class ConstraintCheckTests: CaptureTestCase {
                     wantConstraints: true
                 ),
                 maxTextureDimension: 0,
-                windows: [window],
-                registry: registry,
+                in: .testing(windows: [window], registry: registry),
                 stopFlag: StopFlag(),
                 screenScale: 3,
                 readAttributes: { _ in [] }

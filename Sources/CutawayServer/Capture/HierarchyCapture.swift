@@ -9,43 +9,31 @@ import UIKit
 /// of one moment.
 @MainActor
 enum HierarchyCapture {
-    /// - Parameters:
-    ///   - windows: back to front; each becomes a root node.
-    ///   - version: The negotiated version, whose tables of known classes apply (P-HIER-17),
-    ///     and from 1.2 on with virtual nodes (P-HIER-22).
-    ///   - extensions: What the host app registered (S-API-04); `nil` for nothing.
-    static func capture(
-        windows: [UIWindow],
-        registry: LayerRegistry,
-        version: ProtocolVersion = .current,
-        extensions: ExtensionStore? = nil
-    ) -> Hierarchy {
-        var walk = Walk(version: version, extensions: extensions)
-        for window in windows {
-            appendTree(of: window.layer, parentID: 0, isExcluded: false, registry: registry, to: &walk)
+    /// The hierarchy of `context`'s windows, back to front, each window a root node. The
+    /// negotiated version decides the tables of known classes (P-HIER-17), and from 1.2 on
+    /// whether virtual nodes are sent (P-HIER-22).
+    static func capture(_ context: RequestContext) -> Hierarchy {
+        var walk = Walk(context)
+        for window in context.windows {
+            appendTree(of: window.layer, parentID: 0, isExcluded: false, registry: context.registry, to: &walk)
         }
         // P-HIER-08: with every tree read, so that each holder is seen with all it holds.
-        return finish(walk, dropping: 0, windows: windows, registry: registry)
+        return finish(walk, dropping: 0, context: context)
     }
 
     /// P-HIER-10: the node with this ID and all its descendants, exactly as `capture` gives
     /// them; `nil` when there is no such node in any of the windows (P-HIER-11, P-HIER-22).
-    static func captureSubtree(
-        rootID: UInt64,
-        windows: [UIWindow],
-        registry: LayerRegistry,
-        version: ProtocolVersion = .current,
-        extensions: ExtensionStore? = nil
-    ) -> Hierarchy? {
+    static func captureSubtree(rootID: UInt64, in context: RequestContext) -> Hierarchy? {
+        let registry = context.registry
         guard let root = registry.layer(for: rootID) else {
-            return virtualSubtree(rootID: rootID, windows: windows, registry: registry, extensions: extensions)
+            return virtualSubtree(rootID: rootID, in: context)
         }
-        guard let ancestors = LayerTopology.ancestors(of: root, in: windows) else { return nil }
+        guard let ancestors = LayerTopology.ancestors(of: root, in: context.windows) else { return nil }
         // P-HIER-08: the holders are the views of the ancestors, and some of those lie above the
         // root. The chain of ancestors goes in front as nodes, each the parent of the next, so
         // that every one of them sees the whole subtree below it; their entries are dropped.
         // P-DET-10: an excluded ancestor excludes the subtree.
-        var walk = Walk(version: version, extensions: extensions)
+        var walk = Walk(context)
         var parentID: UInt64 = 0
         var isExcluded = false
         for ancestor in ancestors {
@@ -54,31 +42,22 @@ enum HierarchyCapture {
             parentID = id
         }
         appendTree(of: root, parentID: parentID, isExcluded: isExcluded, registry: registry, to: &walk)
-        return finish(walk, dropping: ancestors.count, windows: windows, registry: registry)
+        return finish(walk, dropping: ancestors.count, context: context)
     }
 
     /// P-HIER-10, P-HIER-22: a virtual node and its virtual descendants; the first one's parent
     /// is its actual parent node. Virtual nodes have no member references, and no layers below.
-    private static func virtualSubtree(
-        rootID: UInt64,
-        windows: [UIWindow],
-        registry: LayerRegistry,
-        extensions: ExtensionStore?
-    ) -> Hierarchy? {
-        guard let extensions else { return nil }
-        var lookup = ExtensionLookup(store: extensions)
-        guard let found = VirtualNodes.find(rootID, windows: windows, registry: registry, lookup: &lookup) else {
-            return nil
-        }
+    private static func virtualSubtree(rootID: UInt64, in context: RequestContext) -> Hierarchy? {
+        guard !context.extensions.isEmpty, let found = VirtualNodes.find(rootID, in: context) else { return nil }
         let nodes = VirtualNodes.nodes(
             of: found.entries,
             indices: found.subtree,
             under: found.layerID,
             isExcluded: found.isExcluded,
-            registry: registry
+            registry: context.registry
         )
-        registry.removeReleased()
-        return Hierarchy(nodes: nodes, keyWindowID: keyWindowID(windows: windows, registry: registry))
+        context.registry.removeReleased()
+        return Hierarchy(nodes: nodes, keyWindowID: keyWindowID(in: context))
     }
 
     /// What one capture gathers on its way through the trees.
@@ -96,15 +75,16 @@ enum HierarchyCapture {
         var classFacts: ClassFactsCache
         var visibility = ControllerVisibility()
         /// `nil` when the host app registered nothing.
-        var lookup: ExtensionLookup?
+        let lookup: ExtensionLookup?
         /// P-HIER-22: virtual nodes only for a client of 1.2 or later.
         let sendsVirtualNodes: Bool
 
         @MainActor
-        init(version: ProtocolVersion, extensions: ExtensionStore?) {
+        init(_ context: RequestContext) {
+            let version = context.version
             classFacts = ClassFactsCache(version: version)
-            sendsVirtualNodes = version.major > 1 || version.minor >= 2
-            if let extensions, !extensions.isEmpty { lookup = ExtensionLookup(store: extensions) }
+            sendsVirtualNodes = version.supportsVirtualNodes
+            lookup = context.extensions.isEmpty ? nil : context.extensions
         }
 
         /// Appends the layer's node, and its virtual nodes with `registry`; returns whether the
@@ -152,12 +132,8 @@ enum HierarchyCapture {
 
     /// Adds the member references, forgets released objects, and leaves out the first
     /// `dropping` nodes.
-    private static func finish(
-        _ walk: consuming Walk,
-        dropping: Int,
-        windows: [UIWindow],
-        registry: LayerRegistry
-    ) -> Hierarchy {
+    private static func finish(_ walk: consuming Walk, dropping: Int, context: RequestContext) -> Hierarchy {
+        let registry = context.registry
         let references = MemberScan.references(
             nodes: walk.nodes,
             layers: walk.layers,
@@ -167,13 +143,18 @@ enum HierarchyCapture {
         )
         for index in walk.nodes.indices { walk.nodes[index].memberReferences = references[index] }
         registry.removeReleased()
+        let keyWindow = keyWindowID(in: context)
+        // Most often the nodes are the answer as they are: taken over, not copied.
+        guard dropping > 0 || !walk.virtualNodes.isEmpty else {
+            return Hierarchy(nodes: walk.nodes, keyWindowID: keyWindow)
+        }
         var nodes: [LayerNode] = []
         nodes.reserveCapacity(walk.nodes.count - dropping + walk.virtualNodes.values.reduce(0) { $0 + $1.count })
         for index in walk.nodes.indices.dropFirst(dropping) {
             nodes.append(walk.nodes[index])
             nodes += walk.virtualNodes[index] ?? []
         }
-        return Hierarchy(nodes: nodes, keyWindowID: keyWindowID(windows: windows, registry: registry))
+        return Hierarchy(nodes: nodes, keyWindowID: keyWindow)
     }
 
     /// Appends `layer` and its descendants in pre-order without recursion: the stack holds the
@@ -199,9 +180,9 @@ enum HierarchyCapture {
     }
 
     /// The root node of the frontmost key window; 0 when no window is key.
-    private static func keyWindowID(windows: [UIWindow], registry: LayerRegistry) -> UInt64 {
-        guard let window = windows.last(where: \.isKeyWindow) else { return 0 }
-        return registry.register(window.layer)
+    private static func keyWindowID(in context: RequestContext) -> UInt64 {
+        guard let window = context.windows.last(where: \.isKeyWindow) else { return 0 }
+        return context.registry.register(window.layer)
     }
 
     /// P-HIER-01: back to front, by `zPosition` as it is sent (P-HIER-05), then by the order

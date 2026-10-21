@@ -5,8 +5,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. Before filing, check the FAQ in the README, and that the build
-        defines `DEBUG` or enables the `ReleaseEnabled` trait (see "Debug and Release Builds").
+        Thanks for reporting. Before filing, check the
+        [FAQ and troubleshooting](https://nothingsh.github.io/Cutaway/resources/faq) page, and that
+        the build defines `DEBUG` or enables the `ReleaseEnabled` trait (see
+        [Debug and Release builds](https://nothingsh.github.io/Cutaway/integrate/builds)).
   - type: textarea
     id: description
     attributes:

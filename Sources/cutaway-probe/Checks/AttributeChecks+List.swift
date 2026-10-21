@@ -51,7 +51,7 @@ extension AttributeChecks {
                 onlyWithoutView: onlyWithoutView
             )
         }
-        // Protocol 1.2: shared by several groups (S-ATTR-19 to 21).
+        // Protocol 1.2: shared by the label, text field and text view groups.
         func fonts(nullable: Bool) -> [Entry] {
             [
                 entry("fontDescription", .string, "Font Description", .content, nullable: nullable, editable: false),

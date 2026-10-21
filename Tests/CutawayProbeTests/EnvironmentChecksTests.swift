@@ -4,20 +4,9 @@ import XCTest
 
 @testable import cutaway_probe
 
-/// The probe's checks of the environment (S-PROBE-07): they accept the fixtures and name what is
+/// The probe's checks of the environment: they accept the fixtures and name what is
 /// wrong with anything else.
 final class EnvironmentChecksTests: XCTestCase {
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    private func frame(_ path: String) throws -> Frame {
-        try FrameCodec.decode(
-            Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin").appendingPathComponent(path))
-        )
-    }
-
     private func assertRejects(
         _ expected: String,
         file: StaticString = #filePath,
@@ -35,24 +24,30 @@ final class EnvironmentChecksTests: XCTestCase {
     }
 
     func test_S_PROBE_07_environmentChecksAcceptTheFixtures() throws {
-        let before = try EnvironmentChecks.environment(try frame("environment/02-s2c-environment.bin"), answering: "1")
+        let before = try EnvironmentChecks.environment(
+            try Fixtures.frame("environment/02-s2c-environment.bin"),
+            answering: "1"
+        )
         XCTAssertEqual(before.overridable.count, 5)
-        let dark = try EnvironmentChecks.environment(try frame("environment/06-s2c-environment.bin"), answering: "3")
+        let dark = try EnvironmentChecks.environment(
+            try Fixtures.frame("environment/06-s2c-environment.bin"),
+            answering: "3"
+        )
         XCTAssertNoThrow(try EnvironmentChecks.dark(dark))
         let restored = try EnvironmentChecks.environment(
-            try frame("environment/08-s2c-environment.bin"),
+            try Fixtures.frame("environment/08-s2c-environment.bin"),
             answering: "4"
         )
         XCTAssertNoThrow(try EnvironmentChecks.restored(restored, before: before))
         let one = try EnvironmentChecks.environment(
-            try frame("environment-rejected/02-s2c-environment.bin"),
+            try Fixtures.frame("environment-rejected/02-s2c-environment.bin"),
             answering: "1"
         )
         XCTAssertEqual(one.overridable, [.userInterfaceStyle])
     }
 
     func test_S_PROBE_07_environmentChecksRejectWhatIsWrong() throws {
-        let fixture = try frame("environment/02-s2c-environment.bin")
+        let fixture = try Fixtures.frame("environment/02-s2c-environment.bin")
         guard case .environment(var environment)? = fixture.body else { return XCTFail("not an Environment") }
         let before = environment
         environment.overridable.append(.userInterfaceStyle)

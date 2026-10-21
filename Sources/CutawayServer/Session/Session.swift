@@ -9,13 +9,13 @@ final class Session: @unchecked Sendable {
     /// What the session may hold back from the connection.
     struct Limits {
         /// No request begins, and no layer is rendered, while more bytes than this are
-        /// outstanding (S-CONN-13).
+        /// outstanding (`ServerConfiguration.outstandingByteLimit`).
         var outstandingByteLimit: Int
-        /// Reading stops while this many requests wait (S-CONN-14).
+        /// Reading stops while this many requests wait (`ServerConfiguration.waitingRequestLimit`).
         var waitingRequestLimit: Int
     }
 
-    private enum State {
+    enum State {
         case awaitingHello
         /// The client's hello arrived; the app's information is being read on the main thread.
         case handshaking
@@ -33,23 +33,23 @@ final class Session: @unchecked Sendable {
 
     /// Read by the tests.
     let transport: SessionTransport
-    private let host: HostAccess
+    let host: HostAccess
     /// Captures and compresses the layers of a stream; the host itself unless a test scripts it.
     private let pipeline: any DetailPipeline
     private let queue: DispatchQueue
     private let limits: Limits
-    private var state = State.awaitingHello
+    private(set) var state = State.awaitingHello
     /// The app's state as the server reported it last (P-EVT-02), whether or not the
     /// handshake is complete.
-    private var appState: AppState
+    private(set) var appState: AppState
     /// P-HELLO-04: the lower of the two minor versions. Set once by the handshake, the same for
     /// the whole connection.
-    private var version = ProtocolVersion.current
+    private(set) var version = ProtocolVersion.current
     private var handshakeTimeout: DispatchWorkItem?
     /// Requests wait here and are handled one at a time, in order (PROTOCOL.md, P-REQ-06).
     /// Frames that arrive while the handshake is being completed wait here too.
     private var pending = RequestQueue()
-    /// The transport was asked to stop reading (S-CONN-14).
+    /// The transport was asked to stop reading: too many requests wait.
     private var isReceivingPaused = false
     private var isHandlingRequest = false
     private var isDraining = false
@@ -203,8 +203,8 @@ final class Session: @unchecked Sendable {
         guard !isDraining else { return }
         isDraining = true
         defer { isDraining = false }
-        // S-CONN-13: no request begins while the connection is behind. Its answer would only
-        // add to what waits to be sent.
+        // No request begins while the connection is behind. Its answer would only add to what
+        // waits to be sent.
         while state == .ready, !isHandlingRequest, !pending.isEmpty, hasRoomToSend,
               let request = pending.next() {
             updateReceiving()
@@ -214,7 +214,7 @@ final class Session: @unchecked Sendable {
 
     // MARK: - Room
 
-    /// S-CONN-13: what the connection has not sent yet is within the limit.
+    /// What the connection has not sent yet is within the limit.
     private var hasRoomToSend: Bool {
         transport.unsentByteCount <= limits.outstandingByteLimit
     }
@@ -226,8 +226,8 @@ final class Session: @unchecked Sendable {
         handlePending()
     }
 
-    /// S-CONN-14: reading stops while too many requests wait and goes on once fewer do. A
-    /// `Cancel` sent meanwhile is read late.
+    /// Reading stops while too many requests wait and goes on once fewer do. A `Cancel` sent
+    /// meanwhile is read late.
     private func updateReceiving() {
         guard state != .ended else { return }
         let shouldPause = pending.count >= limits.waitingRequestLimit
@@ -241,143 +241,18 @@ final class Session: @unchecked Sendable {
     }
 
     /// Marks the request in hand: nothing else is handled until `endRequest()`.
-    private func beginRequest() {
+    func beginRequest() {
         isHandlingRequest = true
     }
 
-    private func endRequest() {
+    func endRequest() {
         isHandlingRequest = false
         handlePending()
     }
 
-    private func handle(_ request: RequestQueue.Request) {
-        let requestID = request.frame.requestID
-        switch request.frame.body {
-        case .getAppIcon:
-            answer(requestID, requiresActiveApp: false, perform: host.loadAppIcon(then:)) { _, image in
-                .appIcon(AppIcon(image: image))
-            }
-        case .getHierarchy:
-            // P-APP-01: no hierarchy unless the app is active.
-            answer(
-                requestID,
-                requiresActiveApp: true,
-                onMain: { [version] app, registry in app.captureHierarchy(registry: registry, version: version) },
-                reply: { session, hierarchy in
-                    // The app may have left the active state while the layers were being read. The
-                    // client has been told by now, and must not get a hierarchy after that event.
-                    session.appState == .active
-                        ? .hierarchy(hierarchy) : .error(.appNotActive)
-                }
-            )
-        case .getSubtree(let rootID):
-            // P-APP-01: no subtree unless the app is active.
-            answer(
-                requestID,
-                requiresActiveApp: true,
-                onMain: { [version] app, registry in
-                    app.captureSubtree(of: rootID, registry: registry, version: version)
-                },
-                reply: { session, hierarchy in
-                    // As for the whole hierarchy: nothing read after the client was told the app
-                    // left the active state.
-                    if session.appState != .active {
-                        return .error(.appNotActive)
-                    } else if let hierarchy {
-                        return .hierarchy(hierarchy)
-                    } else {
-                        return .error(.layerNotFound(rootID))
-                    }
-                }
-            )
-        case .setAttribute(let change):
-            // P-APP-01: nothing is changed unless the app is active.
-            answer(
-                requestID,
-                requiresActiveApp: true,
-                onMain: { app, registry in app.setAttribute(change, registry: registry) },
-                reply: { session, result in
-                    // Unlike a hierarchy, the answer is sent whatever the state is now: the change
-                    // may have been made, and the main thread checked the state before making it.
-                    switch result {
-                    // P-ATTR-08: only the sections the negotiated version has.
-                    case .success(let answer): return .setAttributeResult(answer.adapted(to: session.version))
-                    case .failure(let error): return .error(error)
-                    }
-                }
-            )
-        case .getEnvironment:
-            // P-APP-01: answered whatever the app's state.
-            answer(
-                requestID,
-                requiresActiveApp: false,
-                perform: { [host] in host.performOnEnvironment(
-                    { app, overrides in app.environment(overrides: overrides) },
-                    then: $0
-                ) },
-                reply: { _, environment in .environment(environment) }
-            )
-        case .setEnvironment(let overrides):
-            // P-APP-01, then P-ENV-04 on the main thread, then the app's response (P-ENV-02).
-            answer(
-                requestID,
-                requiresActiveApp: true,
-                perform: { [host] in host.setEnvironment(overrides ?? .none, then: $0) },
-                reply: { _, result in
-                    // As for `SetAttribute`: the overrides may have been applied, so the answer
-                    // goes out whatever the state is now.
-                    switch result {
-                    case .success(let environment): return .environment(environment)
-                    case .failure(let error): return .error(error)
-                    }
-                }
-            )
-        case .getLayerDetails(let details):
-            beginStream(details, requestID: requestID, isCancelled: request.isCancelled)
-        case .cancel:
-            // Never queued: `accept(_:)` handles it on arrival.
-            break
-        case nil, .hello, .appIcon, .hierarchy, .layerDetailsChunk, .streamEnd, .error,
-             .appStateChanged, .setAttributeResult, .environment:
-            // P-REQ-08: answer and keep the connection.
-            transport.send(Frame(requestID: requestID, body: .error(.unexpectedMessage)))
-        }
-    }
-
-    /// A request with one answer. When it needs the app active and the app is not, it is
-    /// refused at once (P-APP-01). Otherwise nothing else is handled until `perform` completes
-    /// and the answer that `reply` makes on the server queue is sent.
-    private func answer<Value>(
-        _ requestID: UInt32,
-        requiresActiveApp: Bool,
-        perform: (@escaping @Sendable (Value) -> Void) -> Void,
-        reply: @escaping @Sendable (Session, Value) -> Message
-    ) {
-        if requiresActiveApp, appState != .active {
-            transport.send(Frame(requestID: requestID, body: .error(.appNotActive)))
-            return
-        }
-        beginRequest()
-        perform { [weak self] value in
-            guard let self, self.state == .ready else { return }
-            self.transport.send(Frame(requestID: requestID, body: reply(self, value)))
-            self.endRequest()
-        }
-    }
-
-    /// A request answered by what the host app says on the main thread (`HostAccess.perform`).
-    private func answer<Value: Sendable>(
-        _ requestID: UInt32,
-        requiresActiveApp: Bool,
-        onMain work: @escaping @MainActor @Sendable (any HostApp, LayerRegistry) -> Value,
-        reply: @escaping @Sendable (Session, Value) -> Message
-    ) {
-        answer(requestID, requiresActiveApp: requiresActiveApp, perform: { host.perform(work, then: $0) }, reply: reply)
-    }
-
     // MARK: - Streams
 
-    private func beginStream(_ details: GetLayerDetails, requestID: UInt32, isCancelled: Bool) {
+    func beginStream(_ details: GetLayerDetails, requestID: UInt32, isCancelled: Bool) {
         // P-REQ-04: cancelled before it began.
         guard !isCancelled else {
             transport.send(
@@ -398,6 +273,7 @@ final class Session: @unchecked Sendable {
         beginRequest()
         let stream = LayerDetailsStream(
             request: details,
+            version: version,
             pipeline: pipeline,
             outstandingByteLimit: limits.outstandingByteLimit,
             delegate: self

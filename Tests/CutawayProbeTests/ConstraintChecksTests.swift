@@ -5,33 +5,22 @@ import XCTest
 @testable import cutaway_probe
 
 /// What the probe checks in the constraints of every layer, and in the demo
-/// app's known constraints (S-PROBE-04).
+/// app's known constraints.
 final class ConstraintChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/ConstraintChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    private func fixture(_ path: String) throws -> Frame {
-        try FrameCodec.decode(
-            Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin").appendingPathComponent(path))
-        )
-    }
-
     private func fixtureHierarchy() throws -> Hierarchy {
-        try HierarchyChecks.hierarchy(try fixture("hierarchy/02-s2c-hierarchy.bin"))
+        try HierarchyChecks.hierarchy(try Fixtures.frame("hierarchy/02-s2c-hierarchy.bin"))
     }
 
     /// The `layout-constraints` scenario: the request and the server's frames.
     private func constraintsScenario() throws -> (request: GetLayerDetails, frames: [Frame]) {
-        guard case .getLayerDetails(let request)? = try fixture("layout-constraints/01-c2s-get-layer-details.bin").body
+        let first = try Fixtures.frame("layout-constraints/01-c2s-get-layer-details.bin")
+        guard case .getLayerDetails(let request)? = first.body
         else { throw ProbeFailure("layout-constraints does not begin with GetLayerDetails") }
         return (
             request,
             [
-                try fixture("layout-constraints/02-s2c-chunk-0.bin"),
-                try fixture("layout-constraints/03-s2c-stream-end.bin")
+                try Fixtures.frame("layout-constraints/02-s2c-chunk-0.bin"),
+                try Fixtures.frame("layout-constraints/03-s2c-stream-end.bin")
             ]
         )
     }

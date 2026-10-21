@@ -77,7 +77,7 @@ extension AttributeCatalog {
                 cluster: ("scrolling", "paging"),
                 write: .bool(\.isPagingEnabled)
             ) { .bool($0.isPagingEnabled) },
-            // Protocol 1.2 (S-ATTR-18). Also a table's and a collection view's delegate.
+            // Protocol 1.2. Also a table's and a collection view's delegate.
             .references("delegate", section: .content) { $0.delegate.map { [$0 as AnyObject] } }
         ] as [AttributeDefinition<UIScrollView>]
     )
@@ -130,27 +130,25 @@ extension AttributeCatalog {
                 cluster: ("lines", "lineBreak"),
                 write: .enumeration(\.lineBreakMode)
             ) { Outputs.enumeration($0.lineBreakMode.rawValue, names: Outputs.lineBreakModeNames) },
-            // Protocol 1.2 (S-ATTR-22).
+            // Protocol 1.2: the lines drawn, measured once for both.
             .init(
                 "drawnLineCount",
                 .int,
                 title: "Drawn Lines",
                 section: .content,
                 cluster: ("lines", "drawn"),
-                write: nil
-            ) {
-                AttributeTexts.lines(of: $0).map { .int(Int64($0.count)) }
-            },
+                write: nil,
+                readWith: { $1.lines(of: $0).map { .int(Int64($0.count)) } }
+            ),
             .init(
                 "isTruncated",
                 .bool,
                 title: "Truncated",
                 section: .content,
                 cluster: ("lines", "truncated"),
-                write: nil
-            ) {
-                AttributeTexts.lines(of: $0).map { .bool($0.truncated) }
-            }
+                write: nil,
+                readWith: { $1.lines(of: $0).map { .bool($0.truncated) } }
+            )
         ] as [AttributeDefinition<UILabel>]
     )
 
@@ -217,7 +215,7 @@ extension AttributeCatalog {
             .init("spacing", .double, section: .content, unit: .points, write: .number(\.spacing)) {
                 Outputs.double($0.spacing)
             },
-            // Protocol 1.2 (S-ATTR-18, 19).
+            // Protocol 1.2.
             .references("arrangedSubviews", section: .content) { $0.arrangedSubviews },
             .init("customSpacing", .string, section: .content, write: nil) {
                 AttributeTexts.customSpacing(of: $0).map { .string($0) }
@@ -295,7 +293,7 @@ extension AttributeCatalog {
 
     // MARK: - Shared by several groups (protocol 1.2)
 
-    /// S-ATTR-21: a font as text, the text style it was made for, and whether it follows the
+    /// Protocol 1.2: a font as text, the text style it was made for, and whether it follows the
     /// text size.
     private static func fontDefinitions<Subject: UIView>(
         font: KeyPath<Subject, UIFont?>,
@@ -326,8 +324,9 @@ extension AttributeCatalog {
         ]
     }
 
-    /// S-ATTR-20: an image's name, size, scale, rendering mode and symbol configuration; all
-    /// nil without an image. The name and the configuration come from descriptions (H4).
+    /// Protocol 1.2: an image's name, size, scale, rendering mode and symbol configuration; all
+    /// nil without an image. The name and the configuration come from descriptions, as UIKit
+    /// gives them no API (`AttributeTexts`).
     private static func imageDefinitions<Subject>(
         _ image: @escaping (Subject) -> UIImage?
     ) -> [AttributeDefinition<Subject>] {

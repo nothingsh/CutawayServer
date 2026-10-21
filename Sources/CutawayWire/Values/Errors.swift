@@ -1,5 +1,4 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
-import Foundation
 
 // Errors, and how a stream ends.
 

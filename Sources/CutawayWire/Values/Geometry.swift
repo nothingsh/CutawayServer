@@ -1,5 +1,4 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
-import Foundation
 
 public struct WireSize: Sendable, Equatable {
     public var width: Double
@@ -89,6 +88,34 @@ public struct WireTransform: Sendable, Equatable {
     /// The 16 components, row by row: m11, m12, ..., m44.
     public var components: [Double] {
         [m11, m12, m13, m14, m21, m22, m23, m24, m31, m32, m33, m34, m41, m42, m43, m44]
+    }
+}
+
+public struct WireInsets: Sendable, Equatable {
+    public var top: Double
+    public var left: Double
+    public var bottom: Double
+    public var right: Double
+
+    public init(top: Double, left: Double, bottom: Double, right: Double) {
+        self.top = top
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+    }
+}
+
+public struct WireColor: Sendable, Equatable {
+    public var red: Float
+    public var green: Float
+    public var blue: Float
+    public var alpha: Float
+
+    public init(red: Float, green: Float, blue: Float, alpha: Float) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
     }
 }
 #endif

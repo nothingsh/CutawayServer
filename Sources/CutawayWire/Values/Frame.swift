@@ -1,5 +1,4 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
-import Foundation
 
 // The project's own value types. Other targets use these; FlatBuffers types stay inside
 // this module.

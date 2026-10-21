@@ -4,7 +4,7 @@ import XCTest
 
 @testable import cutaway_probe
 
-/// The probe's checks of the demo app's Extensions page (S-PROBE-08): they accept the page as a
+/// The probe's checks of the demo app's Extensions page: they accept the page as a
 /// correct server reports it and name what is wrong with anything else.
 final class ExtensionsChecksTests: XCTestCase {
     private func node(

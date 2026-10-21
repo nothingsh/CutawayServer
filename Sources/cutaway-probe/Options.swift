@@ -23,7 +23,7 @@ struct Options {
                            constraints for what the demo app shows
           --slow-read MILLISECONDS
                            read the layer details slowly: a small receive buffer, and a pause
-                           after each chunk, so that the server has to hold back (S-CONN-13)
+                           after each chunk, so that the server has to hold back
         """
 
     init(arguments: [String]) throws {

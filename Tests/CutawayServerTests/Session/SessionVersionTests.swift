@@ -234,12 +234,13 @@ final class SessionVersionTests: XCTestCase {
     }
 
     /// S-REL-03: the handshake reports the pinned protocol, 1.2, and the app's information the
-    /// SDK's version, which is the repository's tag: 1.1.0 until 1.2.0 is released.
-    func test_S_REL_03_versionsAreProtocol1AndServer1() async throws {
+    /// SDK's version, which is the repository's tag: 1.1.0 until 1.2.0 is released. This is the
+    /// one place the tests spell the version out; the others refer to `ServerVersion`.
+    func test_S_REL_03_handshakeReportsThePinnedProtocolAndTheServerVersion() async throws {
         XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 2))
         XCTAssertEqual(ServerVersion.string, "1.1.0")
         let serverVersion = await MainActor.run { LiveHostApp(infoDictionary: [:]).appInfo().serverVersion }
-        XCTAssertEqual(serverVersion, "1.1.0")
+        XCTAssertEqual(serverVersion, ServerVersion.string)
 
         let harness = SessionHarness()
         harness.receive(SessionHarness.clientHello)

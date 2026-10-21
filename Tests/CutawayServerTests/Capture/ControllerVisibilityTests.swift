@@ -24,7 +24,7 @@ final class ControllerVisibilityTests: CaptureTestCase {
         line: UInt = #line
     ) throws -> ViewControllerVisibility {
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let view = try XCTUnwrap(controller.viewIfLoaded, "the view is not loaded", file: file, line: line)
         guard let node = hierarchy.nodes.first(where: { $0.id == registry.register(view.layer) }) else {
             // A view out of the window has no node; its controller is not shown.
@@ -108,7 +108,7 @@ final class ControllerVisibilityTests: CaptureTestCase {
         XCTAssertEqual(try visibility(of: root, in: window), .notShown)
         // The presented controller exists; nothing else asked for one.
         let readsBefore = (root.presentationControllerReads, presented.presentationControllerReads)
-        _ = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+        _ = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
         XCTAssertEqual(root.presentationControllerReads, readsBefore.0)
         XCTAssertEqual(presented.presentationControllerReads, readsBefore.1)
         presented.dismiss(animated: false)
@@ -191,7 +191,7 @@ final class ControllerVisibilityTests: CaptureTestCase {
         let unloaded = UIViewController()
         root.addChild(unloaded)
         unloaded.didMove(toParent: root)
-        _ = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+        _ = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
         XCTAssertFalse(unloaded.isViewLoaded)
     }
 }

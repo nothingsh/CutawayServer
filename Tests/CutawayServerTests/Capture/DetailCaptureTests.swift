@@ -5,7 +5,7 @@ import XCTest
 @testable import CutawayServer
 
 /// Counts how often it is rendered, and tells the test when.
-final class SpyLayer: CALayer {
+private final class SpyLayer: CALayer {
     var renderCount = 0
     var onRender: (() -> Void)?
 
@@ -43,8 +43,7 @@ final class DetailCaptureTests: CaptureTestCase {
                 wantConstraints: constraints
             ),
             maxTextureDimension: max,
-            windows: windows,
-            registry: registry,
+            in: .testing(windows: windows, registry: registry),
             stopFlag: stopFlag,
             screenScale: 2,
             readAttributes: readAttributes
@@ -89,8 +88,7 @@ final class DetailCaptureTests: CaptureTestCase {
                     wantConstraints: false
                 ),
                 maxTextureDimension: 0,
-                windows: HostWindows.all(),
-                registry: registry,
+                in: .testing(windows: HostWindows.all(), registry: registry),
                 stopFlag: StopFlag(),
                 screenScale: 2,
                 readAttributes: { _ in [] },
@@ -248,33 +246,37 @@ final class DetailCaptureTests: CaptureTestCase {
 
     // MARK: - S-ATTR-01
 
+    /// Captures with the default configuration's host app, each request with a context of its
+    /// own, as a session's would be.
+    private func defaultCapture() -> @MainActor (LayerDetailRequest) -> CapturedDetail? {
+        let app = ServerConfiguration().hostApp
+        let registry = self.registry
+        return { request in
+            app.captureDetail(
+                request,
+                maxTextureDimension: 0,
+                in: app.makeRequestContext(registry: registry, version: .current),
+                stopFlag: StopFlag()
+            )
+        }
+    }
+
     func test_S_ATTR_01_theDefaultConfigurationReadsAttributes() throws {
         let window = try makeWindow()
         let label = UILabel(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
         label.text = "Attributes"
         window.addSubview(label)
         let id = registry.register(label.layer)
-        let capture = ServerConfiguration().hostApp
-            .captureDetail(_:maxTextureDimension:registry:stopFlag:)
+        let capture = defaultCapture()
 
         let wanted = try XCTUnwrap(
-            capture(
-                LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: true),
-                0,
-                registry,
-                StopFlag()
-            )
+            capture(LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: true))
         )
         XCTAssertEqual(wanted.attributeGroups.map(\.id), ["layer", "view", "label"])
         XCTAssertEqual(wanted.attributeGroups, AttributeCatalog.standard.read(label.layer))
 
         let unwanted = try XCTUnwrap(
-            capture(
-                LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: false),
-                0,
-                registry,
-                StopFlag()
-            )
+            capture(LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: false))
         )
         XCTAssertEqual(unwanted.attributeGroups, [])
     }
@@ -487,11 +489,10 @@ final class DetailCaptureTests: CaptureTestCase {
 
     func test_S_SHOT_11_theDefaultConfigurationLooksAtTheAppsWindows() throws {
         let (view, id) = try redView()
-        let capture = ServerConfiguration().hostApp
-            .captureDetail(_:maxTextureDimension:registry:stopFlag:)
+        let capture = defaultCapture()
         let request = LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: true)
-        XCTAssertEqual(capture(request, 0, registry, StopFlag())?.status, .ok)
+        XCTAssertEqual(capture(request)?.status, .ok)
         view.removeFromSuperview()
-        XCTAssertEqual(capture(request, 0, registry, StopFlag())?.status, .layerNotFound)
+        XCTAssertEqual(capture(request)?.status, .layerNotFound)
     }
 }

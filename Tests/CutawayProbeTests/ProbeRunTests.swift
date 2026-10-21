@@ -68,18 +68,10 @@ private func unusedPort() throws -> UInt16 {
     return UInt16(bigEndian: address.sin_port)
 }
 
-/// S-PROBE-01: what the probe tells its caller, by message and by exit code.
+/// What the probe tells its caller, by message and by exit code.
 final class ProbeRunTests: XCTestCase {
-    /// Tests/CutawayProbeTests/ProbeRunTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
     func test_S_PROBE_01_reportsABusyServer() throws {
-        let busy = try Data(
-            contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin/busy/01-s2c-error.bin")
-        )
+        let busy = try Fixtures.data("busy/01-s2c-error.bin")
         let server = try StandInServer(reply: FrameCodec.framed(busy), connections: 2)
         let options = try Options(arguments: ["--port", String(server.port)])
 

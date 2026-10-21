@@ -2,7 +2,7 @@ import CutawayWire
 import Foundation
 import XCTest
 
-/// Damaged frames decode into a value or throw, never trap (S-CONN-15).
+/// Damaged frames decode into a value or throw, never trap.
 final class MutationTests: XCTestCase {
     /// The fixture frames and an encoded sample of every message kind.
     private func seeds() throws -> [Data] {

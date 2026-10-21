@@ -6,7 +6,7 @@
 </p>
 
 [![Swift](https://img.shields.io/badge/Swift-6.1+-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS%2013+-blue)](#requirements)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2013+-blue)](#prérequis)
 [![Swift Package Manager](https://img.shields.io/badge/SwiftPM-compatible-brightgreen)](#installation)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](../../LICENSE)
 [![verify](https://github.com/nothingsh/CutawayServer/actions/workflows/verify.yml/badge.svg)](https://github.com/nothingsh/CutawayServer/actions/workflows/verify.yml)

@@ -159,7 +159,7 @@ enum AttributeChecks {
                 throw ProbeFailure("\(label) is a CGColor, but has the system name \(systemName) (P-ATTR-15)")
             }
         }
-        guard version.minor >= 1 else { return }
+        guard version.supportsGroupClassNames else { return }
         for group in groups where group.className?.isEmpty != false {
             throw ProbeFailure("\(name): group \(group.id) has no class_name (P-ATTR-16)")
         }
@@ -333,7 +333,7 @@ enum AttributeChecks {
                 "\(name): group \(group.id) has the attributes \(actual), expected \(expected)"
             )
         }
-        if version.minor >= 1, group.className != classNames[group.id] {
+        if version.supportsGroupClassNames, group.className != classNames[group.id] {
             throw ProbeFailure(
                 "\(name): group \(group.id) has the class_name \(group.className ?? "nil"); the list says \(classNames[group.id] ?? "nil") (P-ATTR-16)"
             )
@@ -366,7 +366,7 @@ enum AttributeChecks {
                 )
             }
             // Protocol 1.1: the section whatever the value; limits only while it can be changed.
-            guard version.minor >= 1 else { continue }
+            guard version.supportsAttributeMetadata else { continue }
             try checkFieldsOf11(attribute, entry: entry, editable: expected.editable, unit: unit, name: name)
         }
     }

@@ -35,7 +35,7 @@ final class ServerController: @unchecked Sendable {
     /// app leaves the active state. Attempts that end without a port are then retried.
     private var isRecovering = false
     private var pendingRelisten: DispatchWorkItem?
-    /// The delay of the attempt to listen again that is waiting, or `nil` (S-CONN-10).
+    /// The delay of the attempt to listen again that is waiting, or `nil`.
     private(set) var pendingRelistenDelay: TimeInterval?
 
     init(configuration: ServerConfiguration) {
@@ -143,13 +143,8 @@ final class ServerController: @unchecked Sendable {
             connection.finish(with: Frame(requestID: 0, body: .error(.busy)))
             return
         }
-        // P-HIER-03: layer IDs are stable within one connection, so each session has its own.
-        let host = HostAccess(
-            app: configuration.hostApp,
-            registry: LayerRegistry(),
-            queue: queue,
-            encodeQueue: encodeQueue
-        )
+        // P-HIER-03, P-ENV-01: each connection has its own layer IDs and its own overrides.
+        let host = HostAccess(app: configuration.hostApp, queue: queue, encodeQueue: encodeQueue)
         let session = Session(
             transport: connection,
             host: host,
@@ -180,7 +175,7 @@ extension ServerController: ListenerDelegate {
     }
 
     func listenerDidFail() {
-        // S-CONN-10: listen again while the app is active. Otherwise the next activation does.
+        // Listen again while the app is active. Otherwise the next activation does.
         guard isStarted, appState == .active else { return }
         isRecovering = true
         scheduleRelisten()
@@ -198,8 +193,8 @@ extension ServerController: SessionDelegate {
 
 extension ServerController {
     /// Stops listening and drops the session, so that `start()` works again. Returns once the
-    /// port is released and the app's state is no longer observed.
-    func stop() async {
+    /// port is released and the app's state is no longer observed. Only the tests call it.
+    func stop() async { // swiftlint:disable:this unused_declaration
         await withCheckedContinuation { continuation in
             queue.async {
                 self.isStarted = false

@@ -253,6 +253,16 @@ quiet ios-build with_xcode xcodebuild build -scheme CutawayServer \
   -destination 'generic/platform=iOS' -derivedDataPath DerivedData/package ||
   fail "building CutawayServer for iOS"
 
+step "SwiftLint analyzer"
+# The analyzer rules need the compiler's arguments for every file, so this build is clean.
+quiet ios-analyze-build with_xcode xcodebuild clean build -scheme CutawayServer \
+  -destination 'generic/platform=iOS' -derivedDataPath DerivedData/analyze ||
+  fail "building CutawayServer for the analyzer"
+quiet swiftlint-analyze with_xcode "$swiftlint" analyze --strict --quiet \
+  --compiler-log-path "$work/ios-analyze-build.log" ||
+  fail "swiftlint analyze found violations (above)"
+echo "SwiftLint analyzer: no violations in CutawayServer and CutawayWire"
+
 command -v xcodegen >/dev/null || fail "xcodegen is not installed (brew install xcodegen)"
 
 step "S-REL-01: release symbols"

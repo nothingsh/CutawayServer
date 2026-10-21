@@ -30,12 +30,9 @@ final class SessionHarness: @unchecked Sendable {
         }
     }
 
-    /// The host app as the harness plays it: what the real one reads from UIKit comes from
-    /// the values below, and the subtree and change steps are recorded. On the main thread,
-    /// like the real one; `HostAccess` brings every answer back to the queue.
     /// The environment as the harness plays it, on the main thread: no window is touched.
     @MainActor
-    final class ScriptedEnvironment {
+    final class ScriptedEnvironment: EnvironmentControl {
         var overrides = Traits.none
         var overridable: [TraitKind] = TraitKind.allCases
         /// How many times the session asked for its overrides to be removed.
@@ -44,8 +41,33 @@ final class SessionHarness: @unchecked Sendable {
         var applied: [Traits] = []
 
         nonisolated init() {}
+
+        func read() -> Environment {
+            Environment(overrides: overrides, current: SessionHarness.current, overridable: overridable)
+        }
+
+        func apply(_ traits: Traits) -> Result<Void, WireError> {
+            if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: overridable) {
+                return .failure(refusal)
+            }
+            overrides = traits
+            applied.append(traits)
+            return .success(())
+        }
+
+        func settle() -> Environment {
+            read()
+        }
+
+        func removeAll() {
+            overrides = .none
+            removals += 1
+        }
     }
 
+    /// The host app as the harness plays it: what the real one reads from UIKit comes from
+    /// the values below, and the subtree and change steps are recorded. On the main thread,
+    /// like the real one; `HostAccess` brings every answer back to the queue.
     private struct ScriptedApp: HostApp {
         let queue: DispatchQueue
         let state: StateBox
@@ -61,16 +83,43 @@ final class SessionHarness: @unchecked Sendable {
             nil
         }
 
+        /// The session's own state decides; the harness changes it with `setAppState(_:)`.
         @MainActor
-        func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
+        func currentAppState() -> AppState {
+            .active
+        }
+
+        func makeEnvironmentControl() -> any EnvironmentControl {
+            environment
+        }
+
+        @MainActor
+        func makeRequestContext(
+            for connection: ConnectionContext,
+            version: ProtocolVersion,
+            memo: RequestMemo
+        ) -> RequestContext {
+            RequestContext(
+                windows: [],
+                registry: connection.registry,
+                version: version,
+                extensions: ExtensionStore(),
+                memo: memo
+            )
+        }
+
+        @MainActor
+        func captureHierarchy(in context: RequestContext) -> Hierarchy {
             let state = self.state
+            let version = context.version
             queue.async { state.captureVersions.append(version) }
             return SessionHarness.hierarchy
         }
 
         @MainActor
-        func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
+        func captureSubtree(of rootID: UInt64, in context: RequestContext) -> Hierarchy? {
             let state = self.state
+            let version = context.version
             queue.async {
                 state.subtreeRoots.append(rootID)
                 state.captureVersions.append(version)
@@ -84,41 +133,11 @@ final class SessionHarness: @unchecked Sendable {
         }
 
         @MainActor
-        func setAttribute(_ change: SetAttribute, registry: LayerRegistry)
+        func setAttribute(_ change: SetAttribute, in context: RequestContext)
             -> Result<SetAttributeResult, WireError> {
             let state = self.state
             queue.async { state.changes.append(change) }
             return SessionHarness.result(of: change)
-        }
-
-        @MainActor
-        func environment(overrides: EnvironmentOverrides) -> Environment {
-            Environment(
-                overrides: environment.overrides,
-                current: SessionHarness.current,
-                overridable: environment.overridable
-            )
-        }
-
-        @MainActor
-        func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
-            if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: environment.overridable) {
-                return refusal
-            }
-            environment.overrides = traits
-            environment.applied.append(traits)
-            return nil
-        }
-
-        @MainActor
-        func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
-            environment(overrides: overrides)
-        }
-
-        @MainActor
-        func removeOverrides(_ overrides: EnvironmentOverrides) {
-            environment.overrides = .none
-            environment.removals += 1
         }
 
         // The stream never gets here: the harness scripts its pipeline.
@@ -127,7 +146,7 @@ final class SessionHarness: @unchecked Sendable {
         func captureDetail(
             _ request: LayerDetailRequest,
             maxTextureDimension: UInt32,
-            registry: LayerRegistry,
+            in context: RequestContext,
             stopFlag: StopFlag
         ) -> CapturedDetail? {
             nil
@@ -142,6 +161,8 @@ final class SessionHarness: @unchecked Sendable {
         func captureDetail(
             _ request: LayerDetailRequest,
             maxTextureDimension: UInt32,
+            version: ProtocolVersion,
+            memo: RequestMemo,
             stopFlag: StopFlag,
             then answer: @escaping @Sendable (CapturedDetail?) -> Void
         ) {
@@ -213,7 +234,7 @@ final class SessionHarness: @unchecked Sendable {
     /// IDs from 90 on. The attribute has a section and limits, as of protocol 1.1.
     static func result(of change: SetAttribute) -> Result<SetAttributeResult, WireError> {
         guard change.layerID < 90 else {
-            return .failure(WireError(code: .layerNotFound, message: "no layer with id \(change.layerID)"))
+            return .failure(.layerNotFound(change.layerID))
         }
         let attribute = Attribute(
             id: change.attributeID,
@@ -243,7 +264,6 @@ final class SessionHarness: @unchecked Sendable {
             transport: transport,
             host: HostAccess(
                 app: ScriptedApp(queue: queue, state: state, environment: environment),
-                registry: LayerRegistry(),
                 queue: queue,
                 encodeQueue: queue
             ),

@@ -1,5 +1,4 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
-import Foundation
 
 // The handshake (PROTOCOL.md, "Handshake and versions").
 
@@ -20,6 +19,50 @@ public struct ProtocolVersion: Sendable, Equatable {
     public func negotiated(with peer: Self) -> Self {
         Self(major: major, minor: min(minor, peer.minor))
     }
+}
+
+// MARK: - Features
+
+// What a peer working at a version has, named by feature, so that a check reads as what it is
+// about rather than as a number. Values added to a table (sections, units, value kinds, guide
+// kinds, clusters) are matched by their own `minorVersion` instead.
+extension ProtocolVersion {
+    /// Whether the version has what protocol 1.`added` added. A later major version is taken to
+    /// have it, an earlier one not.
+    private func includes(minor added: UInt16) -> Bool {
+        major > 1 || (major == 1 && minor >= added)
+    }
+
+    // Protocol 1.1.
+
+    /// The addresses of a node's layer, view and view controller (P-HIER-14).
+    public var supportsAddresses: Bool { includes(minor: 1) }
+
+    /// The origins of a node's classes and the visibility of its view controller (P-HIER-16,
+    /// P-HIER-18).
+    public var supportsClassOrigins: Bool { includes(minor: 1) }
+
+    /// The section, limits, cluster, inactive cause and unit of an attribute (P-ATTR-08 to
+    /// P-ATTR-14).
+    public var supportsAttributeMetadata: Bool { includes(minor: 1) }
+
+    /// The class that declares an attribute group's properties (P-ATTR-16).
+    public var supportsGroupClassNames: Bool { includes(minor: 1) }
+
+    /// The kind of a layout guide (P-LAYOUT-04).
+    public var supportsGuideKinds: Bool { includes(minor: 1) }
+
+    /// Whether UIKit created a constraint (P-LAYOUT-09).
+    public var supportsConstraintOrigins: Bool { includes(minor: 1) }
+
+    // Protocol 1.2.
+
+    /// Virtual nodes in hierarchies and subtrees (P-HIER-19 to P-HIER-22).
+    public var supportsVirtualNodes: Bool { includes(minor: 2) }
+
+    /// The detail status `Excluded` (P-DET-10). Without it a node excluded from images is
+    /// `CaptureFailed` or `Ok`.
+    public var supportsExcludedStatus: Bool { includes(minor: 2) }
 }
 
 public enum Role: Sendable, Equatable {

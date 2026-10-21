@@ -155,7 +155,8 @@ custom_rules:
     message: "Trailing comma in function call is not allowed"
     severity: error
 
-# Run by `swiftlint analyze` with a compiler log only; scripts/verify.sh does not run them.
+# Run by `swiftlint analyze` with a compiler log only: the "SwiftLint analyzer" step of
+# scripts/verify.sh, over the iOS build of CutawayServer and CutawayWire.
 analyzer_rules:
   - unused_declaration
   - unused_import

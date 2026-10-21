@@ -1,6 +1,5 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import CutawayWire
-import Foundation
 
 /// Told about the progress of one stream, on the server queue.
 protocol LayerDetailsStreamDelegate: AnyObject {
@@ -26,12 +25,17 @@ final class LayerDetailsStream: @unchecked Sendable {
     }
 
     private let request: GetLayerDetails
+    /// The version negotiated in the handshake, which each layer is captured for.
+    private let version: ProtocolVersion
     private let pipeline: any DetailPipeline
     /// No layer is rendered while more bytes than this are outstanding: not yet sent, or not
-    /// yet compressed (S-CONN-13).
+    /// yet compressed (`ServerConfiguration.outstandingByteLimit`).
     private let outstandingByteLimit: Int
     private weak var delegate: LayerDetailsStreamDelegate?
     private let stopFlag = StopFlag()
+    /// What the stream, one request, works out once for all its layers (P-HIER-22: whether a
+    /// virtual node exists is decided when the request is handled).
+    private let memo = RequestMemo()
     /// The index of the next request to capture.
     private var nextIndex = 0
     private var isCapturing = false
@@ -44,11 +48,13 @@ final class LayerDetailsStream: @unchecked Sendable {
     /// - Parameter delegate: Held weakly. Without one, nothing counts as unsent.
     init(
         request: GetLayerDetails,
+        version: ProtocolVersion,
         pipeline: any DetailPipeline,
         outstandingByteLimit: Int,
         delegate: LayerDetailsStreamDelegate?
     ) {
         self.request = request
+        self.version = version
         self.pipeline = pipeline
         self.outstandingByteLimit = outstandingByteLimit
         self.delegate = delegate
@@ -67,12 +73,14 @@ final class LayerDetailsStream: @unchecked Sendable {
     func stop() {
         isOver = true
         stopFlag.set()
+        memo.discard()
     }
 
     private func advance() {
         guard !isOver else { return }
         guard reportedCount < request.requests.count else {
             isOver = true
+            memo.discard()
             delegate?.streamDidComplete()
             return
         }
@@ -90,6 +98,8 @@ final class LayerDetailsStream: @unchecked Sendable {
         pipeline.captureDetail(
             item,
             maxTextureDimension: request.maxTextureDimension,
+            version: version,
+            memo: memo,
             stopFlag: stopFlag
         ) { [weak self] detail in
             self?.didCapture(detail, of: item)

@@ -8,20 +8,18 @@ enum DetailCapture {
     /// `nil` when `stopFlag` was set: the stream is over and nothing more is rendered.
     ///
     /// - Parameters:
-    ///   - windows: The app's windows; a layer in none of them does not exist (P-HIER-12).
-    ///   - extensions: What the host app registered (S-API-04); `nil` for nothing.
+    ///   - context: The request's windows (a layer in none of them does not exist, P-HIER-12),
+    ///     its registry, and what the host app registered.
     ///   - readAttributes: Reads the layer's attribute groups; called only when the request
     ///     wants them.
     ///   - readVirtualAttributes: The same for a virtual node.
-    ///   - render: Renders one image; tests time it apart from the rest (S-STAB-01).
+    ///   - render: Renders one image; the stability tests time it apart from the rest.
     static func capture(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
-        windows: [UIWindow],
-        registry: LayerRegistry,
+        in context: RequestContext,
         stopFlag: StopFlag,
         screenScale: CGFloat = UIScreen.main.scale,
-        extensions: ExtensionStore? = nil,
         readAttributes: (CALayer) -> [AttributeGroup],
         readVirtualAttributes: (VirtualNodes.Found) -> [AttributeGroup] = { _ in [] },
         render: (CALayer, LayerRenderer.Mode, ImagePlan) -> RawImage? = {
@@ -36,27 +34,30 @@ enum DetailCapture {
             group: nil,
             attributeGroups: []
         )
-        let lookup = extensions.flatMap { $0.isEmpty ? nil : ExtensionLookup(store: $0) }
+        // `nil` when the host app registered nothing.
+        let lookup = context.extensions.isEmpty ? nil : context.extensions
+        // `nil` too when nothing it registered excludes a layer from images (P-DET-10).
+        let exclusions = lookup?.store.hasExclusions == true ? lookup : nil
         // P-DET-02, P-HIER-12: the ID was never given out, its layer was released, or the layer
         // is in none of the app's windows.
-        guard let layer = registry.layer(for: request.layerID) else {
-            readVirtualNode(for: request, into: &detail, windows: windows, registry: registry, lookup: lookup) {
-                readVirtualAttributes($0)
+        guard let layer = context.registry.layer(for: request.layerID) else {
+            if lookup != nil {
+                readVirtualNode(for: request, into: &detail, in: context, readAttributes: readVirtualAttributes)
             }
             return detail
         }
-        guard let ancestors = LayerTopology.ancestors(of: layer, in: windows) else { return detail }
+        guard let ancestors = LayerTopology.ancestors(of: layer, in: context.windows) else { return detail }
         detail.status = .ok
         readContents(
             of: layer,
             for: request,
             into: &detail,
-            registry: registry,
+            registry: context.registry,
             screenScale: screenScale,
             readAttributes: readAttributes
         )
         // P-DET-10: excluded with an excluded ancestor, also when no image is wanted.
-        if var lookup, VirtualNodes.isExcluded(ancestors + [layer], lookup: &lookup) {
+        if let exclusions, VirtualNodes.isExcluded(ancestors + [layer], lookup: exclusions) {
             detail.status = .excluded
             return detail
         }
@@ -83,7 +84,9 @@ enum DetailCapture {
         if request.wantGroup {
             // Between two screenshots: a cancelled stream renders nothing more.
             guard !stopFlag.isSet else { return nil }
-            guard let image = groupImage(of: layer, plan: plan, lookup: lookup, render: render) else { return detail }
+            guard let image = groupImage(of: layer, plan: plan, exclusions: exclusions, render: render) else {
+                return detail
+            }
             group = image
         }
         detail.status = .ok
@@ -118,35 +121,34 @@ enum DetailCapture {
     private static func readVirtualNode(
         for request: LayerDetailRequest,
         into detail: inout CapturedDetail,
-        windows: [UIWindow],
-        registry: LayerRegistry,
-        lookup: ExtensionLookup?,
+        in context: RequestContext,
         readAttributes: (VirtualNodes.Found) -> [AttributeGroup]
     ) {
-        guard var lookup,
-              let node = VirtualNodes.find(request.layerID, windows: windows, registry: registry, lookup: &lookup)
-        else {
-            return
-        }
+        // The request's trees: a stream that names several nodes of a layer asks the host app
+        // for that layer's once.
+        let trees = context.memo.entry(VirtualNodes.Trees.init)
+        guard let node = VirtualNodes.find(request.layerID, in: context, trees: trees) else { return }
         detail.status = node.isExcluded ? .excluded : .ok
         if request.wantAttributes { detail.attributeGroups = readAttributes(node) }
     }
 
     /// P-DET-10: the group, with the excluded layers below left out as if they were hidden.
+    ///
+    /// - Parameter exclusions: `nil` when the host app excludes no layer: the subtree need not
+    ///   be searched.
     private static func groupImage(
         of layer: CALayer,
         plan: ImagePlan,
-        lookup: ExtensionLookup?,
+        exclusions: ExtensionLookup?,
         render: (CALayer, LayerRenderer.Mode, ImagePlan) -> RawImage?
     ) -> RawImage? {
-        guard let lookup else { return render(layer, .group, plan) }
-        return hiding(excludedLayers(below: layer, lookup: lookup)) { render(layer, .group, plan) }
+        guard let exclusions else { return render(layer, .group, plan) }
+        return hiding(excludedLayers(below: layer, lookup: exclusions)) { render(layer, .group, plan) }
     }
 
     /// The layers below `layer` the host app excludes from images and that are visible now; the
     /// layers below them need not be looked at.
     static func excludedLayers(below layer: CALayer, lookup: ExtensionLookup) -> [CALayer] {
-        var lookup = lookup
         var excluded: [CALayer] = []
         var stack = layer.sublayers ?? []
         while let next = stack.popLast() {
