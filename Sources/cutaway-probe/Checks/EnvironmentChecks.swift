@@ -7,7 +7,9 @@ enum EnvironmentChecks {
     /// `overridable` lists each kind once.
     static func environment(_ frame: Frame, answering what: String) throws -> Environment {
         guard case .environment(let environment)? = frame.body else {
-            throw ProbeFailure("expected Environment in answer to \(what), got \(Checks.describe(frame)) (P-ENV-01)")
+            throw ProbeFailure(
+                "expected Environment in answer to \(what), got \(HelloChecks.describe(frame)) (P-ENV-01)"
+            )
         }
         let kinds = environment.overridable
         if let twice = kinds.first(where: { kind in kinds.filter { $0 == kind }.count > 1 }) {

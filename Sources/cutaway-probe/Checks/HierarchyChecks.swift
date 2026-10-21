@@ -7,7 +7,7 @@ enum HierarchyChecks {
     /// The response to `GetHierarchy`, from a server working at `version`.
     static func hierarchy(_ frame: Frame, version: ProtocolVersion = .current) throws -> Hierarchy {
         guard case .hierarchy(let hierarchy)? = frame.body else {
-            throw ProbeFailure("expected Hierarchy, got \(Checks.describe(frame)) (P-HIER-01)")
+            throw ProbeFailure("expected Hierarchy, got \(HelloChecks.describe(frame)) (P-HIER-01)")
         }
         try structure(hierarchy, version: version)
         return hierarchy
@@ -18,7 +18,7 @@ enum HierarchyChecks {
     /// subtree to be exactly that part of the hierarchy.
     static func subtree(_ frame: Frame, rootID: UInt64, hierarchy: Hierarchy) throws -> Hierarchy {
         guard case .hierarchy(let subtree)? = frame.body else {
-            throw ProbeFailure("expected Hierarchy for GetSubtree, got \(Checks.describe(frame)) (P-HIER-10)")
+            throw ProbeFailure("expected Hierarchy for GetSubtree, got \(HelloChecks.describe(frame)) (P-HIER-10)")
         }
         guard let first = subtree.nodes.first, first.id == rootID else {
             throw ProbeFailure(
@@ -145,7 +145,7 @@ enum HierarchyChecks {
                 parentsWithLayers.insert(node.parentID)
                 return
             }
-            guard version.minor >= 2 else {
+            guard version.supportsVirtualNodes else {
                 throw ProbeFailure(
                     "\(label) is a virtual node, sent to a client of protocol 1.\(version.minor) (P-HIER-19)"
                 )
@@ -188,9 +188,9 @@ enum HierarchyChecks {
     /// P-HIER-14 (protocol 1.1): the layer's address always; the view's and the view
     /// controller's exactly when their class names are given. A 1.0 server sends none.
     private static func checkAddresses(of node: LayerNode, name: String, version: ProtocolVersion) throws {
-        guard version.minor >= 1 else { return }
+        guard version.supportsAddresses else { return }
         let label = "\(name) (id \(node.id))"
-        // A virtual node has no addresses (P-HIER-20); the rules for it are S-PROBE-08's.
+        // A virtual node has no addresses (P-HIER-20); `VirtualNodeOrder` checks it.
         if node.nodeKind == .virtual { return }
         guard node.layerAddress != 0 else { throw ProbeFailure("\(label) has no layer_address (P-HIER-14)") }
         guard (node.viewAddress != nil) == (node.viewClassName != nil) else {
@@ -229,7 +229,7 @@ enum HierarchyChecks {
                 "\(label) has layer_base_class_name \(base), which the layer table of protocol 1.\(version.minor) does not have (P-HIER-17)"
             )
         }
-        guard version.minor >= 1 else { return }
+        guard version.supportsClassOrigins else { return }
         let given: [(String, Bool, Bool)] = [
             ("layer_class_origin", node.layerClassOrigin != .unknown, true),
             ("view_class_origin", node.viewClassOrigin != .unknown, node.viewClassName != nil),

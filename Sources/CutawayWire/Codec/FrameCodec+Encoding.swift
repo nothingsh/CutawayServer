@@ -1,7 +1,4 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
-import Foundation
-
-internal import CutawayFlatBuffers
 
 // Values to generated types, for the object API.
 extension FrameCodec {
@@ -84,39 +81,6 @@ extension FrameCodec {
         case .getEnvironment, .setEnvironment, .environment:
             return environmentUnion(for: message)
         }
-    }
-
-    /// The messages of protocol 1.2's environment.
-    private static func environmentUnion(for message: Message) -> Cutaway_Wire_BodyUnion {
-        switch message {
-        case .getEnvironment:
-            return Cutaway_Wire_BodyUnion(Cutaway_Wire_GetEnvironmentT(), type: .getenvironment)
-        case .setEnvironment(let overrides):
-            let object = Cutaway_Wire_SetEnvironmentT()
-            object.overrides = overrides.map(traitsObject(for:))
-            return Cutaway_Wire_BodyUnion(object, type: .setenvironment)
-        case .environment(let environment):
-            let object = Cutaway_Wire_EnvironmentT()
-            // P-ENV-01: absent is the same as every trait unspecified, as the fixtures write it.
-            // Unknown values are not written, so they do not count.
-            object.overrides = environment.overrides.hasKnownValues ? traitsObject(for: environment.overrides) : nil
-            object.current = environment.current.hasKnownValues ? traitsObject(for: environment.current) : nil
-            object.overridable = environment.overridable.map(\.generated)
-            return Cutaway_Wire_BodyUnion(object, type: .environment)
-        default:
-            preconditionFailure("not a message of the environment: \(message)")
-        }
-    }
-
-    /// `unknownKinds` is not written: a value this build does not know cannot be (P-ENV-04).
-    private static func traitsObject(for traits: Traits) -> Cutaway_Wire_TraitsT {
-        let object = Cutaway_Wire_TraitsT()
-        object.userInterfaceStyle = traits.userInterfaceStyle.generated
-        object.contentSizeCategory = traits.contentSizeCategory.generated
-        object.layoutDirection = traits.layoutDirection.generated
-        object.horizontalSizeClass = traits.horizontalSizeClass.generated
-        object.verticalSizeClass = traits.verticalSizeClass.generated
-        return object
     }
 
     private static func appInfoObject(for app: AppInfo) -> Cutaway_Wire_AppInfoT {

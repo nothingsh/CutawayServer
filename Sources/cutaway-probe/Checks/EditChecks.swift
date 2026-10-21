@@ -15,7 +15,7 @@ enum EditChecks {
         value: AttributeValue
     ) throws -> SetAttributeResult {
         guard case .setAttributeResult(let result)? = frame.body else {
-            throw ProbeFailure("expected SetAttributeResult, got \(Checks.describe(frame)) (P-SET-01)")
+            throw ProbeFailure("expected SetAttributeResult, got \(HelloChecks.describe(frame)) (P-SET-01)")
         }
         guard result.layerID == layerID else {
             throw ProbeFailure("SetAttributeResult is for layer \(result.layerID), expected \(layerID) (P-SET-01)")
@@ -38,7 +38,7 @@ enum EditChecks {
     /// The answer to a change that has to be refused with `code` (P-SET-03).
     static func refusal(_ frame: Frame, code: ErrorCode) throws {
         guard case .error(let error)? = frame.body, error.code == code else {
-            throw ProbeFailure("expected Error \(code), got \(Checks.describe(frame)) (P-SET-03)")
+            throw ProbeFailure("expected Error \(code), got \(HelloChecks.describe(frame)) (P-SET-03)")
         }
     }
 
@@ -51,7 +51,7 @@ enum EditChecks {
         hierarchy: Hierarchy
     ) throws -> Hierarchy {
         guard case .hierarchy(let subtree)? = frame.body else {
-            throw ProbeFailure("expected Hierarchy for GetSubtree, got \(Checks.describe(frame)) (P-HIER-10)")
+            throw ProbeFailure("expected Hierarchy for GetSubtree, got \(HelloChecks.describe(frame)) (P-HIER-10)")
         }
         guard subtree.nodes.first?.id == rootID else {
             throw ProbeFailure("the subtree of \(rootID) does not begin with it (P-HIER-10)")

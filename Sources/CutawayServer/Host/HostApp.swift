@@ -3,42 +3,40 @@ import CutawayWire
 import UIKit
 
 /// The host app as the server sees it: what the handshake says about it, its icon, its
-/// layers, and changes to them. Every method uses UIKit on the main thread and returns at
-/// once. `LiveHostApp` is the real one; tests replace parts of it.
+/// layers, and changes to them. Every method but `makeEnvironmentControl` uses UIKit on the
+/// main thread and returns at once. `LiveHostApp` is the real one; tests replace parts of it.
 protocol HostApp: Sendable {
     /// What the handshake says about the app and its device.
     @MainActor func appInfo() -> AppInfo
     /// The primary icon; `nil` when the app has none that can be drawn.
     @MainActor func iconImage() -> UIImage?
-    /// Reads the layer hierarchy for one `GetHierarchy`, with the connection's registry, for a
-    /// client working at the negotiated `version` (PROTOCOL.md, P-HIER-17).
-    @MainActor func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy
+    /// The app's state now, which a change checks again on the main thread (P-APP-01).
+    @MainActor func currentAppState() -> AppState
+    /// A new hold on the app's environment, for one connection. Called on the server queue.
+    func makeEnvironmentControl() -> any EnvironmentControl
+    /// What one request works with: the windows now, what `connection` keeps, the negotiated
+    /// `version`, what the host app registered, and the request's `memo`.
+    @MainActor func makeRequestContext(
+        for connection: ConnectionContext,
+        version: ProtocolVersion,
+        memo: RequestMemo
+    ) -> RequestContext
+    /// Reads the layer hierarchy for one `GetHierarchy` (PROTOCOL.md, P-HIER-01, P-HIER-17).
+    @MainActor func captureHierarchy(in context: RequestContext) -> Hierarchy
     /// Reads the subtree for one `GetSubtree`, as `captureHierarchy` does; `nil` when the
     /// layer does not exist (PROTOCOL.md, P-HIER-11).
-    @MainActor func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion)
-        -> Hierarchy?
-    /// Carries out one `SetAttribute` with the connection's registry (PROTOCOL.md, P-SET-01).
-    @MainActor func setAttribute(_ change: SetAttribute, registry: LayerRegistry)
+    @MainActor func captureSubtree(of rootID: UInt64, in context: RequestContext) -> Hierarchy?
+    /// Carries out one `SetAttribute` (PROTOCOL.md, P-SET-01), once the app was found active.
+    @MainActor func setAttribute(_ change: SetAttribute, in context: RequestContext)
         -> Result<SetAttributeResult, WireError>
-    /// Captures one layer for a `GetLayerDetails`, with the connection's registry; `nil`
-    /// when the stream's stop flag was set first.
+    /// Captures one layer for a `GetLayerDetails`; `nil` when the stream's stop flag was set
+    /// first.
     @MainActor func captureDetail(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
-        registry: LayerRegistry,
+        in context: RequestContext,
         stopFlag: StopFlag
     ) -> CapturedDetail?
-    /// The environment for a `GetEnvironment`, with the connection's overrides (PROTOCOL.md,
-    /// P-ENV-01).
-    @MainActor func environment(overrides: EnvironmentOverrides) -> Environment
-    /// Replaces the connection's overrides for a `SetEnvironment`, or refuses and changes
-    /// nothing (PROTOCOL.md, P-ENV-02, P-ENV-04, P-APP-01). `nil` when they were replaced.
-    @MainActor func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError?
-    /// After the app responded to `setEnvironment`: lays the windows out, commits, and reads the
-    /// environment for the answer (PROTOCOL.md, P-ENV-02).
-    @MainActor func settleEnvironment(overrides: EnvironmentOverrides) -> Environment
-    /// Removes the connection's overrides when it closes (PROTOCOL.md, P-ENV-03).
-    @MainActor func removeOverrides(_ overrides: EnvironmentOverrides)
 }
 
 /// The app the server runs in.
@@ -66,14 +64,21 @@ struct LiveHostApp: HostApp {
     private let plist: InfoPlist
     /// The process environment; the simulator puts the device name there.
     private let environment: [String: String]
+    /// What the host app registered through the extension interface.
+    private let extensions: ExtensionStore
 
-    /// - Parameter infoDictionary: The host app's Info.plist; `nil` reads the bundle's own.
+    /// - Parameters:
+    ///   - infoDictionary: The host app's Info.plist; `nil` reads the bundle's own.
+    ///   - extensions: Where the host app's registrations are; the public methods write the
+    ///     shared store.
     init(
         infoDictionary: [String: Any]? = nil,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        extensions: ExtensionStore = .shared
     ) {
         plist = InfoPlist(infoDictionary ?? Bundle.main.infoDictionary ?? [:])
         self.environment = environment
+        self.extensions = extensions
     }
 
     @MainActor
@@ -88,89 +93,60 @@ struct LiveHostApp: HostApp {
     }
 
     @MainActor
-    func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
-        HierarchyCapture.capture(
+    func currentAppState() -> AppState {
+        AppStateObserver.currentState()
+    }
+
+    func makeEnvironmentControl() -> any EnvironmentControl {
+        EnvironmentOverrides()
+    }
+
+    @MainActor
+    func makeRequestContext(
+        for connection: ConnectionContext,
+        version: ProtocolVersion,
+        memo: RequestMemo
+    ) -> RequestContext {
+        RequestContext(
             windows: HostWindows.all(),
-            registry: registry,
+            registry: connection.registry,
             version: version,
-            extensions: .shared
+            extensions: extensions,
+            memo: memo
         )
     }
 
     @MainActor
-    func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
-        HierarchyCapture.captureSubtree(
-            rootID: rootID,
-            windows: HostWindows.all(),
-            registry: registry,
-            version: version,
-            extensions: .shared
-        )
+    func captureHierarchy(in context: RequestContext) -> Hierarchy {
+        HierarchyCapture.capture(context)
     }
 
     @MainActor
-    func setAttribute(_ change: SetAttribute, registry: LayerRegistry)
-        -> Result<SetAttributeResult, WireError> {
-        AttributeEditing.apply(
-            change,
-            windows: HostWindows.all(),
-            registry: registry,
-            appState: AppStateObserver.currentState(),
-            extensions: .shared
-        )
+    func captureSubtree(of rootID: UInt64, in context: RequestContext) -> Hierarchy? {
+        HierarchyCapture.captureSubtree(rootID: rootID, in: context)
+    }
+
+    @MainActor
+    func setAttribute(_ change: SetAttribute, in context: RequestContext) -> Result<SetAttributeResult, WireError> {
+        AttributeEditing.apply(change, in: context)
     }
 
     @MainActor
     func captureDetail(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
-        registry: LayerRegistry,
+        in context: RequestContext,
         stopFlag: StopFlag
     ) -> CapturedDetail? {
-        let windows = HostWindows.all()
-        let attributes = NodeAttributes(
-            reading: AttributeReading(registry: registry, windows: windows),
-            extensions: .shared
-        )
+        let attributes = NodeAttributes(context: context)
         return DetailCapture.capture(
             request,
             maxTextureDimension: maxTextureDimension,
-            windows: windows,
-            registry: registry,
+            in: context,
             stopFlag: stopFlag,
-            extensions: .shared,
             readAttributes: { attributes.read($0) },
             readVirtualAttributes: { attributes.read($0) }
         )
-    }
-
-    @MainActor
-    func environment(overrides: EnvironmentOverrides) -> Environment {
-        overrides.environment(windows: HostWindows.all())
-    }
-
-    @MainActor
-    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
-        // P-APP-01 before P-ENV-04, as the state is checked again here (see `setAttribute`).
-        guard AppStateObserver.currentState() == .active else { return .appNotActive }
-        if let refusal = EnvironmentOverrides.refusal(of: traits, overridable: overrides.overridable) {
-            return refusal
-        }
-        overrides.replace(with: traits, windows: HostWindows.all())
-        return nil
-    }
-
-    @MainActor
-    func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
-        // The app may have added windows while it responded.
-        let windows = HostWindows.all()
-        overrides.finish(windows: windows)
-        return overrides.environment(windows: windows)
-    }
-
-    @MainActor
-    func removeOverrides(_ overrides: EnvironmentOverrides) {
-        overrides.removeAll()
     }
 
     // MARK: - Info

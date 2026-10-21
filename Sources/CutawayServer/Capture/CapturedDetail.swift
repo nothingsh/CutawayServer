@@ -18,24 +18,32 @@ struct CapturedDetail: Sendable, Equatable {
     /// The detail as it goes on the wire, with its images compressed; any thread, meant for
     /// one other than the main thread. An image that cannot be compressed makes it a failed
     /// capture: no image, the attributes stay (PROTOCOL.md, P-DET-03).
-    func compressed() -> LayerDetail {
+    ///
+    /// Each image's pixels are let go once it is compressed, so that with two large images the
+    /// first one's are not held while the second is compressed; that takes a detail no one else
+    /// holds (see `HostAccess.encodeDetail`).
+    consuming func compressed() -> LayerDetail {
+        let failed = LayerDetail(
+            layerID: layerID,
+            status: .captureFailed,
+            attributeGroups: attributeGroups,
+            constraints: constraints
+        )
         var encoded = LayerDetail(
             layerID: layerID,
             status: status,
             attributeGroups: attributeGroups,
             constraints: constraints
         )
-        for (image, slot) in [(solo, \LayerDetail.solo), (group, \LayerDetail.group)] {
-            guard let image else { continue }
-            guard let compressed = ImageEncoder.compress(image) else {
-                return LayerDetail(
-                    layerID: layerID,
-                    status: .captureFailed,
-                    attributeGroups: attributeGroups,
-                    constraints: constraints
-                )
-            }
-            encoded[keyPath: slot] = compressed
+        if let image = solo {
+            solo = nil
+            guard let compressed = ImageEncoder.compress(image) else { return failed }
+            encoded.solo = compressed
+        }
+        if let image = group {
+            group = nil
+            guard let compressed = ImageEncoder.compress(image) else { return failed }
+            encoded.group = compressed
         }
         return encoded
     }

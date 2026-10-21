@@ -1,35 +1,6 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import UIKit
 
-/// The two names the hierarchy gives for a class.
-enum ClassNames {
-    /// The name the runtime knows the class by: `Demo.CardView`, or a mangled name such as
-    /// `_TtCC4Demo5Outer5Inner` for classes that are private, nested or generic.
-    static func runtimeName(of type: AnyClass) -> String {
-        NSStringFromClass(type)
-    }
-
-    /// The name as written in source, without the module and without mangling: `CardView`,
-    /// `Inner`, `Cell<Int>`. For Objective-C classes it is the runtime name.
-    static func displayName(of type: AnyClass) -> String {
-        String(describing: type)
-    }
-
-    /// Both names of each class met in one capture, worked out once per class: a hierarchy
-    /// has many layers of few classes.
-    struct Cache {
-        private var names: [ObjectIdentifier: (runtime: String, display: String)] = [:]
-
-        mutating func names(of type: AnyClass) -> (runtime: String, display: String) {
-            let key = ObjectIdentifier(type)
-            if let known = names[key] { return known }
-            let found = (ClassNames.runtimeName(of: type), ClassNames.displayName(of: type))
-            names[key] = found
-            return found
-        }
-    }
-}
-
 /// How layers, views, view controllers and windows relate. Only reads.
 @MainActor
 enum LayerTopology {
@@ -61,7 +32,12 @@ enum LayerTopology {
     /// layer on the way up is the layer of one of `windows`. Empty for a window's own layer.
     /// A window's layer is not the top: UIKit puts layers of its own above it.
     static func ancestors(of layer: CALayer, in windows: [UIWindow]) -> [CALayer]? {
-        let windowLayers = Set(windows.map { ObjectIdentifier($0.layer) })
+        ancestors(of: layer, windowLayers: layers(of: windows))
+    }
+
+    /// The same, with the windows' layers as `layers(of:)` gives them, for a caller that looks
+    /// up many layers in the same windows.
+    static func ancestors(of layer: CALayer, windowLayers: Set<ObjectIdentifier>) -> [CALayer]? {
         var chain: [CALayer] = []
         var current = layer
         while !windowLayers.contains(ObjectIdentifier(current)) {
@@ -70,6 +46,11 @@ enum LayerTopology {
             current = parent
         }
         return chain.reversed()
+    }
+
+    /// The layers of `windows`, as `ancestors(of:windowLayers:)` takes them.
+    static func layers(of windows: [UIWindow]) -> Set<ObjectIdentifier> {
+        Set(windows.map { ObjectIdentifier($0.layer) })
     }
 }
 #endif

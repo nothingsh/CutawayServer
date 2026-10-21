@@ -2,8 +2,9 @@
 import CutawayWire
 import UIKit
 
-// The groups of lists and their cells (protocol 1.2, S-ATTR-19). Counts are read from what a
-// list has; they never ask its data source (H3, S-D-184).
+// The groups of lists and their cells (protocol 1.2). Counts are read from what a list has
+// loaded; they never ask its data source. A table answers them from what it loaded, also between
+// `reloadData()` and its next layout; a collection view does too once laid out.
 extension AttributeCatalog {
     static let tableViewGroup = GroupDefinition(
         "tableView",
@@ -27,12 +28,11 @@ extension AttributeCatalog {
                 title: "Rows",
                 section: .content,
                 cluster: ("listCounts", "items"),
-                write: nil
-            ) {
-                .int(Int64(rowCounts(of: $0).reduce(0, +)))
-            },
+                write: nil,
+                readWith: { .int(Int64($1.rowCounts(of: $0).reduce(0, +))) }
+            ),
             .init("rowsPerSection", .string, title: "Rows per Section", section: .content, write: nil) {
-                .string(AttributeTexts.list(rowCounts(of: $0).map(String.init)))
+                .string(AttributeTexts.list($1.rowCounts(of: $0), String.init))
             },
             .init("visibleIndexPaths", .string, title: "Visible Rows", section: .content, write: nil) {
                 .string(AttributeTexts.indexPaths($0.indexPathsForVisibleRows ?? []))
@@ -40,12 +40,8 @@ extension AttributeCatalog {
         ] as [AttributeDefinition<UITableView>]
     )
 
-    private static func rowCounts(of table: UITableView) -> [Int] {
-        (0..<table.numberOfSections).map(table.numberOfRows(inSection:))
-    }
-
     /// Between `reloadData()` and the next layout a collection view's counts would ask its data
-    /// source (S-D-184); it needs layout then, and they are nil.
+    /// source; it needs layout then, and they are nil (`AttributeReading.itemCounts(of:)`).
     static let collectionViewGroup = GroupDefinition(
         "collectionView",
         className: "UICollectionView",
@@ -60,30 +56,26 @@ extension AttributeCatalog {
                 title: "Sections",
                 section: .content,
                 cluster: ("listCounts", "sections"),
-                write: nil
-            ) { itemCounts(of: $0).map { .int(Int64($0.count)) } },
+                write: nil,
+                readWith: { $1.itemCounts(of: $0).map { .int(Int64($0.count)) } }
+            ),
             .init(
                 "numberOfItems",
                 .int,
                 title: "Items",
                 section: .content,
                 cluster: ("listCounts", "items"),
-                write: nil
-            ) { itemCounts(of: $0).map { .int(Int64($0.reduce(0, +))) } },
+                write: nil,
+                readWith: { $1.itemCounts(of: $0).map { .int(Int64($0.reduce(0, +))) } }
+            ),
             .init("itemsPerSection", .string, title: "Items per Section", section: .content, write: nil) {
-                itemCounts(of: $0).map { .string(AttributeTexts.list($0.map(String.init))) }
+                $1.itemCounts(of: $0).map { .string(AttributeTexts.list($0, String.init)) }
             },
             .init("visibleIndexPaths", .string, title: "Visible Items", section: .content, write: nil) {
                 .string(AttributeTexts.indexPaths($0.indexPathsForVisibleItems))
             }
         ] as [AttributeDefinition<UICollectionView>]
     )
-
-    /// The items of each section; `nil` while the collection view needs layout.
-    private static func itemCounts(of collection: UICollectionView) -> [Int]? {
-        guard !collection.layer.needsLayout() else { return nil }
-        return (0..<collection.numberOfSections).map(collection.numberOfItems(inSection:))
-    }
 
     static let tableViewCellGroup = GroupDefinition(
         "tableViewCell",

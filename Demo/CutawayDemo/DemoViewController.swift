@@ -231,10 +231,10 @@ final class DemoDetailViewController: UIViewController {
     }
 }
 
-/// The tree of the stability tests (S-STAB-01), for trying a large hierarchy by hand:
+/// The tree of the stability tests, for trying a large hierarchy by hand:
 /// 10,101 layers, 5,101 of
 /// them views, placed by 20,400 constraints. "Replace rows" changes the screen the way each
-/// round of the long-use test does (S-STAB-02); "Close" releases it all.
+/// round of the long-use test does; "Close" releases it all.
 final class DemoManyLayersViewController: UIViewController {
     private let tree = ManyLayersView(rows: 100, columns: 50)
 

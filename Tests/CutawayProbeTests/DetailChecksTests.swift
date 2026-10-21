@@ -45,20 +45,8 @@ private struct Canvas {
 /// The probe's checks of a stream of layer details: they accept what a correct server sends
 /// and name what is wrong with anything else.
 final class DetailChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/DetailChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    private func fixture(_ path: String) throws -> Frame {
-        try FrameCodec.decode(
-            Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin").appendingPathComponent(path))
-        )
-    }
-
     private func fixtureHierarchy() throws -> Hierarchy {
-        try HierarchyChecks.hierarchy(try fixture("hierarchy/02-s2c-hierarchy.bin"))
+        try HierarchyChecks.hierarchy(try Fixtures.frame("hierarchy/02-s2c-hierarchy.bin"))
     }
 
     /// The request and the server's frames of a fixture scenario.
@@ -66,11 +54,11 @@ final class DetailChecksTests: XCTestCase {
         _ name: String,
         _ files: [String]
     ) throws -> (request: GetLayerDetails, id: UInt32, frames: [Frame]) {
-        let first = try fixture("\(name)/01-c2s-get-layer-details.bin")
+        let first = try Fixtures.frame("\(name)/01-c2s-get-layer-details.bin")
         guard case .getLayerDetails(let request)? = first.body else {
             throw ProbeFailure("\(name) does not begin with GetLayerDetails")
         }
-        return (request, first.requestID, try files.map { try fixture("\(name)/\($0).bin") })
+        return (request, first.requestID, try files.map { try Fixtures.frame("\(name)/\($0).bin") })
     }
 
     private func layerDetails() throws -> (request: GetLayerDetails, id: UInt32, frames: [Frame]) {

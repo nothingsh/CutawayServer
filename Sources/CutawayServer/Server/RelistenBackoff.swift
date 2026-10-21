@@ -1,8 +1,8 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import Foundation
 
-/// The delays between attempts to listen again (S-CONN-10). Only arithmetic: the caller
-/// passes the time in.
+/// The delays between attempts to listen again after the listener failed while the app was
+/// active. Only arithmetic: the caller passes the time in.
 struct RelistenBackoff {
     private let settings: ServerConfiguration.Relisten
     private var delay: TimeInterval

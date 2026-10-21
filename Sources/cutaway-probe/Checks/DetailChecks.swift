@@ -87,11 +87,11 @@ enum DetailChecks {
         var streamEnd: StreamEnd?
         for frame in frames {
             guard streamEnd == nil else {
-                throw ProbeFailure("\(Checks.describe(frame)) follows the StreamEnd (P-REQ-03)")
+                throw ProbeFailure("\(HelloChecks.describe(frame)) follows the StreamEnd (P-REQ-03)")
             }
             guard frame.requestID == requestID else {
                 throw ProbeFailure(
-                    "expected a frame of stream \(requestID), got \(Checks.describe(frame)) (P-REQ-03)"
+                    "expected a frame of stream \(requestID), got \(HelloChecks.describe(frame)) (P-REQ-03)"
                 )
             }
             switch frame.body {
@@ -106,7 +106,7 @@ enum DetailChecks {
                 streamEnd = end
             default:
                 throw ProbeFailure(
-                    "expected LayerDetailsChunk or StreamEnd, got \(Checks.describe(frame)) (P-REQ-03)"
+                    "expected LayerDetailsChunk or StreamEnd, got \(HelloChecks.describe(frame)) (P-REQ-03)"
                 )
             }
         }
@@ -233,7 +233,7 @@ enum DetailChecks {
         if node.nodeKind == .virtual, let group = detail.attributeGroups.first(where: { !$0.fromApp }) {
             throw ProbeFailure("\(name) is a virtual node with the server's group \(group.id) (P-DET-09)")
         }
-        guard version.minor >= 2 else {
+        guard version.supportsExcludedStatus else {
             if detail.status == .excluded {
                 throw ProbeFailure("\(name) is Excluded, which protocol 1.\(version.minor) does not have (P-DET-10)")
             }
@@ -286,7 +286,7 @@ enum DetailChecks {
         bounds size: WireSize,
         maxTextureDimension: UInt32
     ) throws {
-        try Checks.image(image, name: imageName)
+        try HelloChecks.image(image, name: imageName)
         let bytes = Int(image.bytesPerRow) * Int(image.pixelHeight)
         guard bytes <= imageBudget else {
             throw ProbeFailure("\(imageName) has \(bytes) bytes of pixels, above \(imageBudget) (P-DET-08)")

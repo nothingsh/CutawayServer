@@ -40,7 +40,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.addSubview(viewB)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         // Pre-order: every parent before its children, siblings in the order they were added.
         let layers = [window.layer, viewA.layer, viewA1.layer, viewA2.layer, viewA2a.layer, viewB.layer]
@@ -58,7 +58,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         // The order follows the tree when it changes.
         window.bringSubviewToFront(viewA)
         viewA.sendSubviewToBack(viewA2)
-        let reordered = HierarchyCapture.capture(windows: [window], registry: registry)
+        let reordered = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(reordered.nodes.map(\.id), [1, 6, 2, 4, 5, 3])
         XCTAssertEqual(reordered.nodes.map(\.parentID), [0, 1, 1, 2, 4, 2])
     }
@@ -84,7 +84,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
 
         // One root per window, in the same order, each followed by its own layers.
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: windows, registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: windows, registry: registry))
         let roots = hierarchy.nodes.filter { $0.parentID == 0 }
         XCTAssertEqual(roots.map(\.id), windows.map { registry.register($0.layer) })
         XCTAssertEqual(roots.map(\.viewClassName), windows.map { NSStringFromClass(type(of: $0)) })
@@ -110,7 +110,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         let other = try makeWindow()
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: HostWindows.all(), registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: HostWindows.all(), registry: registry))
         XCTAssertNotEqual(hierarchy.keyWindowID, 0)
         XCTAssertEqual(hierarchy.keyWindowID, registry.register(key.layer))
         XCTAssertEqual(
@@ -120,11 +120,11 @@ final class HierarchyCaptureTests: CaptureTestCase {
 
         // No key window among them: 0.
         XCTAssertFalse(other.isKeyWindow)
-        XCTAssertEqual(HierarchyCapture.capture(windows: [other], registry: registry).keyWindowID, 0)
+        XCTAssertEqual(HierarchyCapture.capture(.testing(windows: [other], registry: registry)).keyWindowID, 0)
     }
 
     func test_S_HIER_01_anAppWithoutWindowsHasAnEmptyHierarchy() throws {
-        let hierarchy = HierarchyCapture.capture(windows: [], registry: LayerRegistry())
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [], registry: LayerRegistry()))
         XCTAssertEqual(hierarchy, Hierarchy(nodes: [], keyWindowID: 0))
         let frame = Frame(requestID: 1, body: .hierarchy(hierarchy))
         XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
@@ -143,7 +143,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
             parent = layer
         }
 
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
         XCTAssertEqual(hierarchy.nodes.count, depth + 1)
         XCTAssertEqual(hierarchy.nodes.map(\.id), (1...UInt64(depth + 1)).map { $0 })
         XCTAssertEqual(hierarchy.nodes.map(\.parentID), (0...UInt64(depth)).map { $0 })
@@ -162,23 +162,23 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.addSubview(second)
 
         let registry = LayerRegistry()
-        let before = HierarchyCapture.capture(windows: [window], registry: registry)
-        XCTAssertEqual(HierarchyCapture.capture(windows: [window], registry: registry), before)
+        let before = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
+        XCTAssertEqual(HierarchyCapture.capture(.testing(windows: [window], registry: registry)), before)
         XCTAssertFalse(before.nodes.contains { $0.id == 0 })
 
         // A new layer between the old ones: they keep their IDs, it gets one never seen before.
         let added = UIView()
         window.insertSubview(added, aboveSubview: first)
-        let after = HierarchyCapture.capture(windows: [window], registry: registry)
+        let after = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(after.nodes.map(\.id), [1, 2, 4, 3])
         XCTAssertEqual(try node(of: first.layer, in: after, registry: registry).id, 2)
         XCTAssertEqual(try node(of: second.layer, in: after, registry: registry).id, 3)
 
         // The whole app, twice: the same nodes.
         let appRegistry = LayerRegistry()
-        let app = HierarchyCapture.capture(windows: HostWindows.all(), registry: appRegistry)
+        let app = HierarchyCapture.capture(.testing(windows: HostWindows.all(), registry: appRegistry))
         XCTAssertEqual(
-            HierarchyCapture.capture(windows: HostWindows.all(), registry: appRegistry).nodes.map(\.id),
+            HierarchyCapture.capture(.testing(windows: HostWindows.all(), registry: appRegistry)).nodes.map(\.id),
             app.nodes.map(\.id)
         )
     }
@@ -192,7 +192,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         autoreleasepool {
             let doomed = UIView()
             window.addSubview(doomed)
-            before = HierarchyCapture.capture(windows: [window], registry: registry)
+            before = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
             doomedID = registry.register(doomed.layer)
             doomedLayer = doomed.layer
             doomed.removeFromSuperview()
@@ -206,7 +206,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         // Many new layers: some of them land on the address the released one had.
         let views = (0..<2_000).map { _ in UIView() }
         views.forEach(window.addSubview)
-        let after = HierarchyCapture.capture(windows: [window], registry: registry)
+        let after = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         XCTAssertEqual(after.nodes.count, 2_001)
         XCTAssertFalse(after.nodes.contains { $0.id == doomedID })
@@ -231,7 +231,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
             view = strongView
             backingLayer = strongView.layer
             sublayer = strongSublayer
-            let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+            let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
             XCTAssertEqual(hierarchy.nodes.count, 3)
             strongView.removeFromSuperview()
         }
@@ -243,7 +243,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         // The registry is still in use. It no longer shows them, and the capture made it forget
         // them: its size follows the layers that are alive.
         XCTAssertEqual(registry.count, 3)
-        XCTAssertEqual(HierarchyCapture.capture(windows: [window], registry: registry).nodes.count, 1)
+        XCTAssertEqual(HierarchyCapture.capture(.testing(windows: [window], registry: registry)).nodes.count, 1)
         XCTAssertEqual(registry.count, 1)
     }
 
@@ -262,7 +262,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.layer.addSublayer(borrowed)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         let windowNode = try node(of: window.layer, in: hierarchy, registry: registry)
         XCTAssertEqual(windowNode.viewClassName, "UIWindow")
@@ -294,7 +294,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         views.forEach { window.addSubview($0.view) }
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         for (view, displayName) in views {
             let node = try node(of: view.layer, in: hierarchy, registry: registry)
             let runtimeName = NSStringFromClass(type(of: view))
@@ -329,7 +329,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         let registry = LayerRegistry()
         let before = try node(
             of: view.layer,
-            in: HierarchyCapture.capture(windows: [window], registry: registry),
+            in: HierarchyCapture.capture(.testing(windows: [window], registry: registry)),
             registry: registry
         )
 
@@ -343,7 +343,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         )
         let after = try node(
             of: view.layer,
-            in: HierarchyCapture.capture(windows: [window], registry: registry),
+            in: HierarchyCapture.capture(.testing(windows: [window], registry: registry)),
             registry: registry
         )
         XCTAssertEqual(after, before)
@@ -367,7 +367,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.layer.addSublayer(tilted)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         let node = try node(of: rotated.layer, in: hierarchy, registry: registry)
         let expected: [Double] = [
@@ -431,7 +431,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         scrollView.contentOffset = CGPoint(x: 30, y: 100)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let node = try node(of: scrollView.layer, in: hierarchy, registry: registry)
         XCTAssertEqual(node.bounds, WireRect(x: 30, y: 100, width: 200, height: 300))
         XCTAssertEqual(node.position, WirePoint(x: 110, y: 170))
@@ -456,7 +456,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.layer.addSublayer(layer)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(
             try node(of: layer, in: hierarchy, registry: registry),
             LayerNode(
@@ -504,7 +504,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         XCTAssertEqual(endless.position.x, .infinity)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         let brokenNode = try node(of: broken, in: hierarchy, registry: registry)
         var expected = WireTransform.identity
@@ -597,8 +597,8 @@ final class HierarchyCaptureTests: CaptureTestCase {
         XCTAssertEqual(Array(before[center..<center + 4]), [0, 0, 255, 255], "BGRA of the red view")
 
         let registry = LayerRegistry()
-        let first = HierarchyCapture.capture(windows: [window], registry: registry)
-        let second = HierarchyCapture.capture(windows: [window], registry: registry)
+        let first = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
+        let second = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(first, second)
 
         XCTAssertEqual(try render(window), before)
@@ -619,7 +619,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         // Work is pending. Reading the hierarchy must neither do it nor cancel it.
         view.setNeedsLayout()
         view.setNeedsDisplay()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
         XCTAssertEqual(hierarchy.nodes.count, 2)
         XCTAssertEqual(view.layoutCount, layoutCount, "the capture laid the view out")
         XCTAssertEqual(view.drawCount, drawCount, "the capture drew the view")
@@ -655,7 +655,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         XCTAssertNotNil(top.viewIfLoaded?.window, "the navigation controller shows its child")
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         var marked: [UInt64: [String]] = [:]
         for node in hierarchy.nodes {
             guard let name = node.viewControllerClassName else {
@@ -690,7 +690,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         defer { root.dismiss(animated: false) }
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let node = try node(of: presented.view.layer, in: hierarchy, registry: registry)
         XCTAssertEqual(node.viewControllerClassName, "CutawayServerTests.DetailController")
         XCTAssertEqual(node.viewControllerDisplayClassName, "DetailController")
@@ -708,7 +708,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         unloaded.didMove(toParent: root)
         XCTAssertFalse(unloaded.isViewLoaded)
 
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
         XCTAssertFalse(unloaded.isViewLoaded, "the capture loaded a view")
         XCTAssertEqual(hierarchy.nodes.compactMap(\.viewControllerClassName), ["CutawayServerTests.ScreenController"])
     }
@@ -720,7 +720,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
             let strongController = DetailController()
             controller = strongController
             window.rootViewController = strongController
-            let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+            let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
             XCTAssertEqual(
                 hierarchy.nodes.compactMap(\.viewControllerClassName),
                 ["CutawayServerTests.DetailController"]
@@ -751,7 +751,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         }
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let parentID = registry.register(parent)
         let siblings = hierarchy.nodes.filter { $0.parentID == parentID }
         // Back to front by zPosition, NaN as 0; equal ones in the order of sublayers.
@@ -776,7 +776,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.bringSubviewToFront(views[0])
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(
             hierarchy.nodes.dropFirst().map(\.id),
             [views[1], views[2], views[0]].map { registry.register($0.layer) }
@@ -814,7 +814,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
         window.layoutIfNeeded()
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
 
         // A controller's root view: all three.
         let rootNode = try node(of: root.view.layer, in: hierarchy, registry: registry)
@@ -841,7 +841,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
 
         // P-HIER-10: a subtree gives the same addresses.
         let subtree = try XCTUnwrap(
-            HierarchyCapture.captureSubtree(rootID: rootNode.id, windows: [window], registry: registry)
+            HierarchyCapture.captureSubtree(rootID: rootNode.id, in: .testing(windows: [window], registry: registry))
         )
         XCTAssertEqual(subtree.nodes.first, rootNode)
         XCTAssertEqual(
@@ -866,7 +866,7 @@ final class HierarchyCaptureTests: CaptureTestCase {
             root.view.addSubview(strongView)
             view = strongView
             layer = strongLayer
-            let hierarchy = HierarchyCapture.capture(windows: [window], registry: LayerRegistry())
+            let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
             XCTAssertTrue(hierarchy.nodes.contains { $0.viewAddress == address(of: strongView) })
             XCTAssertTrue(hierarchy.nodes.contains { $0.layerAddress == address(of: strongLayer) })
             strongView.removeFromSuperview()

@@ -347,7 +347,7 @@ extension WireTestSupport {
     }
 }
 
-/// Damages encoded frames in the five ways of S-CONN-15, chosen in turn by a seeded generator.
+/// Damages encoded frames in five ways (`Kind`), chosen in turn by a seeded generator.
 struct FrameMutator {
     enum Kind: CaseIterable {
         case changeBytes, changeWord, truncate, insert, append

@@ -194,8 +194,7 @@ final class ConstraintCaptureTests: CaptureTestCase {
                     wantConstraints: constraints
                 ),
                 maxTextureDimension: 0,
-                windows: [scene.window],
-                registry: registry,
+                in: .testing(windows: [scene.window], registry: registry),
                 stopFlag: StopFlag(),
                 screenScale: 2,
                 readAttributes: { _ in
@@ -511,7 +510,7 @@ final class ConstraintCaptureTests: CaptureTestCase {
         let first = scene.views.map(captured)
         XCTAssertEqual(scene.views.map(captured), first)
         // Also after the hierarchy was read in between, which gives out more IDs.
-        _ = HierarchyCapture.capture(windows: [scene.window], registry: registry)
+        _ = HierarchyCapture.capture(.testing(windows: [scene.window], registry: registry))
         XCTAssertEqual(scene.views.map(captured), first)
     }
 

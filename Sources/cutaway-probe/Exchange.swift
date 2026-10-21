@@ -13,7 +13,7 @@ func request(_ body: Message, id requestID: UInt32, on connection: ProbeConnecti
         if frame.requestID == 0, case .appStateChanged? = frame.body { continue }
         guard frame.requestID == requestID else {
             throw ProbeFailure(
-                "expected the response to request \(requestID), got \(Checks.describe(frame)) (P-REQ-02)"
+                "expected the response to request \(requestID), got \(HelloChecks.describe(frame)) (P-REQ-02)"
             )
         }
         return frame

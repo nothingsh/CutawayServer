@@ -1,7 +1,6 @@
 // Every file of this target is wrapped in a `canImport(UIKit)` check, so that the package
 // still builds on macOS, where `swift test` builds all of its targets.
 #if canImport(UIKit)
-import Foundation
 
 /// The entry point of the SDK.
 public enum CutawayServer {

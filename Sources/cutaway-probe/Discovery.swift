@@ -63,11 +63,11 @@ func scan(_ options: Options) throws -> ScanResult {
                 busyPorts.append(port)
                 continue
             }
-            let app = try Checks.serverHello(first)
+            let app = try HelloChecks.serverHello(first)
             if let bundleID = options.bundleID, app.bundleID != bundleID {
                 continue  // Another app's server; closing the connection frees it.
             }
-            let version = Checks.negotiatedVersion(first)
+            let version = HelloChecks.negotiatedVersion(first)
             return .found(FoundServer(connection: connection, port: port, app: app, version: version))
         } catch let failure as ProbeFailure {
             if options.port != nil { throw failure }

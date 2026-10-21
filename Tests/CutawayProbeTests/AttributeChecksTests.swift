@@ -7,17 +7,9 @@ import XCTest
 /// The probe's attribute checks: they accept what a correct server sends and name what is
 /// wrong with anything else.
 final class AttributeChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/AttributeChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
     /// The attribute groups the fixture's chunk gives the layer `layerID`.
     private func fixtureGroups(_ path: String, layer layerID: UInt64) throws -> [AttributeGroup] {
-        let frame = try FrameCodec.decode(
-            Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin").appendingPathComponent(path))
-        )
+        let frame = try Fixtures.frame(path)
         guard case .layerDetailsChunk(let chunk)? = frame.body else {
             throw ProbeFailure("\(path) is not a chunk")
         }
@@ -323,7 +315,7 @@ final class AttributeChecksTests: XCTestCase {
         try assertStructureRejects("group view has no class_name (P-ATTR-16)") { $0[2].className = nil }
     }
 
-    // MARK: - Protocol 1.2 (S-PROBE-07)
+    // MARK: - Protocol 1.2
 
     func test_S_PROBE_07_clustersAreThoseOfTheNegotiatedTable() throws {
         // Since 1.2 a cluster or slot outside the negotiated table is a failure (P-ATTR-12).
@@ -511,7 +503,7 @@ final class AttributeChecksTests: XCTestCase {
                 "collectionViewCell"
             ]
         )
-        // 60 of version 0.1, the 8 of S-ATTR-07 and the 45 of protocol 1.2 (S-ATTR-16 to 22), with
+        // 60 of version 0.1, the 8 layout attributes of 0.4 and the 45 of protocol 1.2, with
         // `imageView.imageSize` of 0.1 in a cluster now.
         XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 114)
     }

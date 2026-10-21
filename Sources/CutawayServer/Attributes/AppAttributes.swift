@@ -3,9 +3,9 @@ import CutawayWire
 import UIKit
 
 /// The host app's attribute groups of one node as they are sent (PROTOCOL.md, P-ATTR-19): IDs
-/// with the prefix `app.`, values converted as the server's own are, and every rule of the
-/// protocol the host app could break checked, leaving out what breaks one. Also what writes
-/// each attribute.
+/// with the prefix `app.`, values converted and attributes made as the server's own are
+/// (`AttributeSpec`), and every rule of the protocol the host app could break checked, leaving
+/// out what breaks one. Also how each attribute is changed.
 @MainActor
 struct AppAttributes {
     static let prefix = "app."
@@ -73,13 +73,21 @@ struct AppAttributes {
         }
     }
 
-    /// The attribute `id` as sent, and the host app's attribute behind it.
-    func attribute(_ id: String) -> (sent: Attribute, source: CutawayServer.Attribute)? {
+    /// The attribute `id` as sent, and how the host app's `set` changes it; `nil` when no group
+    /// has it. It reads as read-only without `set`, or when its value fell back to text.
+    func attributeForEditing(_ id: String) -> AttributeEdit? {
         guard let source = sources[id],
               let sent = groups.lazy.flatMap(\.attributes).first(where: { $0.id == id }) else {
             return nil
         }
-        return (sent, source)
+        guard sent.editable, let write = source.write else { return AttributeEdit(attribute: sent, prepare: nil) }
+        return AttributeEdit(attribute: sent) { value in
+            guard let value else { return .success { try write(nil) } }
+            guard let input = Self.input(value), Self.kind(of: input) == sent.valueKind else {
+                return .failure(AttributeRejection("takes a \(sent.valueKind.schemaName)"))
+            }
+            return .success { try write(input) }
+        }
     }
 
     /// The clusters and slots one node uses (P-ATTR-12): each slot once, one section per
@@ -109,9 +117,9 @@ struct AppAttributes {
 // MARK: - Converting
 
 extension AppAttributes {
-    /// One attribute as sent, before the checks that need the whole node. As
-    /// `AttributeCatalog.attribute` does: a value that fell back to text is read-only, without
-    /// limits or unit (P-ATTR-03, 06); nil is only offered with `set` (P-ATTR-06).
+    /// One attribute as sent, before the checks that need the whole node: made by the rules of
+    /// the server's own (`AttributeSpec`), with the limits that hold (P-ATTR-09, 10) and the
+    /// prefix on the inactive cause. An object is never written.
     static func attribute(
         _ source: CutawayServer.Attribute,
         id: String,
@@ -119,36 +127,22 @@ extension AppAttributes {
         reading: AttributeReading
     ) -> Attribute {
         let kind = kind(of: source.value)
-        let value = value(of: source.value, view: view, reading: reading)
-        var attribute: Attribute
-        if let value, value.kind != kind {
-            attribute = Attribute(
-                id: id,
-                title: "",
-                value: value,
-                valueKind: value.kind,
-                section: section(source.section)
-            )
-        } else {
-            let editable = source.write != nil && kind != .layerReference
-            let limits = source.limits.map(limit)
-            attribute = Attribute(
-                id: id,
-                title: "",
-                value: value,
-                editable: editable,
-                acceptsNil: editable && source.acceptsNil,
-                valueKind: kind,
-                section: section(source.section),
-                limits: editable && limitsAreValid(limits, kind: kind) ? limits : [],
-                unit: kind.isNumeric && kind != .transform ? unit(source.unit) : .unspecified
-            )
-        }
-        attribute.title = source.title ?? AttributeCatalog.title(for: source.name)
-        attribute.cluster = source.cluster?.name
-        attribute.slot = source.cluster?.slot
-        attribute.inactiveCause = source.inactiveBecauseOf.map { prefix + $0 }
-        return attribute
+        let limits = source.limits.map(limit)
+        let spec = AttributeSpec(
+            kind: kind,
+            acceptsNil: source.acceptsNil,
+            section: section(source.section),
+            cluster: source.cluster.map { ($0.name, $0.slot) },
+            unit: unit(source.unit),
+            limits: limitsAreValid(limits, kind: kind) ? limits : [],
+            isEditable: source.write != nil && kind != .layerReference
+        )
+        return spec.attribute(
+            id: id,
+            title: source.title ?? AttributeCatalog.title(for: source.name),
+            value: value(of: source.value, view: view, reading: reading),
+            inactiveCause: source.inactiveBecauseOf.map { prefix + $0 }
+        )
     }
 
     static func kind(of value: CutawayServer.Attribute.Value) -> AttributeValueKind {
@@ -205,51 +199,29 @@ extension AppAttributes {
         }
     }
 
-    /// A value from the wire as the host app's attribute takes it, of the same case as
-    /// `declared`; `nil` when it is of another kind. Every check of `AttributeEditing.check`
-    /// has passed.
-    static func input(
-        _ value: AttributeValue?,
-        as declared: CutawayServer.Attribute.Value
-    ) -> CutawayServer.Attribute.Value? {
-        guard let value else { return nothing(as: declared) }
-        switch (declared, value) {
-        case let (.bool, .bool(flag)): return .bool(flag)
-        case let (.int, .int(number)): return .int(number)
-        case let (.double, .double(number)): return .double(number)
-        case let (.string, .string(text)): return .string(text)
-        case (.color, .color):
+    /// A value from the wire as the host app's attribute takes it, in the case of its kind;
+    /// `nil` for objects, which are never written.
+    static func input(_ value: AttributeValue) -> CutawayServer.Attribute.Value? {
+        switch value {
+        case .bool(let flag): return .bool(flag)
+        case .int(let number): return .int(number)
+        case .double(let number): return .double(number)
+        case .string(let text): return .string(text)
+        case .color:
             guard case .success(let color?) = AttributeInputs.color(value) else { return nil }
             return .color(UIColor(cgColor: color))
-        case let (.point, .point(point)): return .point(CGPoint(point))
-        case let (.size, .size(size)): return .size(CGSize(size))
-        case let (.rect, .rect(rect)): return .rect(CGRect(rect))
-        case let (.insets, .insets(insets)): return .insets(UIEdgeInsets(insets))
-        case let (.transform, .transform(transform)): return .transform(CATransform3D(transform))
-        case let (.enumeration(_, cases), .enumeration(raw, _, _, _)): return .enumeration(raw, cases: cases)
-        default: return nil
+        case .point(let point): return .point(CGPoint(point))
+        case .size(let size): return .size(CGSize(size))
+        case .rect(let rect): return .rect(CGRect(rect))
+        case .insets(let insets): return .insets(UIEdgeInsets(insets))
+        case .transform(let transform): return .transform(CATransform3D(transform))
+        // The cases are the attribute's; writing takes the raw value only.
+        case .enumeration(let raw, _, _, _): return .enumeration(raw, cases: [])
+        case .layerReference: return nil
         }
     }
 
-    /// Nil, of the same case as `declared`; `nil` for objects, which are never written.
-    private static func nothing(as declared: CutawayServer.Attribute.Value) -> CutawayServer.Attribute.Value? {
-        switch declared {
-        case .bool: return .bool(nil)
-        case .int: return .int(nil)
-        case .double: return .double(nil)
-        case .string: return .string(nil)
-        case .color: return .color(nil)
-        case .point: return .point(nil)
-        case .size: return .size(nil)
-        case .rect: return .rect(nil)
-        case .insets: return .insets(nil)
-        case .transform: return .transform(nil)
-        case .enumeration(_, let cases): return .enumeration(nil, cases: cases)
-        case .references: return nil
-        }
-    }
-
-    static func section(_ section: CutawayServer.Section) -> AttributeSection {
+    static func section(_ section: CutawayServer.Attribute.Section) -> AttributeSection {
         switch section {
         case .general: return .general
         case .identity: return .identity
@@ -261,7 +233,7 @@ extension AppAttributes {
         }
     }
 
-    static func unit(_ unit: CutawayServer.Unit) -> AttributeUnit {
+    static func unit(_ unit: CutawayServer.Attribute.Unit) -> AttributeUnit {
         switch unit {
         case .none: return .unspecified
         case .points: return .points
@@ -269,7 +241,7 @@ extension AppAttributes {
         }
     }
 
-    static func limit(_ limit: CutawayServer.Limit) -> NumberLimit {
+    static func limit(_ limit: CutawayServer.Attribute.Limit) -> NumberLimit {
         NumberLimit(
             minimum: limit.minimum,
             minimumIsExclusive: limit.minimum != nil && limit.minimumIsExclusive,
@@ -282,20 +254,9 @@ extension AppAttributes {
     /// maximum with some value between, integer bounds for an integer. Empty states none.
     static func limitsAreValid(_ limits: [NumberLimit], kind: AttributeValueKind) -> Bool {
         guard !limits.isEmpty else { return true }
-        let count = componentCount(of: kind)
+        let count = kind.componentCount
         guard count > 0, limits.count == 1 || limits.count == count else { return false }
         return limits.allSatisfy { $0.isSatisfiable(byIntegersOnly: kind == .int) }
-    }
-
-    /// The numbers a value of `kind` holds (P-ATTR-09); 0 for a kind without limits.
-    static func componentCount(of kind: AttributeValueKind) -> Int {
-        switch kind {
-        case .int, .double: return 1
-        case .point, .size: return 2
-        case .rect, .insets: return 4
-        case .transform: return 16
-        case .none, .bool, .string, .color, .enumeration, .layerReference: return 0
-        }
     }
 }
 

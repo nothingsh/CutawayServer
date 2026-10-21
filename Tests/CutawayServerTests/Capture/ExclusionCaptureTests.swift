@@ -5,7 +5,7 @@ import XCTest
 @testable import CutawayServer
 
 /// A view the host app excludes from images, for example because it shows a card number.
-final class PaymentCardView: UIView {}
+private final class PaymentCardView: UIView {}
 
 /// The details of virtual nodes, and of nodes excluded from images (S-SHOT-12, S-SHOT-13).
 /// No server, no connection.
@@ -46,7 +46,7 @@ final class ExclusionCaptureTests: CaptureTestCase {
         store.describe(PaymentCardView.self, CutawayServer.Description(isExcludedFromCapture: true), isView: true)
         store.describe(BarChartView.self, BarChartView.description, isView: true)
         // The IDs of the virtual nodes are given out by a hierarchy.
-        _ = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        _ = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         return Scene(window: window, container: container, card: card, label: label, chart: chart, store: store)
     }
 
@@ -68,11 +68,9 @@ final class ExclusionCaptureTests: CaptureTestCase {
                     wantConstraints: constraints
                 ),
                 maxTextureDimension: 0,
-                windows: [scene.window],
-                registry: registry,
+                in: .testing(windows: [scene.window], registry: registry, extensions: scene.store),
                 stopFlag: StopFlag(),
                 screenScale: 1,
-                extensions: scene.store,
                 readAttributes: { _ in [AttributeGroup(id: "layer", title: "Layer", attributes: [])] }
             )
         )
@@ -156,11 +154,9 @@ final class ExclusionCaptureTests: CaptureTestCase {
                     wantAttributes: false
                 ),
                 maxTextureDimension: 0,
-                windows: [scene.window],
-                registry: registry,
+                in: .testing(windows: [scene.window], registry: registry, extensions: plain),
                 stopFlag: StopFlag(),
                 screenScale: 1,
-                extensions: plain,
                 readAttributes: { _ in [] }
             )?.group
         )
@@ -196,5 +192,71 @@ final class ExclusionCaptureTests: CaptureTestCase {
             DetailCapture.excludedLayers(below: scene.window.layer, lookup: lookup).map(ObjectIdentifier.init),
             [ObjectIdentifier(scene.card.layer)]
         )
+    }
+
+    func test_S_SHOT_13_withoutExclusionsTheSubtreeIsNotSearched() throws {
+        let window = try makeWindow()
+        let container = colorView(CGRect(x: 0, y: 0, width: 100, height: 100), red: 1, green: 1, blue: 1)
+        let below = CountingLayer()
+        below.frame = CGRect(x: 10, y: 10, width: 20, height: 20)
+        container.layer.addSublayer(below)
+        window.addSubview(container)
+        let id = registry.register(container.layer)
+        // How often the layer below was asked for its sublayers while the group was captured;
+        // the rendering is left out, since it looks at every layer.
+        func searches(with store: ExtensionStore) throws -> Int {
+            below.sublayerReads = 0
+            let detail = try XCTUnwrap(
+                DetailCapture.capture(
+                    LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: true, wantAttributes: false),
+                    maxTextureDimension: 0,
+                    in: .testing(windows: [window], registry: registry, extensions: store),
+                    stopFlag: StopFlag(),
+                    screenScale: 1,
+                    readAttributes: { _ in [] },
+                    render: { _, _, plan in
+                        RawImage(
+                            pixelWidth: plan.pixelWidth,
+                            pixelHeight: plan.pixelHeight,
+                            bytesPerRow: plan.pixelWidth * 4,
+                            scale: plan.scale,
+                            pixels: Data(count: plan.pixelWidth * plan.pixelHeight * 4)
+                        )
+                    }
+                )
+            )
+            XCTAssertEqual(detail.status, .ok)
+            XCTAssertNotNil(detail.group)
+            return below.sublayerReads
+        }
+        // Something registered, but nothing excluded: a color, a description that excludes
+        // nothing, one that no longer excludes.
+        let colorOnly = ExtensionStore()
+        colorOnly.registerColor(.red, named: "red")
+        XCTAssertEqual(try searches(with: colorOnly), 0)
+        let collapsed = ExtensionStore()
+        collapsed.describe(UIView.self, CutawayServer.Description(isCollapsedByDefault: true), isView: true)
+        XCTAssertEqual(try searches(with: collapsed), 0)
+        let replaced = ExtensionStore()
+        replaced.describe(PaymentCardView.self, CutawayServer.Description(isExcludedFromCapture: true), isView: true)
+        replaced.describe(PaymentCardView.self, CutawayServer.Description(), isView: true)
+        XCTAssertEqual(try searches(with: replaced), 0)
+        // Some class excluded, though none of these layers is of it: the subtree is searched.
+        let excluding = ExtensionStore()
+        excluding.describe(PaymentCardView.self, CutawayServer.Description(isExcludedFromCapture: true), isView: true)
+        XCTAssertEqual(try searches(with: excluding), 1)
+    }
+}
+
+/// A layer that counts how often it is asked for its sublayers.
+private final class CountingLayer: CALayer {
+    var sublayerReads = 0
+
+    override var sublayers: [CALayer]? {
+        get {
+            sublayerReads += 1
+            return super.sublayers
+        }
+        set { super.sublayers = newValue }
     }
 }

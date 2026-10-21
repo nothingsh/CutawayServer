@@ -167,7 +167,7 @@ final class EnvironmentCodecTests: XCTestCase {
         XCTAssertEqual(overrides.specifiedKinds, [.userInterfaceStyle, .layoutDirection, .verticalSizeClass])
     }
 
-    /// The raw values are the protocol's, so that the two mappings of `GeneratedEnums.swift`
+    /// The raw values are the protocol's, so that the two mappings of `EnumMapping.swift`
     /// and the raw reading meet.
     func test_S_ENV_01_rawValuesAreTheProtocols() {
         XCTAssertEqual(UserInterfaceStyle.allCases.map(\.generated), [.unspecified, .light, .dark])
