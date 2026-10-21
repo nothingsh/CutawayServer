@@ -41,21 +41,6 @@ final class MemberHolderView: UIView {
     let heldLayer = CALayer()
 }
 
-// For the order of the references.
-class OrderBaseController: UIViewController {
-    var baseTarget: UIView?
-}
-
-final class OrderController: OrderBaseController {
-    var first: UIView?
-    var second: UIView?
-    override func loadView() { view = OrderRootView() }
-}
-
-final class OrderRootView: UIView { var target: UIView? }
-final class OrderOuterView: UIView { var target: UIView? }
-final class OrderInnerView: UIView { var target: UIView? }
-
 // References that do not come from an ancestor.
 final class SiblingView: UIView {
     var other: UIView?
@@ -170,7 +155,7 @@ final class MemberScanTests: CaptureTestCase {
         generic.addSubview(held)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         let expected: [(AnyObject, MemberReference)] = [
             (controller.baseLabel, reference("MemberBaseController", "baseLabel")),
             (baseLayer, reference("MemberBaseController", "baseLayer")),
@@ -225,7 +210,7 @@ final class MemberScanTests: CaptureTestCase {
         controller.first = leaf
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(
             try references(of: leaf, in: hierarchy, registry: registry),
             [
@@ -259,7 +244,7 @@ final class MemberScanTests: CaptureTestCase {
         firstSibling.ownLayer = firstSibling.layer
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         for object in [firstSibling, secondSibling, child, window] {
             // A view's `_layer` points at the node itself.
             XCTAssertEqual(try references(of: object, in: hierarchy, registry: registry), [], "\(object)")
@@ -279,7 +264,7 @@ final class MemberScanTests: CaptureTestCase {
         window.layoutIfNeeded()
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         // UIKit's own variables, with their underscore (P-HIER-09).
         XCTAssertTrue(
             try references(of: cell.contentView, in: hierarchy, registry: registry)
@@ -303,7 +288,7 @@ final class MemberScanTests: CaptureTestCase {
         window.addSubview(unsupported)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         for target in [unownedTarget, inArray] {
             let names = try references(of: target, in: hierarchy, registry: registry).map(\.name)
             XCTAssertFalse(names.contains("unownedView"), "\(names)")
@@ -326,7 +311,7 @@ final class MemberScanTests: CaptureTestCase {
         CATransaction.flush()
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(try references(of: child, in: hierarchy, registry: registry), [])
     }
 
@@ -340,7 +325,7 @@ final class MemberScanTests: CaptureTestCase {
         XCTAssertEqual(holder.sets, 1)
 
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(
             try references(of: child, in: hierarchy, registry: registry),
             [reference("GetterView", "target")]

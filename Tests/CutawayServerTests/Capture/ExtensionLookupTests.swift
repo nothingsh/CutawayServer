@@ -47,7 +47,7 @@ final class ExtensionLookupTests: XCTestCase {
     }
 
     private func resolve(_ view: UIView, in store: ExtensionStore) -> ExtensionLookup.Resolved {
-        var lookup = ExtensionLookup(store: store)
+        let lookup = ExtensionLookup(store: store)
         return lookup.resolve(view.layer, view: view)
     }
 
@@ -94,7 +94,7 @@ final class ExtensionLookupTests: XCTestCase {
         XCTAssertTrue(resolved.isCollapsedByDefault)
 
         // A layer that backs no view has its own.
-        var lookup = ExtensionLookup(store: store)
+        let lookup = ExtensionLookup(store: store)
         let bare = lookup.resolve(ChartLayer(), view: nil)
         XCTAssertEqual(groups(bare), ["layer"])
         XCTAssertEqual(children(bare), ["layer"])
@@ -122,6 +122,60 @@ final class ExtensionLookupTests: XCTestCase {
         XCTAssertEqual(ExtensionStore.shared.layerDescriptions.count, 1)
         XCTAssertEqual(ExtensionStore.shared.colors.map(\.name), ["brand"])
         XCTAssertEqual(groups(resolve(ChartView(), in: .shared)), ["chart"])
+    }
+
+    func test_S_API_04_everyChangeRaisesTheRevision() {
+        let store = ExtensionStore()
+        XCTAssertEqual(store.revision, 0)
+        store.describe(ChartView.self, description("chart", of: ChartView.self), isView: true)
+        XCTAssertEqual(store.revision, 1)
+        store.describe(ChartView.self, description("again", of: ChartView.self), isView: true)
+        XCTAssertEqual(store.revision, 2)
+        store.describe(ChartLayer.self, description("layer", of: ChartLayer.self), isView: false)
+        XCTAssertEqual(store.revision, 3)
+        store.registerColor(.red, named: "brand")
+        store.registerColor(.blue, named: "brand")
+        XCTAssertEqual(store.revision, 5)
+        store.removeAll()
+        XCTAssertEqual(store.revision, 6)
+    }
+
+    func test_S_API_04_theStoreKnowsWhetherAnyDescriptionExcludes() {
+        let store = ExtensionStore()
+        XCTAssertFalse(store.hasExclusions)
+        store.describe(ChartView.self, description("chart", of: ChartView.self), isView: true)
+        store.registerColor(.red, named: "brand")
+        XCTAssertFalse(store.hasExclusions)
+        store.describe(ChartLayer.self, description("layer", of: ChartLayer.self, excluded: true), isView: false)
+        XCTAssertTrue(store.hasExclusions)
+        store.describe(ChartView.self, description("chart", of: ChartView.self, excluded: true), isView: true)
+        // A replacement without the exclusion leaves the other one.
+        store.describe(ChartLayer.self, description("layer", of: ChartLayer.self), isView: false)
+        XCTAssertTrue(store.hasExclusions)
+        store.describe(ChartView.self, description("chart", of: ChartView.self), isView: true)
+        XCTAssertFalse(store.hasExclusions)
+        store.describe(ChartView.self, description("chart", of: ChartView.self, excluded: true), isView: true)
+        store.removeAll()
+        XCTAssertFalse(store.hasExclusions)
+    }
+
+    func test_S_API_04_aRequestLooksUpTheStoreTheHostWasGiven() {
+        let store = ExtensionStore()
+        let registry = LayerRegistry()
+        let context = LiveHostApp(infoDictionary: [:], extensions: store)
+            .makeRequestContext(registry: registry, version: .current)
+        XCTAssertTrue(context.extensions.store === store)
+        XCTAssertTrue(context.registry === registry)
+        XCTAssertEqual(context.version, .current)
+        XCTAssertTrue(context.extensions.isEmpty)
+        XCTAssertTrue(
+            LiveHostApp(infoDictionary: [:]).makeRequestContext(registry: registry, version: .current)
+                .extensions.store === ExtensionStore.shared
+        )
+        // Whether anything was registered is decided when the request begins.
+        store.registerColor(.red, named: "brand")
+        XCTAssertTrue(context.extensions.isEmpty)
+        XCTAssertFalse(RequestContext.testing(windows: [], registry: registry, extensions: store).extensions.isEmpty)
     }
 
     func test_S_API_04_theDescriptionIsCalledWithItsOwnSubject() {

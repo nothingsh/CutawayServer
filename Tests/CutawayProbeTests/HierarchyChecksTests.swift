@@ -7,20 +7,8 @@ import XCTest
 /// The probe's hierarchy checks: they accept what a correct server sends and name what is
 /// wrong with anything else. A check that accepts everything would make the probe worthless.
 final class HierarchyChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/HierarchyChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
     private func fixtureFrame() throws -> Frame {
-        try FrameCodec.decode(
-            Data(
-                contentsOf: Self.root.appendingPathComponent(
-                    "Protocol/fixtures/bin/hierarchy/02-s2c-hierarchy.bin"
-                )
-            )
-        )
+        try Fixtures.frame("hierarchy/02-s2c-hierarchy.bin")
     }
 
     /// The whole fixture: nodes 1 to 9, and the virtual and excluded nodes 10 to 14 of 1.2.
@@ -136,13 +124,7 @@ final class HierarchyChecksTests: XCTestCase {
     // MARK: - Subtrees
 
     private func subtreeFrame() throws -> Frame {
-        try FrameCodec.decode(
-            Data(
-                contentsOf: Self.root.appendingPathComponent(
-                    "Protocol/fixtures/bin/subtree/02-s2c-hierarchy.bin"
-                )
-            )
-        )
+        try Fixtures.frame("subtree/02-s2c-hierarchy.bin")
     }
 
     func test_S_HIER_11_subtreeCheckAcceptsTheFixture() throws {

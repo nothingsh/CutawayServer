@@ -7,48 +7,28 @@ import UIKit
 /// base's, so that a test can wrap it.
 struct TestHostApp: HostApp {
     private let base: any HostApp
-    var captureHierarchy: @MainActor @Sendable (LayerRegistry, ProtocolVersion) -> Hierarchy
-    var captureSubtree: @MainActor @Sendable (UInt64, LayerRegistry, ProtocolVersion) -> Hierarchy?
+    var appState: @MainActor @Sendable () -> AppState
+    var environmentControl: @Sendable () -> any EnvironmentControl
+    var captureHierarchy: @MainActor @Sendable (RequestContext) -> Hierarchy
+    var captureSubtree: @MainActor @Sendable (UInt64, RequestContext) -> Hierarchy?
     var setAttribute:
-        @MainActor @Sendable (SetAttribute, LayerRegistry) -> Result<SetAttributeResult, WireError>
+        @MainActor @Sendable (SetAttribute, RequestContext) -> Result<SetAttributeResult, WireError>
     var captureDetail:
-        @MainActor @Sendable (LayerDetailRequest, UInt32, LayerRegistry, StopFlag) -> CapturedDetail?
-    var setEnvironment: @MainActor @Sendable (Traits, EnvironmentOverrides) -> WireError?
-    var settleEnvironment: @MainActor @Sendable (EnvironmentOverrides) -> Environment
+        @MainActor @Sendable (LayerDetailRequest, UInt32, RequestContext, StopFlag) -> CapturedDetail?
 
     init(_ base: any HostApp = LiveHostApp()) {
         self.base = base
-        captureHierarchy = { base.captureHierarchy(registry: $0, version: $1) }
-        captureSubtree = { base.captureSubtree(of: $0, registry: $1, version: $2) }
-        setAttribute = { base.setAttribute($0, registry: $1) }
+        appState = { base.currentAppState() }
+        environmentControl = { base.makeEnvironmentControl() }
+        captureHierarchy = { base.captureHierarchy(in: $0) }
+        captureSubtree = { base.captureSubtree(of: $0, in: $1) }
+        setAttribute = { base.setAttribute($0, in: $1) }
         captureDetail = {
-            base.captureDetail($0, maxTextureDimension: $1, registry: $2, stopFlag: $3)
+            base.captureDetail($0, maxTextureDimension: $1, in: $2, stopFlag: $3)
         }
-        setEnvironment = { base.setEnvironment($0, overrides: $1) }
-        settleEnvironment = { base.settleEnvironment(overrides: $0) }
     }
 
     // No test replaces these.
-
-    @MainActor
-    func environment(overrides: EnvironmentOverrides) -> Environment {
-        base.environment(overrides: overrides)
-    }
-
-    @MainActor
-    func setEnvironment(_ traits: Traits, overrides: EnvironmentOverrides) -> WireError? {
-        setEnvironment(traits, overrides)
-    }
-
-    @MainActor
-    func settleEnvironment(overrides: EnvironmentOverrides) -> Environment {
-        settleEnvironment(overrides)
-    }
-
-    @MainActor
-    func removeOverrides(_ overrides: EnvironmentOverrides) {
-        base.removeOverrides(overrides)
-    }
 
     @MainActor
     func appInfo() -> AppInfo {
@@ -61,28 +41,48 @@ struct TestHostApp: HostApp {
     }
 
     @MainActor
-    func captureHierarchy(registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy {
-        captureHierarchy(registry, version)
+    func makeRequestContext(
+        for connection: ConnectionContext,
+        version: ProtocolVersion,
+        memo: RequestMemo
+    ) -> RequestContext {
+        base.makeRequestContext(for: connection, version: version, memo: memo)
+    }
+
+    // These call the closures above.
+
+    @MainActor
+    func currentAppState() -> AppState {
+        appState()
+    }
+
+    func makeEnvironmentControl() -> any EnvironmentControl {
+        environmentControl()
     }
 
     @MainActor
-    func captureSubtree(of rootID: UInt64, registry: LayerRegistry, version: ProtocolVersion) -> Hierarchy? {
-        captureSubtree(rootID, registry, version)
+    func captureHierarchy(in context: RequestContext) -> Hierarchy {
+        captureHierarchy(context)
     }
 
     @MainActor
-    func setAttribute(_ change: SetAttribute, registry: LayerRegistry)
+    func captureSubtree(of rootID: UInt64, in context: RequestContext) -> Hierarchy? {
+        captureSubtree(rootID, context)
+    }
+
+    @MainActor
+    func setAttribute(_ change: SetAttribute, in context: RequestContext)
         -> Result<SetAttributeResult, WireError> {
-        setAttribute(change, registry)
+        setAttribute(change, context)
     }
 
     @MainActor
     func captureDetail(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
-        registry: LayerRegistry,
+        in context: RequestContext,
         stopFlag: StopFlag
     ) -> CapturedDetail? {
-        captureDetail(request, maxTextureDimension, registry, stopFlag)
+        captureDetail(request, maxTextureDimension, context, stopFlag)
     }
 }

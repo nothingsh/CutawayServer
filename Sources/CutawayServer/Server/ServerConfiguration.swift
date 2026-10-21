@@ -12,15 +12,16 @@ struct ServerConfiguration: Sendable {
     var handshakeTimeout: TimeInterval = 5
     /// How long a connection that sent its last frame waits for the peer to close.
     var lingerTimeout: TimeInterval = 1
-    /// When a running listener fails while the app is active (S-CONN-10).
+    /// When a running listener fails while the app is active: how soon to listen again.
     var relisten = Relisten()
-    /// TCP keepalive of every accepted connection (S-CONN-11).
+    /// TCP keepalive of every accepted connection, so that a peer that went away is dropped.
     var keepalive = TCPKeepalive()
     /// The bytes that may be outstanding: handed to the connection and not yet sent, plus
     /// rendered and not yet compressed. No layer is rendered and no request is begun beyond
-    /// it (S-CONN-13).
+    /// it, so that a slow client cannot make the app hold more.
     var outstandingByteLimit = 32 * 1024 * 1024
-    /// Reading stops while this many requests wait to be handled (S-CONN-14).
+    /// Reading stops while this many requests wait to be handled, so that a client cannot queue
+    /// requests without end.
     var waitingRequestLimit = 64
 
     /// The two limits above, as each session gets them.

@@ -3,8 +3,9 @@ import XCTest
 
 @testable import CutawayServer
 
-/// What leaving excluded layers out of images rests on (assumption H7): UIKit's own behavior,
-/// tested without the server.
+/// What leaving excluded layers out of images rests on: a layer hidden for the time of one
+/// capture is left out of it, also inside a stack view. UIKit's own behavior, tested without
+/// the server.
 final class ExclusionAssumptionTests: CaptureTestCase {
     private let white = pixelBytes(red: 1, green: 1, blue: 1)
     private let red = pixelBytes(red: 1, green: 0, blue: 0)
@@ -59,7 +60,7 @@ final class ExclusionAssumptionTests: CaptureTestCase {
         return try XCTUnwrap(LayerRenderer.render(layer, mode: .group, plan: plan))
     }
 
-    /// H7: hiding a layer deep inside a stack view for the time of one capture leaves it out of
+    /// Hiding a layer deep inside a stack view for the time of one capture leaves it out of
     /// the image, lays nothing out, starts no animation, and leaves every state as it was.
     func test_S_SHOT_13_H7_hidingADeepLayerLeavesNoTrace() throws {
         let scene = try makeScene()
@@ -70,7 +71,7 @@ final class ExclusionAssumptionTests: CaptureTestCase {
         }
     }
 
-    /// H7: hiding the layer of an arranged subview itself, which the stack view watches through
+    /// Hiding the layer of an arranged subview itself, which the stack view watches through
     /// `isHidden` of the view, does not make it rearrange.
     func test_S_SHOT_13_H7_hidingAnArrangedSubviewsLayerLeavesNoTrace() throws {
         let scene = try makeScene()

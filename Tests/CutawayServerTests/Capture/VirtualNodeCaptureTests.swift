@@ -4,39 +4,7 @@ import XCTest
 
 @testable import CutawayServer
 
-/// A view that draws bars of its own: the host app describes each as a virtual node.
-class BarChartView: UIView {
-    struct Bar {
-        var id: String
-        var value: Double
-        var parts: [String] = []
-    }
-
-    var bars: [Bar] = []
-
-    /// The bars side by side, 20 points wide, as tall as their value; each part 5 points tall
-    /// from the bar's top.
-    static let description = CutawayServer.Description<BarChartView>(virtualChildren: { chart in
-        chart.bars.enumerated().map { index, bar in
-            CutawayServer.VirtualNode(
-                id: bar.id,
-                type: Bar.self,
-                name: bar.id.capitalized,
-                frame: CGRect(x: Double(index) * 20, y: 0, width: 20, height: bar.value),
-                children: bar.parts.enumerated().map { partIndex, part in
-                    CutawayServer.VirtualNode(
-                        id: part,
-                        typeName: "Part",
-                        name: part,
-                        frame: CGRect(x: 0, y: Double(partIndex) * 5, width: 20, height: 5)
-                    )
-                }
-            )
-        }
-    })
-}
-
-final class SpecialBarChartView: UIView {}
+private final class SpecialBarChartView: UIView {}
 
 /// Virtual nodes, nodes collapsed by default and excluded subtrees in the hierarchy and its
 /// subtrees (S-HIER-17, S-HIER-18, S-SHOT-13). No server, no connection.
@@ -86,7 +54,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let sub = made.sub
         let store = made.store
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let chartID = registry.register(chart.layer)
         let following = Array(nodes(after: chart.layer, in: hierarchy, registry: registry).prefix(5))
         XCTAssertEqual(following.map(\.nodeKind), [.virtual, .virtual, .virtual, .virtual, .layer])
@@ -111,7 +79,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let store = made.store
         chart.bars[1].value = 50
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let virtual = nodes(after: chart.layer, in: hierarchy, registry: registry).filter { $0.nodeKind == .virtual }
         let april = try XCTUnwrap(virtual.first { $0.name == "April" })
         XCTAssertEqual(april.bounds, WireRect(x: 0, y: 0, width: 20, height: 50))
@@ -159,7 +127,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
             ]
         }), isView: true)
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let dials = nodes(after: view.layer, in: hierarchy, registry: registry).prefix(2)
         XCTAssertEqual(dials.first?.transform, WireGeometry.transform(CATransform3DMakeAffineTransform(rotation)))
         XCTAssertEqual(dials.first?.isHidden, true)
@@ -176,7 +144,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let store = made.store
         let registry = LayerRegistry()
         func ids() -> [String: UInt64] {
-            let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+            let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
             let virtual = hierarchy.nodes.filter { $0.nodeKind == .virtual }
             return Dictionary(uniqueKeysWithValues: virtual.map { ($0.name ?? "", $0.id) })
         }
@@ -206,7 +174,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
             BarChartView.Bar(id: "april", value: 30, parts: ["march"])
         ]
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let virtual = hierarchy.nodes.filter { $0.nodeKind == .virtual }
         XCTAssertEqual(virtual.map(\.name), ["March", "April"])
         XCTAssertFalse(virtual.contains { $0.name == "unique" })
@@ -219,16 +187,18 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let chart = made.chart
         let store = made.store
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, version: v11, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(
+            windows: [window],
+            registry: registry,
+            version: v11,
+            extensions: store
+        ))
         XCTAssertFalse(hierarchy.nodes.contains { $0.nodeKind == .virtual })
         XCTAssertEqual(registry.virtualIDs.count, 0)
         let subtree = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(chart.layer),
-                windows: [window],
-                registry: registry,
-                version: v11,
-                extensions: store
+                in: .testing(windows: [window], registry: registry, version: v11, extensions: store)
             )
         )
         XCTAssertFalse(subtree.nodes.contains { $0.nodeKind == .virtual })
@@ -238,16 +208,19 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let made = try makeChart()
         let window = made.window
         let registry = LayerRegistry()
-        let before = HierarchyCapture.capture(windows: [window], registry: registry)
+        let before = HierarchyCapture.capture(.testing(windows: [window], registry: registry))
         XCTAssertEqual(
-            HierarchyCapture.capture(windows: [window], registry: registry, extensions: ExtensionStore()),
+            HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: ExtensionStore())),
             before
         )
         // A description of another class, or only a color, changes nothing either.
         let other = ExtensionStore()
         other.describe(SpecialBarChartView.self, CutawayServer.Description(isExcludedFromCapture: true), isView: true)
         other.registerColor(.red, named: "brand")
-        XCTAssertEqual(HierarchyCapture.capture(windows: [window], registry: registry, extensions: other), before)
+        XCTAssertEqual(
+            HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: other)),
+            before
+        )
         XCTAssertFalse(before.nodes.contains { $0.isCollapsedByDefault || $0.isCaptureExcluded })
     }
 
@@ -259,10 +232,13 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let chart = made.chart
         let store = made.store
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let chartID = registry.register(chart.layer)
         let subtree = try XCTUnwrap(
-            HierarchyCapture.captureSubtree(rootID: chartID, windows: [window], registry: registry, extensions: store)
+            HierarchyCapture.captureSubtree(
+                rootID: chartID,
+                in: .testing(windows: [window], registry: registry, extensions: store)
+            )
         )
         let start = try XCTUnwrap(hierarchy.nodes.firstIndex { $0.id == chartID })
         XCTAssertEqual(subtree.nodes, Array(hierarchy.nodes[start..<(start + subtree.nodes.count)]))
@@ -275,11 +251,14 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let chart = made.chart
         let store = made.store
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let virtual = hierarchy.nodes.filter { $0.nodeKind == .virtual }
         let march = try XCTUnwrap(virtual.first { $0.name == "March" })
         let subtree = try XCTUnwrap(
-            HierarchyCapture.captureSubtree(rootID: march.id, windows: [window], registry: registry, extensions: store)
+            HierarchyCapture.captureSubtree(
+                rootID: march.id,
+                in: .testing(windows: [window], registry: registry, extensions: store)
+            )
         )
         // The bar and its two parts, exactly as in the hierarchy; the bar keeps its parent.
         XCTAssertEqual(subtree.nodes, Array(virtual.prefix(3)))
@@ -289,9 +268,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let part = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: virtual[1].id,
-                windows: [window],
-                registry: registry,
-                extensions: store
+                in: .testing(windows: [window], registry: registry, extensions: store)
             )
         )
         XCTAssertEqual(part.nodes, [virtual[1]])
@@ -304,10 +281,13 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let chart = made.chart
         let store = made.store
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let virtual = hierarchy.nodes.filter { $0.nodeKind == .virtual }
         func subtree(_ id: UInt64) -> Hierarchy? {
-            HierarchyCapture.captureSubtree(rootID: id, windows: [window], registry: registry, extensions: store)
+            HierarchyCapture.captureSubtree(
+                rootID: id,
+                in: .testing(windows: [window], registry: registry, extensions: store)
+            )
         }
         // The host app no longer gives April.
         chart.bars.removeLast()
@@ -336,7 +316,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         description.isCollapsedByDefault = true
         store.describe(BarChartView.self, description, isView: true)
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         XCTAssertTrue(try node(of: chart.layer, in: hierarchy, registry: registry).isCollapsedByDefault)
         XCTAssertTrue(try node(of: special.layer, in: hierarchy, registry: registry).isCollapsedByDefault)
         XCTAssertFalse(try node(of: plain.layer, in: hierarchy, registry: registry).isCollapsedByDefault)
@@ -360,7 +340,7 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         description.isExcludedFromCapture = true
         store.describe(BarChartView.self, description, isView: true)
         let registry = LayerRegistry()
-        let hierarchy = HierarchyCapture.capture(windows: [window], registry: registry, extensions: store)
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
         let chartID = registry.register(chart.layer)
         let excluded = hierarchy.nodes.filter(\.isCaptureExcluded)
         // The chart, its four virtual nodes, its subview and the subview's child.
@@ -373,19 +353,56 @@ final class VirtualNodeCaptureTests: CaptureTestCase {
         let inside = try XCTUnwrap(
             HierarchyCapture.captureSubtree(
                 rootID: registry.register(sub.layer),
-                windows: [window],
-                registry: registry,
-                extensions: store
+                in: .testing(windows: [window], registry: registry, extensions: store)
             )
         )
         XCTAssertTrue(inside.nodes.allSatisfy(\.isCaptureExcluded))
         let bar = try XCTUnwrap(hierarchy.nodes.first { $0.nodeKind == .virtual })
         let barSubtree = try XCTUnwrap(
-            HierarchyCapture.captureSubtree(rootID: bar.id, windows: [window], registry: registry, extensions: store)
+            HierarchyCapture.captureSubtree(
+                rootID: bar.id,
+                in: .testing(windows: [window], registry: registry, extensions: store)
+            )
         )
         XCTAssertTrue(barSubtree.nodes.allSatisfy(\.isCaptureExcluded))
+    }
+
+    // MARK: - S-HIER-17: attributes on demand
+
+    func test_S_HIER_17_theHierarchyDoesNotWorkOutAVirtualNodesAttributes() throws {
+        let window = try makeWindow()
+        let chart = BarChartView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        chart.bars = [BarChartView.Bar(id: "march", value: 40)]
+        window.addSubview(chart)
+        let count = CallCount()
+        func groups() -> [CutawayServer.AttributeGroup] {
+            count.calls += 1
+            return [CutawayServer.AttributeGroup("bar", [.int("value", 40)])]
+        }
+        let store = ExtensionStore()
+        let description = CutawayServer.Description<BarChartView>(virtualChildren: { chart in
+            chart.bars.map { bar in
+                CutawayServer.VirtualNode(id: bar.id, typeName: "Bar", frame: .zero, attributes: groups())
+            }
+        })
+        store.describe(BarChartView.self, description, isView: true)
+        let registry = LayerRegistry()
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
+        let node = try XCTUnwrap(hierarchy.nodes.first { $0.nodeKind == .virtual })
+        XCTAssertEqual(count.calls, 0)
+        // Reading the node's attributes works them out, once.
+        let context = RequestContext.testing(windows: [window], registry: registry, extensions: store)
+        let found = try XCTUnwrap(VirtualNodes.find(node.id, in: context))
+        XCTAssertEqual(NodeAttributes(context: context).read(found).map(\.id), ["app.bar"])
+        XCTAssertEqual(count.calls, 1)
     }
 }
 
 /// A subclass of a described class.
-final class SpecialChart: BarChartView {}
+private final class SpecialChart: BarChartView {}
+
+/// How often a closure of the host app was called.
+@MainActor
+private final class CallCount {
+    var calls = 0
+}

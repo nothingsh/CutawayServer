@@ -88,7 +88,7 @@ final class FrameSplitterTests: XCTestCase {
         XCTAssertNil(try atLimit.next())
     }
 
-    // MARK: - S-CONN-15
+    // MARK: - However the bytes arrive
 
     /// Feeds `stream` in pieces of the given sizes, taking every frame after each piece. The
     /// error, if one is thrown, ends the feeding.

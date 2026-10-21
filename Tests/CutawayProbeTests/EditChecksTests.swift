@@ -7,18 +7,6 @@ import XCTest
 /// The probe's checks of SetAttribute and of the subtrees around it: they accept what a
 /// correct server sends and name what is wrong with anything else.
 final class EditChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/EditChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    private func fixture(_ path: String) throws -> Frame {
-        try FrameCodec.decode(
-            Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin").appendingPathComponent(path))
-        )
-    }
-
     /// Asserts that the check fails and that its message contains `expected`.
     private func assertRejects(
         _ expected: String,
@@ -89,7 +77,7 @@ final class EditChecksTests: XCTestCase {
             "expected SetAttributeResult, got Error(layerNotFound: no layer with id 99) with request_id 1 (P-SET-01)"
         ) {
             _ = try EditChecks.result(
-                try self.fixture("set-attribute-rejected/02-s2c-error.bin"),
+                try Fixtures.frame("set-attribute-rejected/02-s2c-error.bin"),
                 layerID: 99,
                 attributeID: "label.text",
                 value: text
@@ -146,11 +134,14 @@ final class EditChecksTests: XCTestCase {
 
     func test_S_PROBE_03_refusalCheckWantsTheCode() throws {
         XCTAssertNoThrow(
-            try EditChecks.refusal(try fixture("set-attribute-rejected/04-s2c-error.bin"), code: .attributeNotEditable)
+            try EditChecks.refusal(
+                try Fixtures.frame("set-attribute-rejected/04-s2c-error.bin"),
+                code: .attributeNotEditable
+            )
         )
         assertRejects("expected Error attributeNotEditable, got Error(invalidAttributeValue") {
             try EditChecks.refusal(
-                try self.fixture("set-attribute-rejected/06-s2c-error.bin"),
+                try Fixtures.frame("set-attribute-rejected/06-s2c-error.bin"),
                 code: .attributeNotEditable
             )
         }
@@ -215,7 +206,7 @@ final class EditChecksTests: XCTestCase {
         }
         assertRejects("expected Hierarchy for GetSubtree, got Error") {
             _ = try EditChecks.movedDown(
-                try self.fixture("subtree/04-s2c-error.bin"),
+                try Fixtures.frame("subtree/04-s2c-error.bin"),
                 rootID: 1,
                 movedID: 3,
                 hierarchy: before

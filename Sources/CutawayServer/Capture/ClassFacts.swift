@@ -1,7 +1,7 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import CutawayWire
+import Foundation
 import ObjectiveC
-import UIKit
 
 /// Where a class comes from (PROTOCOL.md, P-HIER-16): the app's when the image that defines it
 /// lies in the `.app` bundle that contains the host process, the system's otherwise. Judged by

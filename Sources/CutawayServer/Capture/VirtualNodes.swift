@@ -1,6 +1,6 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import CutawayWire
-import UIKit
+import QuartzCore
 
 /// The virtual nodes the host app gives for a layer (PROTOCOL.md, P-HIER-19 to 22), as the
 /// hierarchy has them and as a request finds one again by its ID.
@@ -101,29 +101,52 @@ enum VirtualNodes {
         )
     }
 
+    /// The virtual trees one request found, by the ID of their layer, so that the host app is
+    /// asked once for each layer however many of its nodes the request names. Something
+    /// registered meanwhile makes them stale.
+    @MainActor
+    final class Trees {
+        private var revision: Int?
+        private var entries: [UInt64: [Entry]] = [:]
+
+        /// The tree of the layer `layerID`, worked out with `make` the first time.
+        func entries(of layerID: UInt64, revision: Int, _ make: () -> [Entry]) -> [Entry] {
+            if self.revision != revision {
+                self.revision = revision
+                entries = [:]
+            }
+            if let known = entries[layerID] { return known }
+            let made = make()
+            entries[layerID] = made
+            return made
+        }
+    }
+
     /// The virtual node with this ID, if the host app still gives it now under a layer that
     /// exists (P-HIER-22); the walk is the hierarchy's, so a node the hierarchy left out is not
     /// found either.
-    static func find(
-        _ id: UInt64,
-        windows: [UIWindow],
-        registry: LayerRegistry,
-        lookup: inout ExtensionLookup
-    ) -> Found? {
+    ///
+    /// - Parameter trees: Where a request that finds several nodes keeps the trees it found
+    ///   them in, so that "now" is when it first asked for the layer's; `nil` asks the host app
+    ///   again, as a change does to answer with what it changed.
+    static func find(_ id: UInt64, in context: RequestContext, trees: Trees? = nil) -> Found? {
+        let registry = context.registry
         guard let key = registry.virtualNode(for: id),
               let layer = registry.layer(for: key.layerID),
-              let ancestors = LayerTopology.ancestors(of: layer, in: windows) else {
+              let ancestors = LayerTopology.ancestors(of: layer, in: context.windows) else {
             return nil
         }
+        let lookup = context.extensions
         let resolved = lookup.resolve(layer, view: LayerTopology.backingView(of: layer))
-        let entries = entries(of: resolved.virtualChildren())
-        guard let index = entries.firstIndex(where: { $0.node.identity == key.identity }) else { return nil }
-        let isExcluded = resolved.isExcludedFromCapture || isExcluded(ancestors, lookup: &lookup)
-        return Found(layer: layer, layerID: key.layerID, entries: entries, index: index, isExcluded: isExcluded)
+        func ask() -> [Entry] { entries(of: resolved.virtualChildren()) }
+        let tree = trees?.entries(of: key.layerID, revision: lookup.store.revision, ask) ?? ask()
+        guard let index = tree.firstIndex(where: { $0.node.identity == key.identity }) else { return nil }
+        let isExcluded = resolved.isExcludedFromCapture || isExcluded(ancestors, lookup: lookup)
+        return Found(layer: layer, layerID: key.layerID, entries: tree, index: index, isExcluded: isExcluded)
     }
 
     /// Whether the host app excludes any of `layers` from images.
-    static func isExcluded(_ layers: [CALayer], lookup: inout ExtensionLookup) -> Bool {
+    static func isExcluded(_ layers: [CALayer], lookup: ExtensionLookup) -> Bool {
         layers.contains { lookup.resolve($0, view: LayerTopology.backingView(of: $0)).isExcludedFromCapture }
     }
 }

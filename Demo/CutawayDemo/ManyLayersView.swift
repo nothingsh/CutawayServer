@@ -2,7 +2,7 @@ import UIKit
 
 /// Rows of small cells, each cell a view with a layer of its own, all placed by
 /// constraints: a large hierarchy for the demo's "Many layers" page and for the stability
-/// tests (S-STAB-01, S-STAB-02). The test bundle compiles this file too, so that the page
+/// tests (the large hierarchy and the long use). The test bundle compiles this file too, so that the page
 /// shows the tree the tests measure.
 final class ManyLayersView: UIView {
     let rows: Int

@@ -1,4 +1,7 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
+// Recent SDKs declare CGFloat and CGRect in CoreFoundation, so the analyzer sees no use of
+// CoreGraphics; it is still where the geometry types belong.
+// swiftlint:disable:next unused_import
 import CoreGraphics
 import CutawayWire
 

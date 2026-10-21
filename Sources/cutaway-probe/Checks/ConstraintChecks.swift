@@ -51,7 +51,7 @@ enum ConstraintChecks {
         version: ProtocolVersion
     ) throws {
         let name = "constraint \(constraint.id) of layer \(layerID)"
-        if version.minor >= 1, constraint.origin == .unknown {
+        if version.supportsConstraintOrigins, constraint.origin == .unknown {
             throw ProbeFailure("\(name) has no origin (P-LAYOUT-09)")
         }
         guard constraint.id != 0 else { throw ProbeFailure("\(name): id is 0 (P-LAYOUT-03)") }
@@ -179,7 +179,7 @@ enum ConstraintChecks {
                 "\(name): layout guide \(item.guideID) has guide_kind \(item.guideKind), which protocol 1.\(version.minor) does not have (P-LAYOUT-04)"
             )
         }
-        if version.minor >= 1, item.guideKind == .unknown {
+        if version.supportsGuideKinds, item.guideKind == .unknown {
             throw ProbeFailure("\(name): layout guide \(item.guideID) has no guide_kind (P-LAYOUT-04)")
         }
     }

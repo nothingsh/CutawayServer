@@ -84,10 +84,19 @@ private struct NotingPipeline: DetailPipeline {
     func captureDetail(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
+        version: ProtocolVersion,
+        memo: RequestMemo,
         stopFlag: StopFlag,
         then answer: @escaping @Sendable (CapturedDetail?) -> Void
     ) {
-        base.captureDetail(request, maxTextureDimension: maxTextureDimension, stopFlag: stopFlag, then: answer)
+        base.captureDetail(
+            request,
+            maxTextureDimension: maxTextureDimension,
+            version: version,
+            memo: memo,
+            stopFlag: stopFlag,
+            then: answer
+        )
     }
 
     func encodeDetail(
@@ -159,6 +168,7 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         let observer = StreamObserver(log: log, unsent: unsent)
         let stream = LayerDetailsStream(
             request: request,
+            version: .current,
             pipeline: host,
             outstandingByteLimit: outstandingByteLimit,
             delegate: observer
@@ -281,8 +291,8 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         let box = StreamBox()
         let host = liveHost { app in
             let capture = app.captureDetail
-            app.captureDetail = { request, limit, registry, stopFlag in
-                let detail = capture(request, limit, registry, stopFlag)
+            app.captureDetail = { request, limit, context, stopFlag in
+                let detail = capture(request, limit, context, stopFlag)
                 if detail != nil { main.noteCapture(of: request.layerID) }
                 // The cancel arrives while the second layer is on the main thread.
                 if main.captured.count == 2 { queue.sync { box.stream?.stop() } }
@@ -313,9 +323,9 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         defer { gate.signal() }
         let host = liveHost { app in
             let capture = app.captureDetail
-            app.captureDetail = { request, limit, registry, stopFlag in
+            app.captureDetail = { request, limit, context, stopFlag in
                 main.noteCapture(of: request.layerID)
-                return capture(request, limit, registry, stopFlag)
+                return capture(request, limit, context, stopFlag)
             }
         }
 
@@ -339,9 +349,9 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         defer { gate.signal() }
         let host = liveHost { app in
             let capture = app.captureDetail
-            app.captureDetail = { request, limit, registry, stopFlag in
+            app.captureDetail = { request, limit, context, stopFlag in
                 main.noteCapture(of: request.layerID)
-                return capture(request, limit, registry, stopFlag)
+                return capture(request, limit, context, stopFlag)
             }
         }
 
@@ -368,9 +378,9 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         liveHost { app in
             configure(&app)
             let capture = app.captureDetail
-            app.captureDetail = { request, limit, registry, stopFlag in
+            app.captureDetail = { request, limit, context, stopFlag in
                 main.noteCapture(of: request.layerID)
-                return capture(request, limit, registry, stopFlag)
+                return capture(request, limit, context, stopFlag)
             }
         }
     }
@@ -466,11 +476,11 @@ final class LayerDetailsStreamTests: CaptureTestCase {
 
         let host = liveHost { app in
             let capture = app.captureDetail
-            app.captureDetail = { request, limit, registry, stopFlag in
+            app.captureDetail = { request, limit, context, stopFlag in
                 let index = main.noteCapture(of: request.layerID)
                 // Work of the host app that comes up while a layer is being captured.
                 DispatchQueue.main.async { main.note("other \(index)") }
-                return capture(request, limit, registry, stopFlag)
+                return capture(request, limit, context, stopFlag)
             }
         }
 
@@ -491,6 +501,112 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         for (earlier, later) in zip(turns, turns.dropFirst()) {
             XCTAssertGreaterThan(later, earlier, "two layers were captured in one turn of the run loop: \(turns)")
         }
+    }
+
+    // MARK: - A stream is one request (S-API-04)
+
+    /// The host of a real session whose host app registered into `store`.
+    private func host(registeredIn store: ExtensionStore) -> HostAccess {
+        HostAccess(app: LiveHostApp(extensions: store), registry: registry, queue: queue, encodeQueue: encodeQueue)
+    }
+
+    /// Runs one stream to its end and returns what it reported.
+    private func details(_ request: GetLayerDetails, host: HostAccess) async throws -> [LayerDetail] {
+        let log = StreamLog()
+        start(request, host: host, log: log)
+        try await waitUntil("the stream to complete") { log.completedCount == 1 }
+        await settle()
+        return log.details
+    }
+
+    func test_S_HIER_17_aStreamAsksForALayersVirtualChildrenOnce() async throws {
+        let window = try makeWindow()
+        let chart = BarChartView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        chart.bars = [
+            BarChartView.Bar(id: "march", value: 40, parts: ["low", "high"]),
+            BarChartView.Bar(id: "april", value: 60)
+        ]
+        window.addSubview(chart)
+        let calls = CallCount()
+        let store = ExtensionStore()
+        store.describe(
+            BarChartView.self,
+            CutawayServer.Description(virtualChildren: { chart in
+                calls.value += 1
+                return BarChartView.description.virtualChildren?(chart) ?? []
+            }),
+            isView: true
+        )
+        // The IDs of the virtual nodes are given out by a hierarchy.
+        let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: registry, extensions: store))
+        let virtual = hierarchy.nodes.filter { $0.nodeKind == .virtual }.map(\.id)
+        XCTAssertEqual(virtual.count, 4)
+        let host = host(registeredIn: store)
+        let before = calls.value
+
+        // Every node of the chart, twice: the chart's tree is asked for once.
+        let first = try await details(request(virtual + virtual), host: host)
+        XCTAssertEqual(first.map(\.layerID), virtual + virtual)
+        XCTAssertEqual(first.map(\.status), Array(repeating: .ok, count: 8))
+        XCTAssertEqual(calls.value - before, 1)
+
+        // The next request asks again, and finds that April is gone.
+        chart.bars.removeLast()
+        let second = try await details(request(virtual), host: host)
+        XCTAssertEqual(second.map(\.status), [.ok, .ok, .ok, .layerNotFound])
+        XCTAssertEqual(calls.value - before, 2)
+    }
+
+    func test_S_ATTR_25_eachStreamNamesTheRegisteredColorsAnew() async throws {
+        let window = try makeWindow()
+        window.overrideUserInterfaceStyle = .light
+        let view = UIView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+        view.backgroundColor = .blue
+        window.addSubview(view)
+        let id = registry.register(view.layer)
+        // A color that follows the app's own theme rather than the traits.
+        let theme = Theme()
+        let store = ExtensionStore()
+        store.registerColor(UIColor { _ in theme.isWarm ? .orange : .blue }, named: "accent")
+        let host = host(registeredIn: store)
+        let attributes = GetLayerDetails(
+            requests: [LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: false, wantAttributes: true)],
+            maxTextureDimension: 0
+        )
+        func backgroundColorName() async throws -> String? {
+            let groups = try await details(attributes, host: host).first?.attributeGroups ?? []
+            let value = groups.flatMap(\.attributes).first { $0.id == "view.backgroundColor" }?.value
+            guard case .color(_, _, _, _, let name)? = value else {
+                XCTFail("no background color in \(groups.map(\.id))")
+                return nil
+            }
+            return name
+        }
+
+        let named = try await backgroundColorName()
+        XCTAssertEqual(named, "accent")
+        // The traits are the same, the color is not: the next request no longer names it.
+        theme.isWarm = true
+        let renamed = try await backgroundColorName()
+        XCTAssertNil(renamed)
+    }
+
+    func test_S_API_04_whatAStreamKeptIsDroppedOnTheMainThreadWhenItEnds() async throws {
+        let ids = try makeLayers(3)
+        let releases = Releases()
+        let host = liveHost { app in
+            let capture = app.captureDetail
+            app.captureDetail = { request, limit, context, stopFlag in
+                _ = context.memo.entry { Kept(releases: releases) }
+                return capture(request, limit, context, stopFlag)
+            }
+        }
+        let reported = try await details(request(ids), host: host)
+        XCTAssertEqual(reported.count, 3)
+        await drain(.main)
+        // One entry for the three layers, dropped on the main thread once the stream completed,
+        // though the stream is still held.
+        XCTAssertEqual(releases.onMainThread, [true])
     }
 }
 
@@ -538,4 +654,61 @@ private final class StreamObserver: LayerDetailsStreamDelegate, @unchecked Senda
 private final class StreamBox: @unchecked Sendable {
     // Touched on the stream's queue only.
     var stream: LayerDetailsStream?
+}
+
+/// How often a closure of the host app was called. Main thread only.
+@MainActor
+private final class CallCount {
+    var value = 0
+}
+
+/// The app's own theme, which a registered color may follow. UIKit may resolve a color on any
+/// thread.
+private final class Theme: @unchecked Sendable {
+    private let lock = NSLock()
+    private var warm = false
+
+    var isWarm: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return warm
+        }
+        set {
+            lock.lock()
+            warm = newValue
+            lock.unlock()
+        }
+    }
+}
+
+/// Whether each `Kept` was released on the main thread, in order.
+private final class Releases: @unchecked Sendable {
+    private let lock = NSLock()
+    private var threads: [Bool] = []
+
+    var onMainThread: [Bool] {
+        lock.lock()
+        defer { lock.unlock() }
+        return threads
+    }
+
+    func note() {
+        lock.lock()
+        threads.append(Thread.isMainThread)
+        lock.unlock()
+    }
+}
+
+/// An entry of a request's memo that notes where it was released.
+private final class Kept {
+    let releases: Releases
+
+    init(releases: Releases) {
+        self.releases = releases
+    }
+
+    deinit {
+        releases.note()
+    }
 }

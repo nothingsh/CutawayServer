@@ -2,8 +2,8 @@ import CutawayWire
 import Foundation
 
 // The probe's flow: find a server, then check the handshake, the first app state event, the
-// app icon, the layer hierarchy, the screenshots and attributes of every layer, and the
-// environment.
+// app icon, the layer hierarchy, the screenshots, attributes and constraints of every layer, and
+// the environment. The steps that change the demo app are in Demo/.
 
 /// The request IDs of the probe's steps, each used once on its connection (P-REQ-02).
 enum ProbeRequestID {
@@ -40,14 +40,6 @@ enum ProbeRequestID {
     static let viewAttributeOnBar: UInt32 = 27
 }
 
-/// What `--expect-demo` checks: the demo app's main screen, or its Lists or Extensions page
-/// when that is open.
-enum DemoPage {
-    case screen(DemoScene)
-    case lists(DemoListsScene)
-    case extensions(DemoExtensionsScene)
-}
-
 func check(_ options: Options) throws {
     let server = try findServer(options)
     let app = server.app
@@ -57,11 +49,11 @@ func check(_ options: Options) throws {
             + "\(app.osName) \(app.osVersion), server \(app.serverVersion)"
     )
 
-    let state = try Checks.initialState(try server.connection.nextFrame())
+    let state = try HelloChecks.initialState(try server.connection.nextFrame())
     print("app state: \(state)")
 
     let icon = try request(.getAppIcon, id: ProbeRequestID.appIcon, on: server.connection)
-    if let image = try Checks.appIcon(icon, requiresIcon: options.requiresIcon) {
+    if let image = try HelloChecks.appIcon(icon, requiresIcon: options.requiresIcon) {
         print("app icon: \(image.pixelWidth)x\(image.pixelHeight) pixels, scale \(image.scale)")
     } else {
         print("app icon: the app has none")

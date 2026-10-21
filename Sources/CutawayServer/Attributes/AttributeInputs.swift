@@ -1,6 +1,6 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
+import CoreGraphics
 import CutawayWire
-import UIKit
 
 /// Values from the wire as UIKit and Core Animation take them.
 enum AttributeInputs {

@@ -6,7 +6,7 @@ public struct FrameSplitter: Sendable {
     private var buffer = Data()
     /// How many bytes at the front of `buffer` were taken already. They are dropped from time
     /// to time, not with every frame: dropping copies what is left, and a read full of small
-    /// frames would copy it once per frame (S-CONN-15).
+    /// frames would copy it once per frame.
     private var taken = 0
 
     public init() {}

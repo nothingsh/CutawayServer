@@ -8,23 +8,13 @@ import XCTest
 /// completes, any frame other than `Hello` fails the handshake, and the probe sends nothing
 /// more (PROTOCOL.md, P-HELLO-07). `Busy` is told apart before this check (P-TRANS-03).
 final class HelloChecksTests: XCTestCase {
-    /// Tests/CutawayProbeTests/HelloChecksTests.swift -> the repository root.
-    private static let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    private func fixtureFrame(_ path: String) throws -> Frame {
-        try FrameCodec.decode(Data(contentsOf: Self.root.appendingPathComponent("Protocol/fixtures/bin/\(path)")))
-    }
-
     private func assertRejects(
         _ frame: Frame?,
         _ expected: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        XCTAssertThrowsError(try Checks.serverHello(frame), file: file, line: line) { error in
+        XCTAssertThrowsError(try HelloChecks.serverHello(frame), file: file, line: line) { error in
             XCTAssertTrue(
                 String(describing: error).contains(expected),
                 "\"\(error)\" does not mention \"\(expected)\"",
@@ -35,7 +25,7 @@ final class HelloChecksTests: XCTestCase {
     }
 
     func test_S_PROBE_01_helloCheckAcceptsTheProtocol1Hello() throws {
-        let app = try Checks.serverHello(try fixtureFrame("handshake/02-s2c-hello.bin"))
+        let app = try HelloChecks.serverHello(try Fixtures.frame("handshake/02-s2c-hello.bin"))
         XCTAssertFalse(app.bundleID.isEmpty)
     }
 
@@ -52,6 +42,6 @@ final class HelloChecksTests: XCTestCase {
 
     func test_S_PROBE_01_serverOfProtocol0FailsTheHandshake() throws {
         // The fixture's server is still at 0.5 (P-HELLO-03).
-        assertRejects(try fixtureFrame("handshake-version-mismatch/02-s2c-hello.bin"), "P-HELLO-03")
+        assertRejects(try Fixtures.frame("handshake-version-mismatch/02-s2c-hello.bin"), "P-HELLO-03")
     }
 }

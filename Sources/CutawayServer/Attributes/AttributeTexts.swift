@@ -6,19 +6,26 @@ import UIKit
 enum AttributeTexts {
     // MARK: - Lists
 
-    /// The most items a list of text names; the rest are counted (S-ATTR-19).
+    /// The most items a list of text names; the rest are counted, so that a long list costs
+    /// little to read and to send.
     static let listLimit = 100
 
     /// "a, b, c"; "None" when empty; past `listLimit` items, "… (N more)".
     static func list(_ items: [String]) -> String {
+        list(items) { $0 }
+    }
+
+    /// The same for items that `text` writes; only the items named are written.
+    static func list<Item>(_ items: [Item], _ text: (Item) -> String) -> String {
         guard !items.isEmpty else { return "None" }
-        guard items.count > listLimit else { return items.joined(separator: ", ") }
-        return (items.prefix(listLimit) + ["… (\(items.count - listLimit) more)"]).joined(separator: ", ")
+        let named = items.prefix(listLimit).map(text)
+        guard items.count > listLimit else { return named.joined(separator: ", ") }
+        return (named + ["… (\(items.count - listLimit) more)"]).joined(separator: ", ")
     }
 
     /// "0.0, 0.1, 1.0", by section and then item.
     static func indexPaths(_ paths: [IndexPath]) -> String {
-        list(paths.sorted().map { "\($0.section).\($0.item)" })
+        list(paths.sorted()) { "\($0.section).\($0.item)" }
     }
 
     /// A number as a person writes it: "17", "12.5", at most two decimals.
@@ -83,11 +90,12 @@ enum AttributeTexts {
         return spacings.isEmpty ? nil : list(spacings)
     }
 
-    // MARK: - Images (H4)
+    // MARK: - Images
 
     /// The name in an image's description: `named(main: Swatch)` gives "Swatch",
-    /// `symbol(system: star.fill)` "star.fill". UIKit has no API for it; `nil` when the
-    /// description is not of that form, as for an image made in code (`anonymous`).
+    /// `symbol(system: star.fill)` "star.fill". UIKit has no API for it; the description is
+    /// written so on every system version the tests run on. `nil` when the description is not
+    /// of that form, as for an image made in code (`anonymous`).
     static func imageName(inDescription description: String) -> String? {
         for marker in [" named(", " symbol("] {
             guard let start = description.range(of: marker) else { continue }
@@ -198,12 +206,14 @@ enum AttributeTexts {
         textStyleNames[style] ?? style.rawValue
     }
 
-    // MARK: - Lines (H5)
+    // MARK: - Lines
 
     /// The lines a label draws its text in, and whether some of it is left out; measured with
-    /// TextKit in the label's bounds with its line limit. Lines wrap as UILabel wraps all but
-    /// its last one: in TextKit 1 a truncating line break mode would cut every line. `nil` when
-    /// the label shrinks its text to fit, as the shrunk size is not known.
+    /// TextKit in the label's bounds with its line limit, which gives the lines UILabel draws.
+    /// Lines wrap as UILabel wraps all but its last one: in TextKit 1 a truncating line break
+    /// mode would cut every line. Some text is left out when glyphs did not fit. `nil` when the
+    /// label shrinks its text to fit, as the shrunk size is not known. Each call lays the text
+    /// out anew; `AttributeReading.lines(of:)` does it once in a read.
     @MainActor static func lines(of label: UILabel) -> (count: Int, truncated: Bool)? {
         guard !label.adjustsFontSizeToFitWidth else { return nil }
         guard let text = label.attributedText, text.length > 0 else { return (0, false) }

@@ -1,11 +1,13 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
 import UIKit
 
-/// Finds what the host app registered for a layer (S-API-04): the descriptions of the layer's
-/// classes and of its view's, merged. One lookup serves one request; it remembers each class's
-/// descriptions, so that a class is looked up along its superclasses once.
+/// Finds what the host app registered for a layer through the extension interface: the
+/// descriptions of the layer's classes and of its view's, merged. One lookup serves one
+/// request, or one layer of a details stream, through its `RequestContext`; it remembers each
+/// class's descriptions, so that a class is looked up along its superclasses once there. What
+/// the host app's closures return is not kept: they are called each time it is needed.
 @MainActor
-struct ExtensionLookup {
+final class ExtensionLookup {
     /// What applies to one layer.
     struct Resolved {
         /// A description and the object it describes.
@@ -30,15 +32,19 @@ struct ExtensionLookup {
     }
 
     let store: ExtensionStore
+    /// Nothing was registered when the lookup was made: the request need not look anything up,
+    /// nor name any color.
+    let isEmpty: Bool
     private var viewChains: [ObjectIdentifier: [ExtensionStore.Description]] = [:]
     private var layerChains: [ObjectIdentifier: [ExtensionStore.Description]] = [:]
 
     init(store: ExtensionStore) {
         self.store = store
+        isEmpty = store.isEmpty
     }
 
     /// What applies to `layer`, which backs `view` when there is one.
-    mutating func resolve(_ layer: CALayer, view: UIView?) -> Resolved {
+    func resolve(_ layer: CALayer, view: UIView?) -> Resolved {
         var resolved = Resolved()
         guard !(store.viewDescriptions.isEmpty && store.layerDescriptions.isEmpty) else { return resolved }
         let layers = chain(of: type(of: layer), in: store.layerDescriptions, cache: &layerChains)

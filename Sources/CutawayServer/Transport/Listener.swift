@@ -1,5 +1,4 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
-import Foundation
 import Network
 
 /// Told about a listener, on the server queue.
@@ -12,8 +11,8 @@ protocol ListenerDelegate: AnyObject {
     func listenerDidFail()
 }
 
-/// TCP keepalive of every accepted connection (S-CONN-11): a peer that stops answering is
-/// dropped after `idle + interval * count` seconds.
+/// TCP keepalive of every accepted connection: a peer that stops answering is dropped after
+/// `idle + interval * count` seconds.
 struct TCPKeepalive: Sendable, Equatable {
     /// Seconds without traffic before the first probe.
     var idle = 10

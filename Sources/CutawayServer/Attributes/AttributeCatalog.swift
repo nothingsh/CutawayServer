@@ -22,6 +22,7 @@ struct AttributeCatalog {
     /// when the layer backs a view, then one group for each kind of view it is.
     func read(_ layer: CALayer, reading: AttributeReading) -> [AttributeGroup] {
         let view = LayerTopology.backingView(of: layer)
+        let reading = reading.anew()
         return groups.compactMap { $0.read(layer, view, reading) }
     }
 
@@ -30,6 +31,7 @@ struct AttributeCatalog {
     /// with no `prepare`.
     func attributeForEditing(_ id: String, of layer: CALayer, reading: AttributeReading) -> AttributeEdit? {
         let view = LayerTopology.backingView(of: layer)
+        let reading = reading.anew()
         return groups.lazy.compactMap { $0.attributeForEditing(id, layer, view, reading) }.first
     }
 
@@ -301,7 +303,7 @@ struct AttributeCatalog {
             .init("layoutMargins", .insets, section: .layout, unit: .points, write: .insets(\.layoutMargins)) {
                 Outputs.insets($0.layoutMargins)
             },
-            // Protocol 0.4 (S-ATTR-07).
+            // The eight attributes of Auto Layout from protocol 0.4: priorities, intrinsic size, flags.
             .init(
                 "contentHuggingPriority.horizontal",
                 .double,
@@ -374,7 +376,7 @@ struct AttributeCatalog {
                 cluster: ("autoLayout", "ambiguous"),
                 write: nil
             ) { .bool($0.hasAmbiguousLayout) },
-            // Protocol 1.2 (S-ATTR-16).
+            // Accessibility: protocol 1.2.
             .init(
                 "accessibilityLabel",
                 .string,

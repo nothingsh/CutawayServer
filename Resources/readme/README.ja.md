@@ -3,8 +3,8 @@
 </p>
 
 [![Swift](https://img.shields.io/badge/Swift-6.1+-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS%2013+-blue)](#requirements)
-[![Swift Package Manager](https://img.shields.io/badge/SwiftPM-compatible-brightgreen)](#installation)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2013+-blue)](#要件)
+[![Swift Package Manager](https://img.shields.io/badge/SwiftPM-compatible-brightgreen)](#インストール)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](../../LICENSE)
 [![verify](https://github.com/nothingsh/CutawayServer/actions/workflows/verify.yml/badge.svg)](https://github.com/nothingsh/CutawayServer/actions/workflows/verify.yml)
 

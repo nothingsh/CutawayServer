@@ -26,7 +26,7 @@ enum AttributeOutputs {
     }
 
     static func size(_ size: CGSize) -> AttributeValue {
-        .size(WireSize(width: WireGeometry.finite(size.width), height: WireGeometry.finite(size.height)))
+        .size(WireGeometry.size(size))
     }
 
     static func rect(_ rect: CGRect) -> AttributeValue {
@@ -38,14 +38,7 @@ enum AttributeOutputs {
     }
 
     static func insets(_ insets: UIEdgeInsets) -> AttributeValue {
-        .insets(
-            WireInsets(
-                top: WireGeometry.finite(insets.top),
-                left: WireGeometry.finite(insets.left),
-                bottom: WireGeometry.finite(insets.bottom),
-                right: WireGeometry.finite(insets.right)
-            )
-        )
+        .insets(WireGeometry.insets(insets))
     }
 
     /// In sRGB, each channel within 0...1 (P-ATTR-04). `nil` stays `nil`.

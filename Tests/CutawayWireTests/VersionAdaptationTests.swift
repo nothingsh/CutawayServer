@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 /// What a peer that works at an older minor version may receive
-/// (S-CONN-12; PROTOCOL.md, P-HELLO-04, P-LAYOUT-08). The versions are those of
+/// (PROTOCOL.md, P-HELLO-04, P-LAYOUT-08). The versions are those of
 /// protocol 1, and every value is named from 1.0 on.
 final class VersionAdaptationTests: XCTestCase {
     private func version(_ minor: UInt16) -> ProtocolVersion {
@@ -79,6 +79,30 @@ final class VersionAdaptationTests: XCTestCase {
         XCTAssertEqual(current.negotiated(with: version(3)), version(2))
         XCTAssertEqual(version(2).negotiated(with: version(1)), version(1))
         XCTAssertEqual(version(1).negotiated(with: version(3)), version(1))
+    }
+
+    func test_S_CONN_12_featuresFollowTheMinorVersionThatAddedThem() {
+        func features(_ version: ProtocolVersion) -> [Bool] {
+            [
+                version.supportsAddresses,
+                version.supportsClassOrigins,
+                version.supportsAttributeMetadata,
+                version.supportsGroupClassNames,
+                version.supportsGuideKinds,
+                version.supportsConstraintOrigins,
+                version.supportsVirtualNodes,
+                version.supportsExcludedStatus
+            ]
+        }
+        let of11 = Array(repeating: true, count: 6)
+        XCTAssertEqual(features(version(0)), Array(repeating: false, count: 8))
+        XCTAssertEqual(features(version(1)), of11 + [false, false])
+        XCTAssertEqual(features(version(2)), Array(repeating: true, count: 8))
+        XCTAssertEqual(features(version(3)), Array(repeating: true, count: 8))
+        XCTAssertEqual(features(.current), Array(repeating: true, count: 8))
+        // A later major version has them all; one before 1.0 has none.
+        XCTAssertEqual(features(ProtocolVersion(major: 2, minor: 0)), Array(repeating: true, count: 8))
+        XCTAssertEqual(features(ProtocolVersion(major: 0, minor: 5)), Array(repeating: false, count: 8))
     }
 
     func test_S_CONN_12_everyAttributeHasItsMinorVersion() {

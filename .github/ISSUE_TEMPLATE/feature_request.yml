@@ -5,7 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check the Roadmap in the README first; your idea may already be planned.
+        Check the [Roadmap](https://nothingsh.github.io/Cutaway/resources/roadmap) first; your idea
+        may already be planned.
         Features that need new messages or fields also need a change to the Cutaway protocol.
   - type: textarea
     id: problem

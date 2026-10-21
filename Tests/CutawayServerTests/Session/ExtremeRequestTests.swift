@@ -158,9 +158,7 @@ final class ExtremeRequestTests: CaptureTestCase {
         let known = [id(of: view.layer), id(of: label.layer), id(of: layer)]
         let cycle = known + [0, Self.unassignedID, .max]
         let layerIDs = (0..<100_000).map { cycle[$0 % cycle.count] }
-        let start = Date()
         let responses = try await exchange([details(1, layerIDs)], timeout: 120)
-        print("MEASURE 100000 details in \(Date().timeIntervalSince(start)) seconds")
 
         let stream = try XCTUnwrap(responses.first)
         XCTAssertEqual(stream.end, StreamEnd(status: .completed, chunkCount: 100_000))
@@ -250,12 +248,10 @@ final class ExtremeRequestTests: CaptureTestCase {
         let piece = "Cutaway ✓ 🔍 é "
         let text = String(repeating: piece, count: 1_048_576 / piece.utf8.count + 1)
         XCTAssertGreaterThanOrEqual(text.utf8.count, 1_048_576)
-        let start = Date()
         let responses = try await exchange([
             set(1, labelID, "label.text", .string(text)),
             set(2, labelID, "label.fontName", .string(text))
         ])
-        print("MEASURE \(text.utf8.count) bytes of text set in \(Date().timeIntervalSince(start)) seconds")
         guard case .setAttributeResult(let result)? = responses.first?.frame?.body else {
             return XCTFail("expected a SetAttributeResult, got \(String(describing: responses.first))")
         }

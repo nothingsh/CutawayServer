@@ -8,29 +8,33 @@ import UIKit
 @MainActor
 final class NodeAttributes {
     let catalog: AttributeCatalog
+    let context: RequestContext
     let reading: AttributeReading
-    private let colors: [ExtensionStore.NamedColor]
-    private var lookup: ExtensionLookup?
+    private let colors: ColorNames.Registered
 
-    /// - Parameter extensions: What the host app registered; `nil` for nothing.
-    init(catalog: AttributeCatalog = .standard, reading: AttributeReading, extensions: ExtensionStore?) {
+    /// - Parameter context: The request's windows, registry, and what the host app registered.
+    init(catalog: AttributeCatalog = .standard, context: RequestContext) {
         self.catalog = catalog
-        self.reading = reading
-        colors = extensions?.colors ?? []
-        lookup = extensions.flatMap { $0.isEmpty ? nil : ExtensionLookup(store: $0) }
+        self.context = context
+        reading = AttributeReading(registry: context.registry, windows: context.windows)
+        colors = ColorNames.Registered(context.extensions.store)
+    }
+
+    /// `nil` when the host app registered nothing.
+    private var lookup: ExtensionLookup? {
+        context.extensions.isEmpty ? nil : context.extensions
     }
 
     /// Every group of `layer`.
     func read(_ layer: CALayer) -> [AttributeGroup] {
         let own = catalog.read(layer, reading: reading)
         guard lookup != nil else { return own }
-        let view = LayerTopology.nearestView(of: layer)
-        return ColorNames.named(own + app(of: layer, alongside: own).groups, colors: colors, in: view)
+        return named(own + app(of: layer, alongside: own).groups, in: LayerTopology.nearestView(of: layer))
     }
 
     /// Every group of a virtual node.
     func read(_ node: VirtualNodes.Found) -> [AttributeGroup] {
-        ColorNames.named(app(of: node).groups, colors: colors, in: LayerTopology.nearestView(of: node.layer))
+        named(app(of: node).groups, in: LayerTopology.nearestView(of: node.layer))
     }
 
     /// The host app's groups of `layer`, beside its own groups `own`.
@@ -50,10 +54,10 @@ final class NodeAttributes {
         )
     }
 
-    /// The host app's groups of a virtual node.
+    /// The host app's groups of a virtual node, which it works out now.
     func app(of node: VirtualNodes.Found) -> AppAttributes {
         AppAttributes(
-            [AppAttributes.Source(groups: node.node.attributes, className: node.node.className)],
+            [AppAttributes.Source(groups: node.node.attributes(), className: node.node.className)],
             alongside: [],
             view: LayerTopology.nearestView(of: node.layer),
             reading: reading
@@ -62,9 +66,13 @@ final class NodeAttributes {
 
     /// The virtual node with this ID, as `VirtualNodes.find` finds it.
     func virtualNode(_ id: UInt64) -> VirtualNodes.Found? {
-        guard var current = lookup else { return nil }
-        defer { lookup = current }
-        return VirtualNodes.find(id, windows: reading.windows, registry: reading.registry, lookup: &current)
+        guard lookup != nil else { return nil }
+        return VirtualNodes.find(id, in: context)
+    }
+
+    /// `groups` with the names of the registered colors their values equal.
+    private func named(_ groups: [AttributeGroup], in view: UIView?) -> [AttributeGroup] {
+        ColorNames.named(groups, registered: colors, cache: context.memo.entry(ColorNames.Cache.init), in: view)
     }
 }
 #endif
