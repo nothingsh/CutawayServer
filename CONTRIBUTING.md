@@ -1,7 +1,34 @@
 # Contributing to CutawayServer
 
-Thanks for helping. This page says where changes go and how they are reviewed. How to build and
-check the code is in [Development](README.md#development) in the README.
+Thanks for helping. This page says how to build and check the code, where changes go and how they
+are reviewed. The [Contributing](https://nothingsh.github.io/Cutaway/resources/contributing) page on
+the Cutaway website explains how the three repositories fit together.
+
+## Build and check
+
+After cloning, run `./setup.sh` once. It checks out the protocol submodule, checks for Xcode,
+installs XcodeGen and jq with Homebrew if they are missing, installs the pinned tools into
+`.tools/`, sets up the git hooks and generates the demo Xcode projects. Running it again is
+harmless.
+
+| Task | Command |
+|---|---|
+| Run every check (needs an iPhone simulator) | `scripts/verify.sh` |
+| Run the checks that need no simulator, as CI does | `scripts/verify.sh --mac-only` |
+| Format | `"$(scripts/get-swiftformat.sh)" .` |
+| Lint | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer "$(scripts/get-swiftlint.sh)" lint --strict` |
+| Check a running server | `swift run cutaway-probe --bundle-id dev.cutaway.demo --wait 30` |
+
+- The pre-commit hook formats the staged Swift files, stages the result and lints them; a commit
+  with lint violations is rejected. Xcode does not show SwiftLint's findings, so the hook and
+  `scripts/verify.sh` are where they surface.
+- `cutaway-probe` connects to a running server, performs the handshake, fetches the icon, the
+  hierarchy, and the images and attributes of every layer, and checks every frame it receives.
+  Against the demo app, `--expect-demo` also checks known content, colors and attribute values.
+  `--slow-read 200` reads like a slow client to confirm that the server completes the stream under
+  backpressure.
+- The test suite enforces the performance limits on every run; the measured values are on the
+  website's [Performance](https://nothingsh.github.io/Cutaway/resources/performance) page.
 
 ## Branches
 
