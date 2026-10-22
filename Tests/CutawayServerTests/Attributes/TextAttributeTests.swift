@@ -57,6 +57,12 @@ final class TextAttributeTests: AttributeValueTestCase {
 
     // MARK: - S-ATTR-22
 
+    /// Text long enough to wrap onto several lines of a label 200 points wide.
+    static let longText = String(
+        repeating: "The quick brown fox jumps over the lazy dog. ",
+        count: 6
+    )
+
     private func label(text: String?, lines: Int, height: CGFloat, in window: UIWindow) -> UILabel {
         let label = UILabel(frame: CGRect(x: 10, y: 40, width: 200, height: height))
         label.font = .systemFont(ofSize: 17)
@@ -68,7 +74,7 @@ final class TextAttributeTests: AttributeValueTestCase {
 
     func test_S_ATTR_22_drawnLinesAndTruncation() throws {
         let window = try makeWindow()
-        let long = AttributeAssumptionTests.longText
+        let long = Self.longText
         let short = label(text: "Short", lines: 1, height: 30, in: window)
         XCTAssertEqual(try int("label.drawnLineCount", of: short), 1)
         XCTAssertEqual(try bool("label.isTruncated", of: short), false)
@@ -82,6 +88,12 @@ final class TextAttributeTests: AttributeValueTestCase {
         let rect = unlimited.textRect(forBounds: unlimited.bounds, limitedToNumberOfLines: 0)
         XCTAssertEqual(try int("label.drawnLineCount", of: unlimited), Int64((rect.height / font.lineHeight).rounded()))
         XCTAssertEqual(try bool("label.isTruncated", of: unlimited), false)
+
+        // No limit, but too little height: what fits is drawn, and the rest is cut.
+        let cut = label(text: long, lines: 0, height: 45, in: window)
+        let cutRect = cut.textRect(forBounds: cut.bounds, limitedToNumberOfLines: 0)
+        XCTAssertEqual(try int("label.drawnLineCount", of: cut), Int64((cutRect.height / font.lineHeight).rounded()))
+        XCTAssertEqual(try bool("label.isTruncated", of: cut), true)
 
         let empty = label(text: nil, lines: 1, height: 30, in: window)
         XCTAssertEqual(try int("label.drawnLineCount", of: empty), 0)

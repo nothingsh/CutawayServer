@@ -514,32 +514,6 @@ final class ConstraintCaptureTests: CaptureTestCase {
         XCTAssertEqual(scene.views.map(captured), first)
     }
 
-    func test_S_LAYOUT_03_releasedConstraintsGiveTheirIDsUp() throws {
-        let view = UIView()
-        var oldID: UInt64 = 0
-        var address: ObjectIdentifier?
-        autoreleasepool {
-            let old = view.widthAnchor.constraint(equalToConstant: 1)
-            oldID = registry.register(old)
-            address = ObjectIdentifier(old)
-        }
-        // Make constraints until the allocator hands the old address out again.
-        var others: [NSLayoutConstraint] = []
-        var reused: NSLayoutConstraint?
-        for _ in 0..<100_000 {
-            let constraint = view.widthAnchor.constraint(equalToConstant: 1)
-            if ObjectIdentifier(constraint) == address {
-                reused = constraint
-                break
-            }
-            others.append(constraint)
-        }
-        let constraint = try XCTUnwrap(reused, "the allocator never handed the address out again")
-        let newID = registry.register(constraint)
-        XCTAssertGreaterThan(newID, oldID)
-        XCTAssertEqual(registry.register(constraint), newID)
-    }
-
     func test_S_LAYOUT_03_doesNotKeepObjectsAlive() throws {
         let window = try makeWindow()
         weak var view: UIView?

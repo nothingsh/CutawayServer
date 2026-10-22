@@ -15,6 +15,8 @@ final class MutationTests: XCTestCase {
     func test_S_CONN_15_seedsCoverEveryMessageKind() throws {
         let kinds = Set(WireTestSupport.messageSamples.map(WireTestSupport.kind(of:)))
         XCTAssertEqual(kinds, WireTestSupport.messageKinds)
+        // Every sample survives a round trip, the hellos of S-CONN-04 and the messages a
+        // client must not send of S-CONN-09 included.
         for message in WireTestSupport.messageSamples {
             let frame = Frame(requestID: 1, body: message)
             XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)

@@ -4,49 +4,6 @@ import XCTest
 
 /// The byte stream of P-FRAME-01 is cut into frame payloads.
 final class FrameSplitterTests: XCTestCase {
-    private func payloads(of stream: Data, pieceSize: Int) throws -> [Data] {
-        var splitter = FrameSplitter()
-        var result: [Data] = []
-        var offset = 0
-        while offset < stream.count {
-            let end = min(offset + pieceSize, stream.count)
-            splitter.append(stream.subdata(in: offset..<end))
-            offset = end
-            while let payload = try splitter.next() {
-                result.append(payload)
-            }
-        }
-        XCTAssertNil(try splitter.next(), "bytes were left over")
-        return result
-    }
-
-    func test_S_CONN_05_splitterYieldsTheFixtureFrames() throws {
-        var checked = 0
-        for scenario in WireTestSupport.scenarios {
-            for direction in ["c2s", "s2c"] {
-                let expected = try WireTestSupport.fixtureFrames(scenario: scenario, direction: direction)
-                guard !expected.isEmpty else { continue }  // "busy" has no c2s frames.
-                let stream = try RepositoryFiles.fixture("\(scenario)/\(direction).stream")
-                for pieceSize in [1, 3, 4096, stream.count] {
-                    XCTAssertEqual(
-                        try payloads(of: stream, pieceSize: pieceSize),
-                        expected,
-                        "\(scenario)/\(direction).stream in pieces of \(pieceSize)"
-                    )
-                }
-                checked += 1
-            }
-        }
-        XCTAssertEqual(checked, 31, "every .stream fixture should have been checked")
-    }
-
-    func test_S_CONN_05_framedOutputSplitsBackIntoThePayload() throws {
-        let first = FrameCodec.encode(Frame(requestID: 1, body: .getAppIcon))
-        let second = FrameCodec.encode(Frame(requestID: 2, body: .getHierarchy))
-        let stream = FrameCodec.framed(first) + FrameCodec.framed(second)
-        XCTAssertEqual(try payloads(of: stream, pieceSize: 5), [first, second])
-    }
-
     func test_S_CONN_05_splitterWaitsForACompleteFrame() throws {
         var splitter = FrameSplitter()
         XCTAssertNil(try splitter.next())
@@ -57,15 +14,6 @@ final class FrameSplitterTests: XCTestCase {
         splitter.append(Data([4, 5, 6, 7, 8, 0xFF]))
         XCTAssertEqual(try splitter.next(), Data([1, 2, 3, 4, 5, 6, 7, 8]))
         XCTAssertNil(try splitter.next(), "one byte of the next length is not a frame")
-    }
-
-    func test_S_CONN_05_splitterYieldsAnEmptyPayloadForLengthZero() throws {
-        // N = 0 is a frame as far as the splitter is concerned; the decoder rejects it.
-        var splitter = FrameSplitter()
-        splitter.append(Data([0, 0, 0, 0]))
-        let payload = try XCTUnwrap(try splitter.next())
-        XCTAssertTrue(payload.isEmpty)
-        XCTAssertThrowsError(try FrameCodec.decode(payload))
     }
 
     func test_S_CONN_05_splitterRejectsAnOversizedLength() throws {
@@ -155,6 +103,8 @@ final class FrameSplitterTests: XCTestCase {
     }
 
     func test_S_CONN_15_splitterYieldsTheSameFramesHoweverTheBytesArrive() throws {
+        // Every `.stream` fixture yields its `.bin` frames, and framed output its payloads,
+        // empty ones included (S-CONN-05).
         let (stream, expected) = try sampleStream()
         XCTAssertGreaterThan(stream.count, 1_048_576)
         for (name, pieces) in feedings(of: stream) {

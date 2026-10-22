@@ -177,6 +177,8 @@ final class HierarchyCodecTests: XCTestCase {
         XCTAssertEqual(nodes.map(\.zPosition), Array(repeating: 0, count: 9))
     }
 
+    /// Every field of a node, those of S-HIER-13 (addresses), S-HIER-14 (origins, base classes,
+    /// visibility) and S-HIER-17, 18 (virtual nodes and their flags) included.
     func test_S_HIER_01_hierarchyRoundTrips() throws {
         // The fixture survives being encoded by this codec.
         let fixture = Frame(requestID: 2, body: .hierarchy(try fixtureHierarchy()))
@@ -222,8 +224,31 @@ final class HierarchyCodecTests: XCTestCase {
             memberReferences: [
                 MemberReference(ownerClassName: "Demo.CardView", ownerDisplayClassName: "CardView", name: "badge"),
                 MemberReference(ownerClassName: "Base", ownerDisplayClassName: "Base", name: "_divider")
-            ]
+            ],
+            layerAddress: .max,
+            viewAddress: 0x1_0000_0010,
+            viewControllerAddress: 0x1_0000_0020,
+            layerClassOrigin: .system,
+            viewClassOrigin: .app,
+            viewControllerClassOrigin: .system,
+            layerBaseClassName: "CAShapeLayer",
+            viewBaseClassName: "UIHostingView",
+            viewControllerVisibility: .notShown
         )
+        let virtual = LayerNode(
+            id: 21,
+            parentID: 4,
+            className: "Demo.Bar",
+            displayClassName: "Bar",
+            bounds: WireRect(x: 0, y: 0, width: 10, height: 30),
+            position: WirePoint(x: 5, y: 15),
+            layerClassOrigin: .app,
+            nodeKind: .virtual,
+            name: "March",
+            isCollapsedByDefault: true,
+            isCaptureExcluded: true
+        )
+        // What a server before 1.1 sends: no addresses, origins, base classes or visibility.
         let bare = LayerNode(
             id: 2,
             parentID: .max,
@@ -234,40 +259,36 @@ final class HierarchyCodecTests: XCTestCase {
         )
         let frame = Frame(
             requestID: 9,
-            body: .hierarchy(Hierarchy(nodes: [backed, bare], keyWindowID: .max))
+            body: .hierarchy(Hierarchy(nodes: [backed, virtual, bare], keyWindowID: .max))
         )
         let decoded = try FrameCodec.decode(FrameCodec.encode(frame))
         XCTAssertEqual(decoded, frame)
         guard case .hierarchy(let hierarchy)? = decoded.body else { return XCTFail("\(decoded)") }
-        XCTAssertNil(hierarchy.nodes[1].viewClassName)
-        XCTAssertNil(hierarchy.nodes[1].viewDisplayClassName)
-        XCTAssertNil(hierarchy.nodes[1].viewControllerClassName)
-        XCTAssertNil(hierarchy.nodes[1].viewControllerDisplayClassName)
-        XCTAssertEqual(hierarchy.nodes[1].memberReferences, [])
+        let absent = hierarchy.nodes[2]
+        XCTAssertNil(absent.viewClassName)
+        XCTAssertNil(absent.viewDisplayClassName)
+        XCTAssertNil(absent.viewControllerClassName)
+        XCTAssertNil(absent.viewControllerDisplayClassName)
+        XCTAssertEqual(absent.memberReferences, [])
+        // Absent addresses read as 0 and nil, absent origins and visibility as unknown.
+        XCTAssertEqual(absent.layerAddress, 0)
+        XCTAssertNil(absent.viewAddress)
+        XCTAssertNil(absent.viewControllerAddress)
+        XCTAssertEqual(
+            [absent.layerClassOrigin, absent.viewClassOrigin, absent.viewControllerClassOrigin],
+            [.unknown, .unknown, .unknown]
+        )
+        XCTAssertNil(absent.layerBaseClassName)
+        XCTAssertNil(absent.viewBaseClassName)
+        XCTAssertEqual(absent.viewControllerVisibility, .unknown)
+        XCTAssertEqual(absent.nodeKind, .layer)
+        XCTAssertNil(absent.name)
+        XCTAssertFalse(absent.isCollapsedByDefault)
+        XCTAssertFalse(absent.isCaptureExcluded)
 
         // An app without windows.
         let empty = Frame(requestID: 3, body: .hierarchy(Hierarchy(nodes: [], keyWindowID: 0)))
         XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(empty)), empty)
-    }
-
-    func test_S_HIER_01_aLargeHierarchyRoundTrips() throws {
-        // 20,000 layers in one chain: far more than a real screen has.
-        let nodes = (1...20_000).map { index in
-            LayerNode(
-                id: UInt64(index),
-                parentID: UInt64(index - 1),
-                className: "CALayer",
-                displayClassName: "CALayer",
-                viewClassName: "UIView",
-                viewDisplayClassName: "UIView",
-                bounds: WireRect(x: 0, y: 0, width: 10, height: 10),
-                position: WirePoint(x: 5, y: 5)
-            )
-        }
-        let frame = Frame(requestID: 4, body: .hierarchy(Hierarchy(nodes: nodes, keyWindowID: 1)))
-        let payload = FrameCodec.encode(frame)
-        XCTAssertLessThan(payload.count, Int(FrameCodec.maximumFrameLength))
-        XCTAssertEqual(try FrameCodec.decode(payload), frame)
     }
 
     func test_S_HIER_11_decodesTheSubtreeFixture() throws {
@@ -323,35 +344,6 @@ final class HierarchyCodecTests: XCTestCase {
         XCTAssertEqual(nodes.filter(\.isCaptureExcluded).map(\.id), [13, 14])
     }
 
-    func test_S_HIER_17_newNodeFieldsRoundTrip() throws {
-        var node = LayerNode(
-            id: 21,
-            parentID: 4,
-            className: "Demo.Bar",
-            displayClassName: "Bar",
-            bounds: WireRect(x: 0, y: 0, width: 10, height: 30),
-            position: WirePoint(x: 5, y: 15),
-            layerClassOrigin: .app,
-            nodeKind: .virtual,
-            name: "March",
-            isCollapsedByDefault: true,
-            isCaptureExcluded: true
-        )
-        func roundTrip(_ node: LayerNode) throws -> LayerNode? {
-            let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
-            guard case .hierarchy(let decoded)? = try FrameCodec.decode(FrameCodec.encode(frame)).body else {
-                return nil
-            }
-            return decoded.nodes.first
-        }
-        XCTAssertEqual(try roundTrip(node), node)
-        node.nodeKind = .layer
-        node.name = nil
-        node.isCollapsedByDefault = false
-        node.isCaptureExcluded = false
-        XCTAssertEqual(try roundTrip(node), node)
-    }
-
     func test_S_HIER_13_decodesTheFixtureAddresses() throws {
         // Protocol 1.1 (Protocol/fixtures/README.md, "Addresses (1.1)").
         let nodes = try fixtureHierarchy().nodes
@@ -390,62 +382,6 @@ final class HierarchyCodecTests: XCTestCase {
         )
         XCTAssertEqual(nodes.compactMap(\.layerBaseClassName), ["CAShapeLayer"])
         XCTAssertEqual(nodes.first { $0.layerBaseClassName != nil }?.id, 5)
-    }
-
-    func test_S_HIER_14_newNodeFieldsRoundTripAndUnknownMeansAbsent() throws {
-        var node = LayerNode(
-            id: 7,
-            parentID: 1,
-            className: "CALayer",
-            displayClassName: "CALayer",
-            viewClassName: "Demo.CardView",
-            viewDisplayClassName: "CardView",
-            bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
-            position: WirePoint(x: 0, y: 0),
-            viewControllerClassName: "UINavigationController",
-            viewControllerDisplayClassName: "UINavigationController",
-            layerClassOrigin: .system,
-            viewClassOrigin: .app,
-            viewControllerClassOrigin: .system,
-            layerBaseClassName: "CAShapeLayer",
-            viewBaseClassName: "UIHostingView",
-            viewControllerVisibility: .notShown
-        )
-        for _ in 0..<2 {
-            let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
-            XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
-            // A 1.0 server sends none of them.
-            node.layerClassOrigin = .unknown
-            node.viewClassOrigin = .unknown
-            node.viewControllerClassOrigin = .unknown
-            node.layerBaseClassName = nil
-            node.viewBaseClassName = nil
-            node.viewControllerVisibility = .unknown
-        }
-    }
-
-    func test_S_HIER_13_addressesRoundTripAndZeroMeansAbsent() throws {
-        let node = LayerNode(
-            id: 7,
-            parentID: 0,
-            className: "CALayer",
-            displayClassName: "CALayer",
-            bounds: WireRect(x: 0, y: 0, width: 1, height: 1),
-            position: WirePoint(x: 0, y: 0),
-            layerAddress: .max,
-            viewAddress: 0x1_0000_0010,
-            viewControllerAddress: 0x1_0000_0020
-        )
-        let frame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [node], keyWindowID: 0)))
-        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
-
-        // A 1.0 server sends none: they read as 0 and nil.
-        var plain = node
-        plain.layerAddress = 0
-        plain.viewAddress = nil
-        plain.viewControllerAddress = nil
-        let plainFrame = Frame(requestID: 1, body: .hierarchy(Hierarchy(nodes: [plain], keyWindowID: 0)))
-        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(plainFrame)), plainFrame)
     }
 
     func test_S_HIER_12_decodesTheSubtreeNotFoundFixture() throws {

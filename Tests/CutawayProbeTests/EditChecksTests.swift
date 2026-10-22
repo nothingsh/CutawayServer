@@ -61,18 +61,16 @@ final class EditChecksTests: XCTestCase {
 
     // MARK: - The answer to a change
 
-    func test_S_PROBE_03_resultCheckAcceptsTheAnswer() throws {
+    func test_S_PROBE_03_resultCheckWantsTheAnswer() throws {
+        let text = AttributeValue.string("Pushed")
         let answer = try EditChecks.result(
             result(layer: 18, text: "Pushed"),
             layerID: 18,
             attributeID: "label.text",
-            value: .string("Pushed")
+            value: text
         )
         XCTAssertEqual(answer.layerID, 18)
-    }
 
-    func test_S_PROBE_03_resultCheckRejectsOtherAnswers() throws {
-        let text = AttributeValue.string("Pushed")
         assertRejects(
             "expected SetAttributeResult, got Error(layerNotFound: no layer with id 99) with request_id 1 (P-SET-01)"
         ) {

@@ -169,12 +169,10 @@ final class EnvironmentResponseTests: CaptureTestCase {
         )
     }
 
-    func test_S_ENV_05_workTheAppQueuesOnceHasRun() throws {
-        try assertTheResponseHasRun(hops: 1)
-    }
-
-    func test_S_ENV_05_workTheAppQueuesTwiceHasRun() throws {
-        try assertTheResponseHasRun(hops: 2)
+    func test_S_ENV_05_workTheAppQueuesOnceOrTwiceHasRun() throws {
+        for hops in 1...2 {
+            try assertTheResponseHasRun(hops: hops)
+        }
     }
 
     /// At least two turns of the main run loop, one for each block the server queues, pass

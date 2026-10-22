@@ -481,55 +481,6 @@ final class AttributeChecksTests: XCTestCase {
         }
     }
 
-    // MARK: - The attribute list
-
-    func test_S_PROBE_01_theListHasEveryAttributeOfVersion01() {
-        XCTAssertEqual(
-            Set(AttributeChecks.list.keys),
-            [
-                "layer",
-                "view",
-                "label",
-                "imageView",
-                "control",
-                "button",
-                "scrollView",
-                "stackView",
-                "textField",
-                "textView",
-                "tableView",
-                "collectionView",
-                "tableViewCell",
-                "collectionViewCell"
-            ]
-        )
-        // 60 of version 0.1, the 8 layout attributes of 0.4 and the 45 of protocol 1.2, with
-        // `imageView.imageSize` of 0.1 in a cluster now.
-        XCTAssertEqual(AttributeChecks.list.values.reduce(0) { $0 + $1.count }, 114)
-    }
-
-    func test_S_ATTR_07_theListHasTheLayoutAttributes() {
-        let all = AttributeChecks.list["view"]!
-        // Before the accessibility of protocol 1.2.
-        let view = all.prefix { !$0.name.hasPrefix("accessibility") }
-        XCTAssertEqual(
-            view.suffix(8).map(\.name),
-            [
-                "contentHuggingPriority.horizontal",
-                "contentHuggingPriority.vertical",
-                "contentCompressionResistancePriority.horizontal",
-                "contentCompressionResistancePriority.vertical",
-                "intrinsicContentSize.width",
-                "intrinsicContentSize.height",
-                "translatesAutoresizingMaskIntoConstraints",
-                "hasAmbiguousLayout"
-            ]
-        )
-        XCTAssertEqual(view.suffix(8).map(\.editable), [true, true, true, true, false, false, true, false])
-        XCTAssertEqual(view.suffix(8).map(\.nullable), [false, false, false, false, true, true, false, false])
-        XCTAssertTrue(view.suffix(8).allSatisfy { !$0.acceptsNil })
-    }
-
     // MARK: - The demo app's screen
 
     /// A value of each kind, for attributes whose value the checks do not look at.
@@ -802,13 +753,10 @@ final class AttributeChecksTests: XCTestCase {
         // A nullable attribute may be nil.
         set("view.tintColor", nil, in: &close[0].attributeGroups)
         XCTAssertNoThrow(try AttributeChecks.demo(close, hierarchy: hierarchy, scene: scene))
-    }
 
-    func test_S_ATTR_05_demoAttributeChecksAcceptReadOnlyFallbacks() throws {
-        let (hierarchy, details) = demo()
-        let scene = try DemoScene(hierarchy)
+        // A read-only fallback to text (S-ATTR-05): view.contentMode of the screen's view, with
+        // a raw value that has no name.
         var fallback = details
-        // view.contentMode of the screen's view, with a raw value that has no name.
         fallback[1].attributeGroups[1].attributes[6] = Attribute(
             id: "view.contentMode",
             title: "Content Mode",

@@ -21,6 +21,11 @@ final class LayerRegistryTests: XCTestCase {
         // Another connection has another registry, and its IDs are its own.
         let other = LayerRegistry()
         XCTAssertEqual(other.register(second), 1)
+
+        // An ID leads back to its layer; 0 and an ID never given out lead nowhere.
+        XCTAssertTrue(registry.layer(for: 1) === first)
+        XCTAssertNil(registry.layer(for: 0))
+        XCTAssertNil(registry.layer(for: 3))
     }
 
     func test_S_STAB_02_theRegistryTellsReleasedEntriesApart() {
@@ -84,15 +89,6 @@ final class LayerRegistryTests: XCTestCase {
         XCTAssertGreaterThan(registry.register(virtual: "new", under: keptID), releasedBar)
     }
 
-    func test_S_HIER_02_registryFindsTheLayerByID() {
-        let registry = LayerRegistry()
-        let layer = CALayer()
-        let id = registry.register(layer)
-        XCTAssertTrue(registry.layer(for: id) === layer)
-        XCTAssertNil(registry.layer(for: 0))
-        XCTAssertNil(registry.layer(for: id + 1))
-    }
-
     func test_S_HIER_02_registryHoldsLayersWeakly() {
         let registry = LayerRegistry()
         let kept = CALayer()
@@ -152,7 +148,7 @@ final class LayerRegistryTests: XCTestCase {
 
     // MARK: - S-LAYOUT-03 (P-LAYOUT-03)
 
-    func test_S_LAYOUT_03_constraintsAndGuidesShareTheCounter() {
+    func test_S_LAYOUT_03_constraintsAndGuidesShareTheCounterAndLeadToNoLayer() {
         let registry = LayerRegistry()
         let view = UIView()
         let layer = CALayer()
@@ -163,16 +159,10 @@ final class LayerRegistryTests: XCTestCase {
         XCTAssertEqual(registry.register(guide), 3)
         XCTAssertEqual(registry.register(constraint), 2)
         XCTAssertEqual(registry.count, 3)
-    }
-
-    func test_S_LAYOUT_03_onlyLayerIDsLeadToLayers() {
-        let registry = LayerRegistry()
-        let view = UIView()
-        let constraint = view.widthAnchor.constraint(equalToConstant: 1)
-        let guide = UILayoutGuide()
-        XCTAssertNil(registry.layer(for: registry.register(constraint)))
-        XCTAssertNil(registry.layer(for: registry.register(guide)))
-        XCTAssertTrue(registry.layer(for: registry.register(view.layer)) === view.layer)
+        // Only a layer's ID leads to a layer.
+        XCTAssertTrue(registry.layer(for: 1) === layer)
+        XCTAssertNil(registry.layer(for: 2))
+        XCTAssertNil(registry.layer(for: 3))
 
         // Held weakly, and forgotten once released.
         weak var released: NSLayoutConstraint?

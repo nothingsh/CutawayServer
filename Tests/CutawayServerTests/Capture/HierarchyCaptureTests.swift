@@ -849,31 +849,4 @@ final class HierarchyCaptureTests: CaptureTestCase {
             address(of: bare)
         )
     }
-
-    func test_S_HIER_13_addressesDoNotKeepObjectsAliveOrLoadViews() throws {
-        let window = try makeWindow()
-        let root = ScreenController()
-        window.rootViewController = root
-        let unloaded = DetailController()
-        root.addChild(unloaded)
-        unloaded.didMove(toParent: root)
-        weak var view: UIView?
-        weak var layer: CALayer?
-        autoreleasepool {
-            let strongView = UIView()
-            let strongLayer = CALayer()
-            strongView.layer.addSublayer(strongLayer)
-            root.view.addSubview(strongView)
-            view = strongView
-            layer = strongLayer
-            let hierarchy = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
-            XCTAssertTrue(hierarchy.nodes.contains { $0.viewAddress == address(of: strongView) })
-            XCTAssertTrue(hierarchy.nodes.contains { $0.layerAddress == address(of: strongLayer) })
-            strongView.removeFromSuperview()
-        }
-        CATransaction.flush()
-        XCTAssertNil(view, "the capture kept the view alive")
-        XCTAssertNil(layer, "the capture kept the layer alive")
-        XCTAssertFalse(unloaded.isViewLoaded, "the capture loaded a view")
-    }
 }

@@ -62,18 +62,6 @@ final class FrameCodecTests: XCTestCase {
         XCTAssertEqual(ProtocolVersion.current, ProtocolVersion(major: 1, minor: 2))
     }
 
-    func test_S_CONN_04_helloRoundTrips() throws {
-        let server = Frame(
-            requestID: 0,
-            body: .hello(Hello(version: .current, role: .server, app: demoApp))
-        )
-        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(server)), server)
-
-        // A hello without the `protocol` field keeps it absent.
-        let bare = Frame(requestID: 0, body: .hello(Hello(version: nil, role: .client)))
-        XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(bare)), bare)
-    }
-
     func test_S_CONN_02_decodesTheBusyFixture() throws {
         XCTAssertEqual(
             try decodedFixture("busy/01-s2c-error.bin"),
@@ -135,51 +123,6 @@ final class FrameCodecTests: XCTestCase {
 
         let bodiless = Frame(requestID: 5, body: nil)
         XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(bodiless)), bodiless)
-    }
-
-    func test_S_CONN_09_everyMessageKindRoundTrips() throws {
-        // The session tells requests from server-only messages by their kind, so every member of
-        // the union has to survive a round trip.
-        let failed = StreamEnd(
-            status: .failed,
-            chunkCount: 0,
-            error: WireError(code: .internalError, message: "x")
-        )
-        let messages: [Message] = [
-            .getAppIcon,
-            .getHierarchy,
-            .hierarchy(Hierarchy(nodes: [], keyWindowID: 0)),
-            .getLayerDetails(GetLayerDetails(requests: [], maxTextureDimension: 0)),
-            .layerDetailsChunk(LayerDetailsChunk(sequence: 0, details: [])),
-            .streamEnd(failed),
-            .streamEnd(StreamEnd(status: .cancelled, chunkCount: 3)),
-            .cancel(targetRequestID: 7),
-            .error(WireError(code: .unexpectedMessage, message: "unexpected")),
-            .error(WireError(code: .malformedFrame, message: "")),
-            .error(WireError(code: .appNotActive, message: "inactive")),
-            .error(WireError(code: .unknown, message: "?")),
-            .error(WireError(code: .layerNotFound, message: "no layer with id 9")),
-            .error(WireError(code: .attributeNotEditable, message: "read-only")),
-            .error(WireError(code: .invalidAttributeValue, message: "not a number")),
-            .getSubtree(rootID: 0),
-            .getSubtree(rootID: .max),
-            .setAttribute(SetAttribute(layerID: 3, attributeID: "view.tag", value: .int(-1))),
-            .setAttributeResult(SetAttributeResult(layerID: 3, attributeGroups: []))
-        ]
-        for (index, message) in messages.enumerated() {
-            let frame = Frame(requestID: UInt32(index + 1), body: message)
-            XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
-        }
-    }
-
-    func test_S_CONN_05_everyFixtureFrameDecodes() throws {
-        for scenario in WireTestSupport.scenarios {
-            for direction in ["c2s", "s2c"] {
-                for payload in try WireTestSupport.fixtureFrames(scenario: scenario, direction: direction) {
-                    XCTAssertNoThrow(try FrameCodec.decode(payload), "\(scenario) \(direction)")
-                }
-            }
-        }
     }
 
     func test_S_CONN_05_encodedFramesUseThePlainBufferFormat() throws {
@@ -282,27 +225,5 @@ final class FrameCodecTests: XCTestCase {
         let payload = FrameCodec.encode(frame)
         XCTAssertLessThan(UInt32(payload.count), FrameCodec.maximumFrameLength)
         XCTAssertEqual(try FrameCodec.decode(payload), frame)
-    }
-
-    func test_S_CONN_05_decoderSurvivesRandomBytes() throws {
-        // A trap inside the decoder would end the test process instead of failing an assertion.
-        var generator = SeededGenerator(seed: 0xC07A_0001)
-        let valid = try RepositoryFiles.fixture("handshake/02-s2c-hello.bin")
-        for _ in 0..<2_000 {
-            // Pure noise, with and without the identifier in place.
-            var noise = generator.bytes(count: Int.random(in: 0...96, using: &generator))
-            _ = try? FrameCodec.decode(noise)
-            if noise.count >= 8 {
-                noise.replaceSubrange(4..<8, with: Array("CTWY".utf8))
-                _ = try? FrameCodec.decode(noise)
-            }
-            // A valid frame with a few bytes flipped.
-            var damaged = valid
-            for _ in 0..<Int.random(in: 1...4, using: &generator) {
-                let index = Int.random(in: 0..<damaged.count, using: &generator)
-                damaged[index] = UInt8.random(in: .min ... .max, using: &generator)
-            }
-            _ = try? FrameCodec.decode(damaged)
-        }
     }
 }

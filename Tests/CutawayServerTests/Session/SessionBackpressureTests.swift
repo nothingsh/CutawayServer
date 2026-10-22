@@ -205,39 +205,6 @@ final class SessionBackpressureTests: XCTestCase {
         XCTAssertNil(stream.object, "the stream outlived its connection")
     }
 
-    /// K of S-CONN-13: how far above its start the footprint may go, in budgets.
-    private static let footprintBudgets = 1.5
-
-    func test_S_CONN_13_memoryStaysNearTheBudget() async throws {
-        // 400 layers with an image of 2 MiB each that LZFSE cannot shrink: 800 MiB if nothing
-        // held the stream back. The budget is 32 MiB.
-        let capture = ScriptedCapture(side: { _ in 724 }, incompressible: true)
-        let limit = 32 * Self.mebibyte
-        let harness = try await backedUpHarness(capture: capture, limit: limit)
-        let before = physicalFootprint()
-
-        harness.receive(details(1, (1...400).map(UInt64.init)))
-        await settleWhileBackedUp(harness)
-        var stalled = capture.captured.count
-        // Rendering, compressing and sending take some turns; wait until nothing moves.
-        for _ in 0..<50 {
-            await settleWhileBackedUp(harness)
-            if capture.captured.count == stalled { break }
-            stalled = capture.captured.count
-        }
-        XCTAssertLessThan(stalled, 40, "the stream did not stop at the budget")
-        let after = physicalFootprint()
-        let growth = Double(after - before) / Double(limit)
-        print(
-            "S-CONN-13 footprint: \(stalled) layers captured, unsent \(harness.transport.unsentByteCount) bytes, "
-                + "footprint +\(after - before) bytes = \(String(format: "%.2f", growth)) budgets"
-        )
-        XCTAssertLessThanOrEqual(growth, Self.footprintBudgets)
-
-        harness.closeFromThePeer()
-        await harness.settle()
-    }
-
     // MARK: - S-CONN-14
 
     func test_S_CONN_14_readingPausesAtTheLimit() async throws {

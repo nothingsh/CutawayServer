@@ -24,24 +24,21 @@ final class HelloChecksTests: XCTestCase {
         }
     }
 
-    func test_S_PROBE_01_helloCheckAcceptsTheProtocol1Hello() throws {
+    func test_S_PROBE_01_helloCheckWantsAProtocol1Hello() throws {
         let app = try HelloChecks.serverHello(try Fixtures.frame("handshake/02-s2c-hello.bin"))
         XCTAssertFalse(app.bundleID.isEmpty)
-    }
 
-    func test_S_PROBE_01_errorsBeforeTheHelloFailTheHandshake() {
-        for code in [ErrorCode.malformedFrame, .unexpectedMessage, .internalError] {
-            assertRejects(
-                Frame(requestID: 0, body: .error(WireError(code: code, message: "no"))),
-                "expected the server's Hello"
-            )
+        // Anything else before the hello, or no frame at all.
+        let others: [(Frame?, String)] = [ErrorCode.malformedFrame, .unexpectedMessage, .internalError].map {
+            (Frame(requestID: 0, body: .error(WireError(code: $0, message: "no"))), "expected the server's Hello")
+        } + [
+            (Frame(requestID: 0, body: .appStateChanged(.active)), "expected the server's Hello"),
+            (nil, "closed the connection before its Hello"),
+            // The fixture's server is still at 0.5 (P-HELLO-03).
+            (try Fixtures.frame("handshake-version-mismatch/02-s2c-hello.bin"), "P-HELLO-03")
+        ]
+        for (frame, expected) in others {
+            assertRejects(frame, expected)
         }
-        assertRejects(Frame(requestID: 0, body: .appStateChanged(.active)), "expected the server's Hello")
-        assertRejects(nil, "closed the connection before its Hello")
-    }
-
-    func test_S_PROBE_01_serverOfProtocol0FailsTheHandshake() throws {
-        // The fixture's server is still at 0.5 (P-HELLO-03).
-        assertRejects(try Fixtures.frame("handshake-version-mismatch/02-s2c-hello.bin"), "P-HELLO-03")
     }
 }

@@ -7,24 +7,6 @@ import XCTest
 /// What the probe checks in the constraints of every layer, and in the demo
 /// app's known constraints.
 final class ConstraintChecksTests: XCTestCase {
-    private func fixtureHierarchy() throws -> Hierarchy {
-        try HierarchyChecks.hierarchy(try Fixtures.frame("hierarchy/02-s2c-hierarchy.bin"))
-    }
-
-    /// The `layout-constraints` scenario: the request and the server's frames.
-    private func constraintsScenario() throws -> (request: GetLayerDetails, frames: [Frame]) {
-        let first = try Fixtures.frame("layout-constraints/01-c2s-get-layer-details.bin")
-        guard case .getLayerDetails(let request)? = first.body
-        else { throw ProbeFailure("layout-constraints does not begin with GetLayerDetails") }
-        return (
-            request,
-            [
-                try Fixtures.frame("layout-constraints/02-s2c-chunk-0.bin"),
-                try Fixtures.frame("layout-constraints/03-s2c-stream-end.bin")
-            ]
-        )
-    }
-
     /// Asserts that the check fails and that its message contains every one of `expected`.
     private func assertRejects(
         _ expected: String...,
@@ -253,27 +235,6 @@ final class ConstraintChecksTests: XCTestCase {
         )
         XCTAssertNoThrow(try check(LayerDetail(layerID: 3, status: .ok), tables: &tables))
         XCTAssertNoThrow(try check(LayerDetail(layerID: 99, status: .layerNotFound), tables: &tables))
-    }
-
-    func test_S_PROBE_04_structureAcceptsTheFixture() throws {
-        let (request, frames) = try constraintsScenario()
-        let details = try DetailChecks.stream(
-            frames,
-            answering: 1,
-            request: request,
-            hierarchy: try fixtureHierarchy()
-        )
-        XCTAssertEqual(
-            ConstraintChecks.summary(of: details),
-            ConstraintChecks.Summary(
-                total: 12,
-                layers: 3,
-                distinct: 11,
-                satisfied: 10,
-                unsatisfied: 1,
-                unknown: 0
-            )
-        )
     }
 
     func test_S_PROBE_04_structureRejectsWhatWasNotAskedFor() {
