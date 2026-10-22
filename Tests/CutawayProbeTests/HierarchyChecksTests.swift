@@ -78,7 +78,8 @@ final class HierarchyChecksTests: XCTestCase {
         XCTAssertNoThrow(try HierarchyChecks.structure(two))
     }
 
-    func test_S_PROBE_01_hierarchyCheckRejectsOtherResponses() throws {
+    func test_S_PROBE_01_structureChecksRejectBrokenHierarchies() throws {
+        // Another response instead of a Hierarchy.
         assertRejects("expected Hierarchy, got Error(appNotActive") {
             _ = try HierarchyChecks.hierarchy(
                 Frame(
@@ -90,9 +91,7 @@ final class HierarchyChecksTests: XCTestCase {
         assertRejects("expected Hierarchy") {
             _ = try HierarchyChecks.hierarchy(Frame(requestID: 2, body: nil))
         }
-    }
 
-    func test_S_PROBE_01_structureChecksRejectBrokenHierarchies() throws {
         try assertStructureRejects("has no nodes") { $0.nodes = [] }
         try assertStructureRejects("nodes[2] has id 0") { $0.nodes[2].id = 0 }
         try assertStructureRejects("nodes[6] repeats id 3") { $0.nodes[6].id = 3 }

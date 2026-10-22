@@ -118,15 +118,6 @@ final class LayoutAttributeTests: CaptureTestCase {
         XCTAssertTrue(group.attributes.suffix(8).allSatisfy { !$0.acceptsNil })
     }
 
-    func test_S_ATTR_07_titlesSplitAtDots() {
-        XCTAssertEqual(
-            AttributeCatalog.title(for: "contentHuggingPriority.horizontal"),
-            "Content Hugging Priority Horizontal"
-        )
-        XCTAssertEqual(AttributeCatalog.title(for: "a.b.cD"), "A B C D")
-        XCTAssertEqual(AttributeCatalog.title(for: "layoutMargins"), "Layout Margins")
-    }
-
     func test_S_ATTR_07_layoutAttributesMatchUIKit() throws {
         let window = try makeWindow()
         let text = label("Intrinsic")

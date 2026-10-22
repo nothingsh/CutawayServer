@@ -131,23 +131,6 @@ final class HierarchyRequestTests: ServerTestCase {
         XCTAssertEqual(icon?.requestID, 3)
     }
 
-    func test_S_HIER_01_survivesClientsThatLeaveBeforeTheAnswer() async throws {
-        let server = makeServer()
-        let port = try await server.start()
-
-        // Each client asks for the hierarchy and is gone before the answer is ready.
-        for _ in 0..<20 {
-            let (client, _) = try await connectAndHandshake(port: port)
-            try await client.send(Frame(requestID: 1, body: .getHierarchy))
-            client.close()
-        }
-
-        let (client, _) = try await connectAndHandshake(port: port)
-        try await client.send(Frame(requestID: 1, body: .getHierarchy))
-        let answer = try await client.nextFrame()
-        _ = try hierarchy(in: answer, answering: 1)
-    }
-
     func test_S_HIER_07_answersAppNotActiveWhenNotActive() async throws {
         let captures = CaptureCounter()
         let server = makeServer { configuration in

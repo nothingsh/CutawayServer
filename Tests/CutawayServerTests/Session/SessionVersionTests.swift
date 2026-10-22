@@ -332,13 +332,6 @@ final class SessionVersionTests: XCTestCase {
         }
     }
 
-    func test_S_ATTR_13_aProtocol1_0ClientGetsUnspecifiedUnits() async throws {
-        let old = try await sections(afterHandshakeAt: version(0))
-        XCTAssertTrue(old.units.allSatisfy { $0 == .unspecified })
-        let current = try await sections(afterHandshakeAt: version(1))
-        XCTAssertTrue(current.units.allSatisfy { $0 == .points })
-    }
-
     func test_S_ATTR_08_aProtocol1_0ClientGetsUnspecifiedSections() async throws {
         let old = try await sections(afterHandshakeAt: version(0))
         let count = AttributeSection.allCases.count

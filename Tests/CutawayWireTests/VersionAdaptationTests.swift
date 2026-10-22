@@ -105,14 +105,6 @@ final class VersionAdaptationTests: XCTestCase {
         XCTAssertEqual(features(ProtocolVersion(major: 0, minor: 5)), Array(repeating: false, count: 8))
     }
 
-    func test_S_CONN_12_everyAttributeHasItsMinorVersion() {
-        // Protocol 1.0 names all of them, the autoresizing mask's included.
-        for attribute in LayoutAttribute.allCases {
-            XCTAssertEqual(attribute.minorVersion, 0, "\(attribute)")
-        }
-        XCTAssertEqual(LayoutAttribute.allCases.count, 25)
-    }
-
     func test_S_CONN_12_everyPeerOfProtocol1GetsTheAttributes() {
         let original = detail
         // Every field, the autoresizing mask's attributes included, stays as it was.
@@ -125,16 +117,17 @@ final class VersionAdaptationTests: XCTestCase {
         XCTAssertEqual(plain.adapted(to: version(0)), plain)
     }
 
-    func test_S_CONN_12_everySectionHasItsMinorVersion() {
+    func test_S_CONN_12_everyValueHasItsMinorVersion() {
+        // Protocol 1.0 names every constraint attribute, the autoresizing mask's included.
+        for attribute in LayoutAttribute.allCases {
+            XCTAssertEqual(attribute.minorVersion, 0, "\(attribute)")
+        }
         // Protocol 1.1 added every section but the default, 1.2 `Accessibility` (P-ATTR-08).
         XCTAssertEqual(AttributeSection.unspecified.minorVersion, 0)
         XCTAssertEqual(AttributeSection.accessibility.minorVersion, 2)
         for section in AttributeSection.allCases where ![.unspecified, .accessibility].contains(section) {
             XCTAssertEqual(section.minorVersion, 1, "\(section)")
         }
-    }
-
-    func test_S_CONN_12_everyUnitAndGuideKindHasItsMinorVersion() {
         // Protocol 1.1 added every unit and guide kind but the defaults (P-ATTR-14, P-LAYOUT-04).
         XCTAssertEqual(AttributeUnit.unspecified.minorVersion, 0)
         for unit in AttributeUnit.allCases where unit != .unspecified {

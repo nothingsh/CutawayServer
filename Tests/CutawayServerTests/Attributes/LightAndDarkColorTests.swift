@@ -72,7 +72,7 @@ final class LightAndDarkColorTests: AttributeValueTestCase {
         }
     }
 
-    func test_S_ATTR_17_fixedColorsAndCGColorsGiveNeither() throws {
+    func test_S_ATTR_17_fixedColorsCGColorsAndColorsTheSameIn8BitsGiveNeither() throws {
         let window = try makeWindow()
         let view = UIView()
         view.backgroundColor = UIColor(red: 0, green: 0x7A / 255, blue: 1, alpha: 1)
@@ -93,21 +93,18 @@ final class LightAndDarkColorTests: AttributeValueTestCase {
         }
         XCTAssertNil(light)
         XCTAssertNil(dark)
-    }
 
-    /// A colour that resolves to the same 8-bit components in both gives neither.
-    func test_S_ATTR_17_colorsTheSameIn8BitsGiveNeither() throws {
-        let window = try makeWindow()
-        let view = UIView()
-        view.backgroundColor = UIColor { traits in
+        // A dynamic colour that resolves to the same 8-bit components in both.
+        let close = UIView()
+        close.backgroundColor = UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
                 : UIColor(red: 0.5 + 0.0005, green: 0.5, blue: 0.5, alpha: 1)
         }
-        window.addSubview(view)
-        let background = try lightAndDark("view.backgroundColor", of: view)
-        XCTAssertNil(background.light)
-        XCTAssertNil(background.dark)
+        window.addSubview(close)
+        let same = try lightAndDark("view.backgroundColor", of: close)
+        XCTAssertNil(same.light)
+        XCTAssertNil(same.dark)
     }
 
     func test_S_ATTR_17_overriddenToDarkTheValueIsTheDark() throws {

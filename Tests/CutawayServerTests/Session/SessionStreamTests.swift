@@ -296,7 +296,8 @@ final class SessionStreamTests: XCTestCase {
             Frame(requestID: 8, body: .cancel(targetRequestID: 6)),  // a plain request, waiting
             Frame(requestID: 9, body: .cancel(targetRequestID: 99)),  // no such request
             Frame(requestID: 10, body: .cancel(targetRequestID: 0)),
-            Frame(requestID: 11, body: .cancel(targetRequestID: 11))
+            Frame(requestID: 11, body: .cancel(targetRequestID: .max)),
+            Frame(requestID: 12, body: .cancel(targetRequestID: 12))
         )  // itself
         await harness.settle()
         XCTAssertEqual(harness.transport.sent.count, 4, "a cancel must not be answered")
@@ -308,12 +309,12 @@ final class SessionStreamTests: XCTestCase {
         XCTAssertEqual(frames[6], Frame(requestID: 6, body: Self.noIcon))
 
         // The stream is over: a cancel that names it now is ignored too.
-        harness.receive(Frame(requestID: 12, body: .cancel(targetRequestID: 5)))
-        harness.receive(Frame(requestID: 13, body: .getAppIcon))
+        harness.receive(Frame(requestID: 13, body: .cancel(targetRequestID: 5)))
+        harness.receive(Frame(requestID: 14, body: .getAppIcon))
         let last = try await harness.frames(8)
         await harness.settle()
         XCTAssertEqual(harness.transport.sent.count, 8)
-        XCTAssertEqual(last[7], Frame(requestID: 13, body: Self.noIcon))
+        XCTAssertEqual(last[7], Frame(requestID: 14, body: Self.noIcon))
         XCTAssertFalse(harness.transport.isClosed)
     }
 

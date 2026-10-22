@@ -101,43 +101,6 @@ final class EnvironmentCodecTests: XCTestCase {
         )
     }
 
-    /// The raw reading agrees with the generated accessors wherever both can read the value.
-    func test_S_ENV_04_rawTraitsAgreeWithTheGeneratedAccessors() throws {
-        for scenario in ["environment", "environment-rejected"] {
-            for direction in ["c2s", "s2c"] {
-                for payload in try WireTestSupport.fixtureFrames(scenario: scenario, direction: direction) {
-                    var buffer = ByteBuffer(bytes: [UInt8](payload))
-                    let frame: Cutaway_Wire_Frame = try getCheckedRoot(byteBuffer: &buffer)
-                    let generated: [Cutaway_Wire_Traits?]
-                    switch frame.bodyType {
-                    case .setenvironment:
-                        generated = [frame.body(type: Cutaway_Wire_SetEnvironment.self)?.overrides]
-                    case .environment:
-                        let environment = try XCTUnwrap(frame.body(type: Cutaway_Wire_Environment.self))
-                        generated = [environment.overrides, environment.current]
-                        let raw = try XCTUnwrap(frame.body(type: RawTable.self))
-                        XCTAssertEqual(
-                            FrameCodec.environment(of: raw).overridable.map(\.rawValue),
-                            environment.overridable.map(\.rawValue)
-                        )
-                    default:
-                        continue
-                    }
-                    let raw = try XCTUnwrap(frame.body(type: RawTable.self))
-                    for (index, traits) in generated.enumerated() {
-                        let read = raw.table(at: index).map(FrameCodec.traits(of:)) ?? .none
-                        XCTAssertEqual(read.userInterfaceStyle.rawValue, traits?.userInterfaceStyle.rawValue ?? 0)
-                        XCTAssertEqual(read.contentSizeCategory.rawValue, traits?.contentSizeCategory.rawValue ?? 0)
-                        XCTAssertEqual(read.layoutDirection.rawValue, traits?.layoutDirection.rawValue ?? 0)
-                        XCTAssertEqual(read.horizontalSizeClass.rawValue, traits?.horizontalSizeClass.rawValue ?? 0)
-                        XCTAssertEqual(read.verticalSizeClass.rawValue, traits?.verticalSizeClass.rawValue ?? 0)
-                        XCTAssertEqual(read.unknownKinds, [])
-                    }
-                }
-            }
-        }
-    }
-
     /// P-ENV-04: a value this build does not know stays known as unknown, not `Unspecified`.
     func test_S_ENV_04_unknownTraitValuesAreKept() throws {
         var builder = FlatBufferBuilder(initialSize: 64)

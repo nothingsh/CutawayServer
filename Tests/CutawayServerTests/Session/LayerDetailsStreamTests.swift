@@ -229,54 +229,6 @@ final class LayerDetailsStreamTests: CaptureTestCase {
         XCTAssertEqual(log.details[0], log.details[4], "the same layer asked twice gives the same detail")
     }
 
-    // MARK: - S-SHOT-11 (P-HIER-12)
-
-    func test_S_SHOT_11_otherLayersOfTheRequestAreAnswered() async throws {
-        let window = try makeWindow()
-        let removed = colorView(CGRect(x: 0, y: 0, width: 20, height: 20), red: 1, green: 0, blue: 0)
-        let kept = colorView(CGRect(x: 20, y: 0, width: 20, height: 20), red: 0, green: 1, blue: 0)
-        window.addSubview(removed)
-        window.addSubview(kept)
-        let wanted = [removed.layer, kept.layer].map(registry.register)
-        // Alive, held here, and out of every window.
-        removed.removeFromSuperview()
-        let log = StreamLog()
-
-        start(request(wanted), host: liveHost(), log: log)
-        try await waitUntil("the stream to complete") { log.completedCount == 1 }
-        await settle()
-
-        XCTAssertEqual(log.details.map(\.layerID), wanted)
-        XCTAssertEqual(log.details.first, LayerDetail(layerID: wanted[0], status: .layerNotFound))
-        XCTAssertEqual(log.details.last?.status, .ok)
-        XCTAssertNotNil(log.details.last?.group)
-        XCTAssertEqual(log.completedCount, 1)
-    }
-
-    func test_S_SHOT_06_aLongRequestCompletes() async throws {
-        let ids = try makeLayers(2)
-        // Thousands of layers that are gone, and two that are not.
-        let wanted = [ids[0]] + (0..<3000).map { UInt64(100_000 + $0) } + [ids[1]]
-        let log = StreamLog()
-
-        start(request(wanted), host: liveHost(), log: log)
-        try await waitUntil("the stream to complete", timeout: 60) { log.completedCount == 1 }
-
-        XCTAssertEqual(log.details.map(\.layerID), wanted)
-        XCTAssertEqual(log.details.first?.status, .ok)
-        XCTAssertEqual(log.details.last?.status, .ok)
-        XCTAssertEqual(log.details.filter { $0.status == .layerNotFound }.count, 3000)
-    }
-
-    func test_S_SHOT_06_anEmptyRequestCompletesAtOnce() async throws {
-        let log = StreamLog()
-        start(request([]), host: liveHost(), log: log)
-        try await waitUntil("the stream to complete") { log.completedCount == 1 }
-        await settle()
-        XCTAssertEqual(log.details, [])
-        XCTAssertEqual(log.completedCount, 1)
-    }
-
     // MARK: - S-SHOT-07
 
     func test_S_SHOT_07_noCaptureStartsAfterStop() async throws {

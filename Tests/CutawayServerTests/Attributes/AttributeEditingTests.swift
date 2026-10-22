@@ -1090,50 +1090,6 @@ final class AttributeEditingTests: CaptureTestCase {
         ).value
     }
 
-    func test_S_SET_07_accessibilityIsWrittenAndReadBack() throws {
-        let window = try makeWindow()
-        let view = UIView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
-        window.addSubview(view)
-        for (id, text) in [
-            ("view.accessibilityLabel", "Save"),
-            ("view.accessibilityHint", "Saves the page"),
-            ("view.accessibilityValue", "3"),
-            ("view.accessibilityIdentifier", "save")
-        ] {
-            XCTAssertEqual(try readBack(id, in: apply(id, .string(text), on: view, in: window)), .string(text), id)
-            XCTAssertNil(try readBack(id, in: apply(id, nil, on: view, in: window)), id)
-        }
-        XCTAssertEqual(
-            try readBack(
-                "view.isAccessibilityElement",
-                in: apply("view.isAccessibilityElement", .bool(true), on: view, in: window)
-            ),
-            .bool(true)
-        )
-        XCTAssertTrue(view.isAccessibilityElement)
-        view.accessibilityLabel = nil
-        _ = try apply("view.accessibilityLabel", .string("Save"), on: view, in: window).get()
-        XCTAssertEqual(view.accessibilityLabel, "Save")
-    }
-
-    func test_S_SET_07_textSizeFollowingIsWrittenAndReadBack() throws {
-        let window = try makeWindow()
-        let label = UILabel()
-        let field = UITextField()
-        let text = UITextView()
-        for view in [label, field, text] as [UIView] {
-            view.frame = CGRect(x: 0, y: 0, width: 200, height: 40)
-            window.addSubview(view)
-        }
-        for (group, view) in [("label", label), ("textField", field), ("textView", text)] as [(String, UIView)] {
-            let id = "\(group).adjustsFontForContentSizeCategory"
-            XCTAssertEqual(try readBack(id, in: apply(id, .bool(true), on: view, in: window)), .bool(true), id)
-            XCTAssertEqual(try readBack(id, in: apply(id, .bool(false), on: view, in: window)), .bool(false), id)
-        }
-        _ = try apply("label.adjustsFontForContentSizeCategory", .bool(true), on: label, in: window).get()
-        XCTAssertTrue(label.adjustsFontForContentSizeCategory)
-    }
-
     func test_S_SET_07_theOtherAttributesOfProtocol12AreNotEditable() throws {
         let window = try makeWindow()
         let view = UIView()

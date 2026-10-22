@@ -72,7 +72,7 @@ final class AttributeReadingSideEffectTests: CaptureTestCase {
         stack.setCustomSpacing(8, after: stack.arrangedSubviews[0])
         let label = UILabel(frame: CGRect(x: 0, y: 340, width: 200, height: 40))
         label.numberOfLines = 2
-        label.text = AttributeAssumptionTests.longText
+        label.text = TextAttributeTests.longText
         label.font = .preferredFont(forTextStyle: .body)
         let button = UIButton(type: .system)
         button.setImage(UIImage(systemName: "heart"), for: .normal)

@@ -135,7 +135,10 @@ final class FramingTests: ServerTestCase {
             .hierarchy(Hierarchy(nodes: [], keyWindowID: 0)),
             .layerDetailsChunk(LayerDetailsChunk(sequence: 0, details: [])),
             .streamEnd(StreamEnd(status: .completed, chunkCount: 0)),
-            .error(WireError(code: .unknown, message: ""))
+            .error(WireError(code: .unknown, message: "")),
+            // Server-only messages of protocol 1.1 and 1.2.
+            .setAttributeResult(SetAttributeResult(layerID: 1, attributeGroups: [])),
+            .environment(Environment(overrides: .none, current: .none, overridable: []))
         ]
         for (index, body) in unexpected.enumerated() {
             let requestID = UInt32(index + 1)

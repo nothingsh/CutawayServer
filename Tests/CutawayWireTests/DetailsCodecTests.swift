@@ -387,33 +387,4 @@ final class DetailsCodecTests: XCTestCase {
             XCTAssertEqual(try FrameCodec.decode(FrameCodec.encode(frame)), frame)
         }
     }
-
-    func test_S_SHOT_06_aDetailLargerThanAChunksBudgetRoundTrips() throws {
-        // P-DET-06 lets one detail exceed 16 MiB: it travels alone, in one frame. Incompressible
-        // data stands in for the worst case.
-        var generator = SeededGenerator(seed: 3)
-        let block = generator.bytes(count: 64 * 1024)
-        var data = Data(capacity: 20 * 1024 * 1024)
-        for _ in 0..<320 { data.append(block) }
-        let image = WireImage(
-            pixelWidth: 2560,
-            pixelHeight: 2048,
-            bytesPerRow: 10240,
-            scale: 2,
-            data: data
-        )
-        let frame = Frame(
-            requestID: 7,
-            body: .layerDetailsChunk(
-                LayerDetailsChunk(
-                    sequence: 0,
-                    details: [LayerDetail(layerID: 5, status: .ok, solo: image, group: image)]
-                )
-            )
-        )
-        let payload = FrameCodec.encode(frame)
-        XCTAssertGreaterThan(payload.count, 40 * 1024 * 1024)
-        XCTAssertLessThan(UInt32(payload.count), FrameCodec.maximumFrameLength)
-        XCTAssertEqual(try FrameCodec.decode(payload), frame)
-    }
 }

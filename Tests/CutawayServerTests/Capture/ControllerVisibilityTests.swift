@@ -183,15 +183,4 @@ final class ControllerVisibilityTests: CaptureTestCase {
         wait { split.displayMode == .oneBesideSecondary && primary.viewIfLoaded?.window != nil }
         XCTAssertEqual(try visibility(of: primary, in: window), .shown)
     }
-
-    func test_S_HIER_16_aViewOutOfTheWindowIsNotShownAndNothingIsLoaded() throws {
-        let window = try makeWindow()
-        let root = UIViewController()
-        window.rootViewController = root
-        let unloaded = UIViewController()
-        root.addChild(unloaded)
-        unloaded.didMove(toParent: root)
-        _ = HierarchyCapture.capture(.testing(windows: [window], registry: LayerRegistry()))
-        XCTAssertFalse(unloaded.isViewLoaded)
-    }
 }

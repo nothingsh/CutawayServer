@@ -218,25 +218,48 @@ final class ExtremeRequestTests: CaptureTestCase {
 
     // MARK: - SetAttribute
 
-    func test_S_CONN_15_nonFiniteValuesAreRejected() async throws {
+    func test_S_CONN_15_invalidChangesAreRejected() async throws {
         let viewID = id(of: view.layer)
         let layerID = id(of: layer)
         let bounds = layer.bounds
         let margins = view.layoutMargins
-        let responses = try await exchange([
+        let invalidValues = [
+            // Values that are not finite.
             set(1, viewID, "view.alpha", .double(.nan)),
             set(2, viewID, "view.alpha", .double(.infinity)),
             set(3, viewID, "view.alpha", .double(-.infinity)),
             set(4, layerID, "layer.bounds", .rect(WireRect(x: 0, y: 0, width: .nan, height: 10))),
             set(5, layerID, "layer.bounds", .rect(WireRect(x: -.infinity, y: 0, width: 10, height: 10))),
-            set(6, viewID, "view.layoutMargins", .insets(WireInsets(top: .infinity, left: 0, bottom: 0, right: 0)))
-        ])
-        XCTAssertEqual(responses.count, 6)
-        for response in responses {
+            set(6, viewID, "view.layoutMargins", .insets(WireInsets(top: .infinity, left: 0, bottom: 0, right: 0))),
+            // Values of the wrong kind.
+            set(7, viewID, "view.alpha", .string("1")),
+            set(8, viewID, "view.tag", .double(1)),
+            set(9, viewID, "view.alpha", nil),
+            set(10, viewID, "view.contentMode", .enumeration(value: 1_000_000, cases: [], caseName: "", caseValues: []))
+        ]
+        let notEditable = [
+            set(11, viewID, "no.such.attribute", .double(1)),
+            set(12, viewID, "", .double(1)),
+            set(13, viewID, "layer.frame", .rect(WireRect(x: 0, y: 0, width: 1, height: 1)))
+        ]
+        let noLayer = [
+            set(14, 0, "layer.opacity", .double(0.5)),
+            set(15, Self.unassignedID, "layer.opacity", .double(0.5))
+        ]
+        let responses = try await exchange(invalidValues + notEditable + noLayer)
+        XCTAssertEqual(responses.count, invalidValues.count + notEditable.count + noLayer.count)
+        for response in responses.prefix(invalidValues.count) {
             assertError(response, .invalidAttributeValue)
+        }
+        for response in responses.dropFirst(invalidValues.count).prefix(notEditable.count) {
+            assertError(response, .attributeNotEditable)
+        }
+        for response in responses.suffix(noLayer.count) {
+            assertError(response, .layerNotFound)
         }
         // P-SET-03: nothing changed.
         XCTAssertEqual(view.layer.opacity, 1)
+        XCTAssertEqual(view.tag, 0)
         XCTAssertEqual(layer.bounds, bounds)
         XCTAssertEqual(view.layoutMargins, margins)
         try await assertStillUsable()
@@ -259,42 +282,6 @@ final class ExtremeRequestTests: CaptureTestCase {
         XCTAssertEqual(label.text, text)
         // No font has that name (P-SET-03).
         assertError(responses.last, .invalidAttributeValue)
-        try await assertStillUsable()
-    }
-
-    func test_S_CONN_15_valuesOfTheWrongKindAreRejected() async throws {
-        let viewID = id(of: view.layer)
-        let responses = try await exchange([
-            set(1, viewID, "view.alpha", .string("1")),
-            set(2, viewID, "view.tag", .double(1)),
-            set(3, viewID, "view.alpha", nil),
-            set(4, viewID, "view.contentMode", .enumeration(value: 1_000_000, cases: [], caseName: "", caseValues: []))
-        ])
-        XCTAssertEqual(responses.count, 4)
-        for response in responses {
-            assertError(response, .invalidAttributeValue)
-        }
-        XCTAssertEqual(view.layer.opacity, 1)
-        XCTAssertEqual(view.tag, 0)
-        try await assertStillUsable()
-    }
-
-    func test_S_CONN_15_attributesAndLayersThatDoNotExist() async throws {
-        let viewID = id(of: view.layer)
-        let responses = try await exchange([
-            set(1, viewID, "no.such.attribute", .double(1)),
-            set(2, viewID, "", .double(1)),
-            set(3, viewID, "layer.frame", .rect(WireRect(x: 0, y: 0, width: 1, height: 1))),
-            set(4, 0, "layer.opacity", .double(0.5)),
-            set(5, Self.unassignedID, "layer.opacity", .double(0.5))
-        ])
-        XCTAssertEqual(responses.count, 5)
-        for response in responses.prefix(3) {
-            assertError(response, .attributeNotEditable)
-        }
-        for response in responses.suffix(2) {
-            assertError(response, .layerNotFound)
-        }
         try await assertStillUsable()
     }
 
@@ -362,25 +349,6 @@ final class ExtremeRequestTests: CaptureTestCase {
     }
 
     // MARK: - Cancel and request IDs
-
-    func test_S_CONN_15_cancelsThatNameNothingAreIgnored() async throws {
-        let viewID = id(of: view.layer)
-        // Request 1 is an ordinary request, request 2 a stream that is over by the time the
-        // cancels arrive.
-        _ = try await exchange([Frame(requestID: 1, body: .getHierarchy), details(2, [viewID])])
-        let responses = try await exchange([
-            Frame(requestID: 3, body: .cancel(targetRequestID: 424_242)),
-            Frame(requestID: 4, body: .cancel(targetRequestID: 0)),
-            Frame(requestID: 5, body: .cancel(targetRequestID: 1)),
-            Frame(requestID: 6, body: .cancel(targetRequestID: 2)),
-            Frame(requestID: 7, body: .cancel(targetRequestID: .max)),
-            details(8, [viewID, viewID])
-        ])
-        // P-REQ-04: no answers to the cancels; the stream after them is untouched.
-        XCTAssertEqual(responses.count, 1)
-        XCTAssertEqual(responses.first?.end, StreamEnd(status: .completed, chunkCount: 2))
-        try await assertStillUsable()
-    }
 
     func test_S_CONN_15_requestIDZeroAndRepeatedIDs() async throws {
         let viewID = id(of: view.layer)

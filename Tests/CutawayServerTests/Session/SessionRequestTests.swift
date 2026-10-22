@@ -65,29 +65,6 @@ final class SessionRequestTests: XCTestCase {
         XCTAssertEqual(frames[3], error(6, .appNotActive, "the app is not active"))
     }
 
-    func test_S_HIER_11_subtreeWaitsForTheStreamInHand() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-
-        // P-REQ-06: requests are answered one at a time, in order.
-        let details = Frame(
-            requestID: 7,
-            body: .getLayerDetails(
-                GetLayerDetails(
-                    requests: [1, 2].map {
-                        LayerDetailRequest(layerID: $0, wantSolo: false, wantGroup: true, wantAttributes: false)
-                    },
-                    maxTextureDimension: 0
-                )
-            )
-        )
-        harness.receive(details, subtree(8, 4))
-        let frames = try await harness.frames(6)
-        XCTAssertEqual(frames[2...].map(\.requestID), [7, 7, 7, 8])
-        XCTAssertEqual(frames[4], Frame(requestID: 7, body: .streamEnd(StreamEnd(status: .completed, chunkCount: 2))))
-        guard case .hierarchy? = frames[5].body else { return XCTFail("expected Hierarchy, got \(frames[5])") }
-    }
-
     private func change(_ requestID: UInt32, layer layerID: UInt64) -> Frame {
         Frame(
             requestID: requestID,
@@ -132,7 +109,7 @@ final class SessionRequestTests: XCTestCase {
         XCTAssertEqual(harness.changes, [], "nothing is changed while the app is not active")
     }
 
-    func test_S_SET_01_setAttributeWaitsForTheStreamInHand() async throws {
+    func test_S_HIER_11_S_SET_01_requestsWaitForTheStreamInHand() async throws {
         let harness = SessionHarness()
         try await harness.handshake()
 
@@ -148,24 +125,13 @@ final class SessionRequestTests: XCTestCase {
                 )
             )
         )
-        harness.receive(details, change(8, layer: 3))
-        let frames = try await harness.frames(6)
-        XCTAssertEqual(frames[2...].map(\.requestID), [7, 7, 7, 8])
-        guard case .setAttributeResult? = frames[5].body else {
-            return XCTFail("expected SetAttributeResult, got \(frames[5])")
+        harness.receive(details, subtree(8, 4), change(9, layer: 3))
+        let frames = try await harness.frames(7)
+        XCTAssertEqual(frames[2...].map(\.requestID), [7, 7, 7, 8, 9])
+        XCTAssertEqual(frames[4], Frame(requestID: 7, body: .streamEnd(StreamEnd(status: .completed, chunkCount: 2))))
+        guard case .hierarchy? = frames[5].body else { return XCTFail("expected Hierarchy, got \(frames[5])") }
+        guard case .setAttributeResult? = frames[6].body else {
+            return XCTFail("expected SetAttributeResult, got \(frames[6])")
         }
-    }
-
-    func test_S_CONN_09_setAttributeResultIsUnexpected() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-
-        // P-REQ-08: only a server sends it.
-        harness.receive(
-            Frame(requestID: 6, body: .setAttributeResult(SetAttributeResult(layerID: 1, attributeGroups: [])))
-        )
-        let frames = try await harness.frames(3)
-        XCTAssertEqual(frames[2], error(6, .unexpectedMessage, "this message is not expected here"))
-        XCTAssertEqual(harness.endedCount, 0)
     }
 }

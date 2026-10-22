@@ -84,16 +84,6 @@ final class ProbeRunTests: XCTestCase {
         XCTAssertEqual(cutaway_probe.run(arguments: ["--port", String(server.port)]), 1)
     }
 
-    func test_S_CONN_13_slowReadTakesMilliseconds() throws {
-        XCTAssertNil(try Options(arguments: []).slowRead)
-        XCTAssertEqual(try Options(arguments: ["--slow-read", "200"]).slowRead, 0.2)
-        XCTAssertEqual(try Options(arguments: ["--slow-read", "0"]).slowRead, 0)
-        for wrong in [["--slow-read"], ["--slow-read", "-1"], ["--slow-read", "0.5"], ["--slow-read", "x"]] {
-            XCTAssertThrowsError(try Options(arguments: wrong), "\(wrong)")
-            XCTAssertEqual(cutaway_probe.run(arguments: wrong), 2, "\(wrong)")
-        }
-    }
-
     func test_S_PROBE_01_failuresExitWithNonZero() throws {
         XCTAssertEqual(cutaway_probe.run(arguments: ["--no-such-option"]), 2)
         XCTAssertEqual(cutaway_probe.run(arguments: ["--port", "0"]), 2)

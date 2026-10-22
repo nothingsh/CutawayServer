@@ -27,24 +27,20 @@ final class SessionEnvironmentTests: XCTestCase {
         Frame(requestID: requestID, body: .error(WireError(code: code, message: message)))
     }
 
-    func test_S_ENV_01_getEnvironmentIsAnswered() async throws {
+    func test_S_ENV_01_getEnvironmentIsAnsweredWhetherTheAppIsActiveOrNot() async throws {
         let harness = SessionHarness()
         try await harness.handshake()
 
         harness.receive(Frame(requestID: 2, body: .getEnvironment))
-        let frames = try await harness.frames(3)
+        var frames = try await harness.frames(3)
         XCTAssertEqual(frames[2], environment(2, .none))
-    }
 
-    func test_S_ENV_01_getEnvironmentIsAnsweredWhenTheAppIsNotActive() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-
+        // P-APP-01: also when the app is not active.
         harness.setAppState(.background)
-        harness.receive(Frame(requestID: 2, body: .getEnvironment))
-        let frames = try await harness.frames(4)
-        XCTAssertEqual(frames[2], Frame(requestID: 0, body: .appStateChanged(.background)))
-        XCTAssertEqual(frames[3], environment(2, .none))
+        harness.receive(Frame(requestID: 3, body: .getEnvironment))
+        frames = try await harness.frames(5)
+        XCTAssertEqual(frames[3], Frame(requestID: 0, body: .appStateChanged(.background)))
+        XCTAssertEqual(frames[4], environment(3, .none))
     }
 
     func test_S_ENV_02_setEnvironmentReplacesEveryOverride() async throws {
@@ -115,42 +111,32 @@ final class SessionEnvironmentTests: XCTestCase {
         )
     }
 
-    func test_S_ENV_03_overridesAreRemovedWhenThePeerCloses() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-        harness.receive(set(2, Traits(userInterfaceStyle: .dark)))
-        _ = try await harness.frames(3)
+    func test_S_ENV_03_overridesAreRemovedHoweverTheSessionEnds() async throws {
+        // The peer closes, a frame is malformed, the server stops. In the last case nothing was
+        // overridden: removing nothing is harmless.
+        let malformed = { (harness: SessionHarness) in
+            harness.queue.async { harness.transport.deliver(Data([1, 2, 3])) }
+        }
+        let endings: [(name: String, overrides: Bool, end: (SessionHarness) -> Void)] = [
+            ("the peer closes", true, { $0.closeFromThePeer() }),
+            ("a malformed frame", true, malformed),
+            ("the server stops", false, { $0.stop() })
+        ]
+        for (name, overrides, end) in endings {
+            let harness = SessionHarness()
+            try await harness.handshake()
+            if overrides {
+                harness.receive(set(2, Traits(userInterfaceStyle: .dark)))
+                _ = try await harness.frames(3)
+            }
 
-        harness.closeFromThePeer()
-        try await waitUntil("the session ended") { harness.endedCount == 1 }
-        await harness.settle()
-        let (removals, overrides) = await MainActor
-            .run { (harness.environment.removals, harness.environment.overrides) }
-        XCTAssertEqual(removals, 1)
-        XCTAssertEqual(overrides, .none)
-    }
-
-    func test_S_ENV_03_overridesAreRemovedAfterAMalformedFrame() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-        harness.receive(set(2, Traits(userInterfaceStyle: .dark)))
-        _ = try await harness.frames(3)
-
-        harness.queue.async { harness.transport.deliver(Data([1, 2, 3])) }
-        try await waitUntil("the session ended") { harness.endedCount == 1 }
-        await harness.settle()
-        let removals = await MainActor.run { harness.environment.removals }
-        XCTAssertEqual(removals, 1)
-    }
-
-    func test_S_ENV_03_overridesAreRemovedWhenTheServerStops() async throws {
-        let harness = SessionHarness()
-        try await harness.handshake()
-
-        harness.stop()
-        try await waitUntil("the session ended") { harness.endedCount == 1 }
-        await harness.settle()
-        let removals = await MainActor.run { harness.environment.removals }
-        XCTAssertEqual(removals, 1, "also when nothing was overridden: removing nothing is harmless")
+            end(harness)
+            try await waitUntil("the session ended: \(name)") { harness.endedCount == 1 }
+            await harness.settle()
+            let (removals, remaining) = await MainActor
+                .run { (harness.environment.removals, harness.environment.overrides) }
+            XCTAssertEqual(removals, 1, name)
+            XCTAssertEqual(remaining, .none, name)
+        }
     }
 }

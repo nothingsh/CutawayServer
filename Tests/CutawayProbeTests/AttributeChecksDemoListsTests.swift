@@ -169,6 +169,16 @@ final class AttributeChecksDemoListsTests: XCTestCase {
         let scene = try DemoListsScene(page.hierarchy)
         XCTAssertEqual(scene.arranged.map(\.id), [7, 8, 9])
         XCTAssertNoThrow(try check(page))
+
+        // The main screen is not the Lists page.
+        var hierarchy = page.hierarchy
+        hierarchy.nodes[1].viewControllerClassName = "CutawayDemo.DemoViewController"
+        XCTAssertFalse(DemoListsScene.isShown(in: hierarchy))
+        hierarchy = page.hierarchy
+        hierarchy.nodes[3].memberReferences = []
+        XCTAssertThrowsError(try DemoListsScene(hierarchy)) {
+            XCTAssertTrue("\($0)".contains("listsTable"), "\($0)")
+        }
     }
 
     func test_S_PROBE_07_theListsPageChecksItsValues() {
@@ -199,16 +209,5 @@ final class AttributeChecksDemoListsTests: XCTestCase {
         assertRejects("label.fontTextStyle of the Dynamic Type label") { $0[11]?["label.fontTextStyle"] = nil }
         assertRejects("label.isTruncated of the truncated label") { $0[12]?["label.isTruncated"] = .bool(false) }
         assertRejects("view.accessibilityLabel of the button Close") { $0[3]?["view.accessibilityLabel"] = nil }
-    }
-
-    func test_S_PROBE_07_theMainScreenIsNotTheListsPage() throws {
-        var hierarchy = page().hierarchy
-        hierarchy.nodes[1].viewControllerClassName = "CutawayDemo.DemoViewController"
-        XCTAssertFalse(DemoListsScene.isShown(in: hierarchy))
-        hierarchy = page().hierarchy
-        hierarchy.nodes[3].memberReferences = []
-        XCTAssertThrowsError(try DemoListsScene(hierarchy)) {
-            XCTAssertTrue("\($0)".contains("listsTable"), "\($0)")
-        }
     }
 }

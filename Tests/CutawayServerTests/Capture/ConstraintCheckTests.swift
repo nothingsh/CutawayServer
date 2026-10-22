@@ -502,7 +502,7 @@ final class ConstraintCheckTests: CaptureTestCase {
 
     // MARK: - Tolerance and timing
 
-    func test_S_LAYOUT_04_toleranceIsHalfAPixel() {
+    func test_S_LAYOUT_04_toleranceIsHalfAPixelAtTheScreenScale() throws {
         // At 2 pixels per point, half a pixel is 0.25 points.
         let tolerance = 0.5 / 2
         XCTAssertTrue(ConstraintCheck.holds(10, .equal, 10.25, tolerance: tolerance))
@@ -514,9 +514,7 @@ final class ConstraintCheckTests: CaptureTestCase {
         XCTAssertTrue(ConstraintCheck.holds(9.75, .greaterThanOrEqual, 10, tolerance: tolerance))
         XCTAssertFalse(ConstraintCheck.holds(9.74, .greaterThanOrEqual, 10, tolerance: tolerance))
         XCTAssertTrue(ConstraintCheck.holds(100, .greaterThanOrEqual, 10, tolerance: tolerance))
-    }
 
-    func test_S_LAYOUT_04_toleranceFollowsTheScreenScale() throws {
         let (window, root) = try makeRoot()
         let view = add(UIView(), to: root)
         let width = view.widthAnchor.constraint(equalToConstant: 50)
