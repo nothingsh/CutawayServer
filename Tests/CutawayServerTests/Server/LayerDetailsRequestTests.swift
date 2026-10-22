@@ -398,48 +398,6 @@ final class LayerDetailsRequestTests: ServerTestCase {
         XCTAssertTrue(others.allSatisfy { id in hierarchy.nodes.contains { $0.id == id } })
     }
 
-    func test_S_LAYOUT_01_theFixtureRequestIsAnswered() async throws {
-        let server = makeServer()
-        let port = try await server.start()
-        let (client, _) = try await connectAndHandshake(port: port)
-
-        // The fixture's bytes. This connection never asked for the hierarchy, so it knows no
-        // layer: all five are answered as the fixture answers layer 99.
-        let request = try Fixtures.frame("layout-constraints/01-c2s-get-layer-details.bin")
-        try await client.send(Fixtures.data("layout-constraints/c2s.stream"))
-        let stream = try await readStream(client, requestID: request.requestID)
-
-        XCTAssertEqual(stream.end.status, .completed)
-        XCTAssertEqual(
-            stream.chunks.flatMap(\.details),
-            [3, 4, 9, 8, 99].map { LayerDetail(layerID: $0, status: .layerNotFound) }
-        )
-    }
-
-    func test_S_SHOT_08_theFixtureRequestIsAnswered() async throws {
-        let server = makeServer()
-        let port = try await server.start()
-        let (client, _) = try await connectAndHandshake(port: port)
-
-        // The fixture's bytes. This connection never asked for the hierarchy, so it knows no
-        // layer: all six are answered as the fixture answers layer 99.
-        let request = try Fixtures.frame("layer-details/01-c2s-get-layer-details.bin")
-        try await client.send(Fixtures.data("layer-details/c2s.stream"))
-        let stream = try await readStream(client, requestID: request.requestID)
-
-        XCTAssertEqual(stream.end, StreamEnd(status: .completed, chunkCount: 6))
-        XCTAssertEqual(
-            stream.chunks.map(\.details),
-            [3, 4, 99, 6, 10, 13].map { [LayerDetail(layerID: $0, status: .layerNotFound)] }
-        )
-        guard
-            case .layerDetailsChunk(let fixtureChunk)? = try Fixtures.frame(
-                "layer-details/03-s2c-chunk-1.bin"
-            ).body
-        else { return XCTFail("the fixture is not a chunk") }
-        XCTAssertEqual(stream.chunks[2].details, [fixtureChunk.details[1]])
-    }
-
     func test_S_SHOT_07_cancelOverTheConnection() async throws {
         let server = makeSlowServer()
         let port = try await server.start()

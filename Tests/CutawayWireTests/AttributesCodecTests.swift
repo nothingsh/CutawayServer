@@ -549,7 +549,7 @@ final class AttributesCodecTests: XCTestCase {
         XCTAssertNil(NumberLimit.perComponent([atLeastZero, atLeastZero], count: 1))
     }
 
-    func test_S_ATTR_09_componentsFollowTheOrderOfTheFields() {
+    func test_S_ATTR_09_componentsFollowTheKindAndTheOrderOfTheFields() {
         XCTAssertEqual(AttributeValue.int(3).components, [3])
         XCTAssertEqual(AttributeValue.point(WirePoint(x: 1, y: 2)).components, [1, 2])
         XCTAssertEqual(AttributeValue.size(WireSize(width: 1, height: 2)).components, [1, 2])
@@ -561,9 +561,8 @@ final class AttributesCodecTests: XCTestCase {
         XCTAssertEqual(AttributeValue.transform(.identity).components.count, 16)
         XCTAssertEqual(AttributeValue.bool(true).components, [])
         XCTAssertEqual(AttributeValue.string("1").components, [])
-    }
 
-    func test_S_ATTR_09_componentCountFollowsTheKind() {
+        // The count and names of the components follow the kind.
         let samples: [AttributeValue] = [
             .bool(true),
             .int(3),

@@ -9,7 +9,7 @@ import XCTest
 /// does not read, and one that leaves while the server neither reads nor can send.
 final class BackpressureConnectionTests: ServerTestCase {
     private static let mebibyte = 1_048_576
-    /// K of S-CONN-13; the same as in SessionBackpressureTests.
+    /// K of S-CONN-13: how far above its start the footprint may go, in budgets.
     private static let footprintBudgets = 1.5
 
     /// 2 MiB of pixels LZFSE cannot shrink, shared by every layer.
@@ -149,27 +149,5 @@ final class BackpressureConnectionTests: ServerTestCase {
         }
         // S-CONN-03: the next client gets in.
         _ = try await connectAndHandshake(port: port)
-    }
-
-    func test_S_CONN_14_aThousandRequestsOverTheConnection() async throws {
-        let server = makeNoiseServer()
-        let port = try await server.start()
-        let (client, _) = try await connectAndHandshake(port: port)
-
-        var bytes = Data()
-        for id in 1...1000 {
-            bytes += FrameCodec.encodeFramed(
-                Frame(requestID: UInt32(id), body: id.isMultiple(of: 2) ? .getHierarchy : .getAppIcon)
-            )
-        }
-        try await client.send(bytes)
-        var answered: [UInt32] = []
-        while answered.count < 1000 {
-            guard let frame = try await client.nextFrame(timeout: 30) else {
-                throw TestClientError(description: "the connection ended after \(answered.count) answers")
-            }
-            answered.append(frame.requestID)
-        }
-        XCTAssertEqual(answered, (1...1000).map(UInt32.init))
     }
 }

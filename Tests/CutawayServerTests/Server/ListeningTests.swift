@@ -175,21 +175,27 @@ final class ListeningTests: ServerTestCase {
         _ = try await connectAndHandshake(port: port, within: 1)
     }
 
-    func test_S_CONN_03_survivesClientsThatLeaveMidRequest() async throws {
+    func test_S_CONN_03_S_HIER_01_survivesClientsThatLeaveMidRequest() async throws {
         let server = makeServer()
         let port = try await server.start()
 
-        // Each client asks for the icon and is gone before the answer is ready.
-        for _ in 0..<20 {
+        // Each client asks for the icon or the hierarchy and is gone before the answer is ready.
+        for round in 0..<20 {
             let (client, _) = try await connectAndHandshake(port: port)
-            try await client.send(Frame(requestID: 1, body: .getAppIcon))
+            try await client.send(Frame(requestID: 1, body: round.isMultiple(of: 2) ? .getAppIcon : .getHierarchy))
             client.close()
         }
 
         let (client, _) = try await connectAndHandshake(port: port)
         try await client.send(Frame(requestID: 1, body: .getAppIcon))
+        try await client.send(Frame(requestID: 2, body: .getHierarchy))
+        let icon = try await client.nextFrame()
+        XCTAssertEqual(icon?.requestID, 1)
         let answer = try await client.nextFrame()
-        XCTAssertEqual(answer?.requestID, 1)
+        XCTAssertEqual(answer?.requestID, 2)
+        guard case .hierarchy? = answer?.body else {
+            return XCTFail("expected Hierarchy, got \(String(describing: answer))")
+        }
     }
 
     /// Starts a bare listener and returns the port it settles on.

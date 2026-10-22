@@ -61,11 +61,9 @@ final class AppAttributesTests: CaptureTestCase {
         XCTAssertEqual(sent.groups.map(\.className), ["Demo.ChartView", "Demo.Legend"])
         XCTAssertEqual(ids(sent), ["app.chart.barCount", "app.legend.isShown"])
         XCTAssertEqual(sent.groups.flatMap(\.attributes).map(\.title), ["Bar Count", "Shown"])
-    }
-
-    func test_S_ATTR_24_aGroupOfATypeNamesItsType() {
-        let sent = app([AppGroup("chart", type: BarChartView.Bar.self, [])])
-        XCTAssertEqual(sent.groups.first?.className, String(reflecting: BarChartView.Bar.self))
+        // A group that names a Swift type.
+        let typed = app([AppGroup("chart", type: BarChartView.Bar.self, [])])
+        XCTAssertEqual(typed.groups.first?.className, String(reflecting: BarChartView.Bar.self))
     }
 
     // MARK: - Values
@@ -183,7 +181,7 @@ final class AppAttributesTests: CaptureTestCase {
 
     // MARK: - Checks
 
-    func test_S_ATTR_24_aGroupWithAnEmptyOrRepeatedIDIsLeftOut() {
+    func test_S_ATTR_24_emptyOrRepeatedIDsAreLeftOut() {
         let sent = app([
             AppGroup("", [.int("count", 1)]),
             AppGroup("chart", [.int("count", 1)]),
@@ -193,12 +191,10 @@ final class AppAttributesTests: CaptureTestCase {
         ])
         XCTAssertEqual(sent.groups.map(\.id), ["app.chart", "app.axis"])
         XCTAssertEqual(ids(sent), ["app.chart.count", "app.axis.count"])
-    }
-
-    func test_S_ATTR_24_aRepeatedAttributeIDIsLeftOut() {
-        let sent = app([AppGroup("chart", [.int("count", 1), .string("count", "two"), .int("total", 3)])])
-        XCTAssertEqual(ids(sent), ["app.chart.count", "app.chart.total"])
-        XCTAssertEqual(sent.groups.first?.attributes.first?.value, .int(1))
+        // Of two attributes of a group with one ID, the first is sent.
+        let repeated = app([AppGroup("chart", [.int("count", 1), .string("count", "two"), .int("total", 3)])])
+        XCTAssertEqual(ids(repeated), ["app.chart.count", "app.chart.total"])
+        XCTAssertEqual(repeated.groups.first?.attributes.first?.value, .int(1))
     }
 
     func test_S_ATTR_24_limitsThatBreakTheRulesAreLeftOut() throws {
@@ -236,9 +232,6 @@ final class AppAttributesTests: CaptureTestCase {
         XCTAssertEqual(try limits("twoForOne"), [])
         XCTAssertEqual(try limits("perComponent"), [NumberLimit(minimum: 0), .free])
         XCTAssertEqual(try limits("tooMany"), [])
-    }
-
-    func test_S_ATTR_24_limitsWithNoValueBetweenAreLeftOut() throws {
         // P-ATTR-10: exclusive on both sides of one number, and an integer between 0 and 1
         // exclusive, hold no value.
         XCTAssertFalse(NumberLimit(minimum: 1, minimumIsExclusive: true, maximum: 1)
@@ -250,9 +243,9 @@ final class AppAttributesTests: CaptureTestCase {
                 .isSatisfiable(byIntegersOnly: true)
         )
         XCTAssertTrue(NumberLimit(minimum: 0, maximum: 1, maximumIsExclusive: true).isSatisfiable(byIntegersOnly: true))
-        let sent = app([AppGroup("limits", [.double("open", 0, limits: [.greaterThan(1)], set: { _ in })])])
+        let exclusive = app([AppGroup("limits", [.double("open", 0, limits: [.greaterThan(1)], set: set)])])
         XCTAssertEqual(
-            try attribute("app.limits.open", in: sent).limits,
+            try attribute("app.limits.open", in: exclusive).limits,
             [NumberLimit(minimum: 1, minimumIsExclusive: true)]
         )
     }
@@ -415,7 +408,7 @@ final class AppAttributesTests: CaptureTestCase {
 
     // MARK: - The interface
 
-    func test_S_API_04_theClusterConstantsAreTheProtocolsTable() {
+    func test_S_API_04_theClusterConstantsAreTheProtocolsTableAndSentAsTheirNames() throws {
         typealias Cluster = CutawayServer.Attribute.Cluster
         let clusters: [Any] = [
             Cluster.visibility,
@@ -446,9 +439,7 @@ final class AppAttributesTests: CaptureTestCase {
         XCTAssertEqual(Cluster.font.size.name, "font")
         XCTAssertEqual(Cluster.font.size.slot, "size")
         XCTAssertEqual(Cluster.sizing.huggingHorizontal.slot, "hugging.horizontal")
-    }
-
-    func test_S_API_04_aClusterConstantIsSentAsItsNames() throws {
+        // Sent as the names of their cluster and slot, as one made by name is.
         let sent = app([
             AppGroup("chart", [
                 .double("radius", 4, section: .appearance, cluster: .corners.radius),

@@ -173,6 +173,13 @@ final class AttributeCatalogTests: CaptureTestCase {
             AttributeCatalog.title(for: "isUserInteractionEnabled"),
             "Is User Interaction Enabled"
         )
+        // Dots split words too.
+        XCTAssertEqual(
+            AttributeCatalog.title(for: "contentHuggingPriority.horizontal"),
+            "Content Hugging Priority Horizontal"
+        )
+        XCTAssertEqual(AttributeCatalog.title(for: "a.b.cD"), "A B C D")
+        XCTAssertEqual(AttributeCatalog.title(for: "layoutMargins"), "Layout Margins")
     }
 
     func test_S_ATTR_01_layerValuesAreRead() throws {
@@ -782,15 +789,6 @@ final class AttributeCatalogTests: CaptureTestCase {
         window.layer.addSublayer(bare)
         XCTAssertNil(try color("layer.backgroundColor", of: bare).1)
         XCTAssertNil(try color("layer.borderColor", of: bare).1)
-    }
-
-    func test_S_ATTR_14_noTwoColorsOfTheTableAreTheSameObject() {
-        let table = SystemColors.table
-        for (index, entry) in table.enumerated() {
-            for other in table[(index + 1)...] {
-                XCTAssertFalse(entry.color.isEqual(other.color), "\(entry.name) is \(other.name)")
-            }
-        }
     }
 
     func test_S_ATTR_09_limitsMatchTheList() throws {

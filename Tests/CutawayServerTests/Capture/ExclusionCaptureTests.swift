@@ -185,6 +185,78 @@ final class ExclusionCaptureTests: CaptureTestCase {
         XCTAssertEqual(try render(scene.window), picture)
     }
 
+    /// Hiding excluded layers for the time of a capture, deep inside a stack view or as one of
+    /// its arranged subviews, lays nothing out, then or later.
+    func test_S_SHOT_13_hidingExcludedLayersInAStackViewLaysNothingOut() throws {
+        let window = try makeWindow()
+        // A white container with a horizontal stack of four views, each 75 points wide: the
+        // second holds a red card at (10, 10), the third is a red card itself.
+        let container = colorView(CGRect(x: 10, y: 10, width: 300, height: 100), red: 1, green: 1, blue: 1)
+        let stack = UIStackView(frame: container.bounds)
+        stack.axis = .horizontal
+        stack.distribution = .fillEqually
+        let counted = (0..<3).map { _ -> CountingView in
+            let view = CountingView()
+            view.backgroundColor = .white
+            return view
+        }
+        let arrangedCard = PaymentCardView()
+        arrangedCard.backgroundColor = .red
+        for view in [counted[0], counted[1], arrangedCard, counted[2]] as [UIView] { stack.addArrangedSubview(view) }
+        let deepCard = PaymentCardView(frame: CGRect(x: 10, y: 10, width: 20, height: 20))
+        deepCard.backgroundColor = .red
+        counted[1].addSubview(deepCard)
+        container.addSubview(stack)
+        window.addSubview(container)
+        window.layoutIfNeeded()
+        CATransaction.flush()
+        let store = ExtensionStore()
+        store.describe(PaymentCardView.self, CutawayServer.Description(isExcludedFromCapture: true), isView: true)
+        func group(with store: ExtensionStore) throws -> RawImage {
+            try XCTUnwrap(
+                DetailCapture.capture(
+                    LayerDetailRequest(
+                        layerID: registry.register(container.layer),
+                        wantSolo: false,
+                        wantGroup: true,
+                        wantAttributes: false
+                    ),
+                    maxTextureDimension: 0,
+                    in: .testing(windows: [window], registry: registry, extensions: store),
+                    stopFlag: StopFlag(),
+                    screenScale: 1,
+                    readAttributes: { _ in [] }
+                )?.group
+            )
+        }
+        // Without the description both cards are drawn.
+        let plain = try group(with: ExtensionStore())
+        assertPixel(plain.pixel(atPoint: 90, 15), red)
+        assertPixel(plain.pixel(atPoint: 185, 50), red)
+
+        let views: [UIView] = [container, stack, arrangedCard, deepCard] + counted.map { $0 as UIView }
+        let frames = views.map(\.frame)
+        let layouts = counted.map(\.layoutCount)
+        let needsLayout = views.map { $0.layer.needsLayout() }
+        let picture = try render(window)
+
+        let image = try group(with: store)
+        assertPixel(image.pixel(atPoint: 90, 15), white)
+        assertPixel(image.pixel(atPoint: 185, 50), white)
+
+        XCTAssertEqual(counted.map(\.layoutCount), layouts, "laid out")
+        XCTAssertEqual(views.map { $0.layer.needsLayout() }, needsLayout, "needs layout")
+        XCTAssertFalse(views.contains { $0.isHidden || $0.layer.isHidden })
+        for view in views {
+            XCTAssertEqual(view.layer.animationKeys() ?? [], [], "\(view)")
+        }
+        window.layoutIfNeeded()
+        CATransaction.flush()
+        XCTAssertEqual(counted.map(\.layoutCount), layouts, "laid out later")
+        XCTAssertEqual(views.map(\.frame), frames)
+        XCTAssertEqual(try render(window), picture)
+    }
+
     func test_S_SHOT_13_excludedLayersAreFoundWithoutLookingBelowThem() throws {
         let scene = try makeScene()
         let lookup = ExtensionLookup(store: scene.store)

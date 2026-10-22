@@ -29,9 +29,7 @@ final class AccessibilityAttributeTests: AttributeValueTestCase {
         XCTAssertEqual(try string("view.accessibilityIdentifier", of: view), "save")
         XCTAssertEqual(try bool("view.isAccessibilityElement", of: view), true)
         XCTAssertEqual(try string("view.accessibilityTraits", of: view), "Button, Selected")
-    }
-
-    func test_S_ATTR_16_traitsAreNamedAndUnknownBitsAreHex() {
+        // Every trait by its name; bits without one as a hexadecimal number.
         XCTAssertEqual(AttributeTexts.traits(.none), "None")
         XCTAssertEqual(AttributeTexts.traits([.header, .staticText]), "Static Text, Header")
         XCTAssertEqual(

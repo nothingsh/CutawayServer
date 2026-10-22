@@ -269,6 +269,17 @@ final class DetailChecksTests: XCTestCase {
         )
         let details = try DetailChecks.stream(frames, answering: id, request: request, hierarchy: hierarchy)
         XCTAssertEqual(details.map { $0.constraints.count }, [4, 4, 4, 0, 0])
+        XCTAssertEqual(
+            ConstraintChecks.summary(of: details),
+            ConstraintChecks.Summary(
+                total: 12,
+                layers: 3,
+                distinct: 11,
+                satisfied: 10,
+                unsatisfied: 1,
+                unknown: 0
+            )
+        )
 
         // Constraint 4 is listed for layers 3 and 4; the two copies differ.
         var different = frames

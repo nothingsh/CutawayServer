@@ -425,7 +425,7 @@ final class DetailCaptureTests: CaptureTestCase {
 
     // MARK: - S-SHOT-11 (P-HIER-12)
 
-    func test_S_SHOT_11_layersOutsideEveryWindowAreNotFound() throws {
+    func test_S_SHOT_11_onlyLayersInTheAppsWindowsAreFound() throws {
         let window = try makeWindow()
         let parent = colorView(CGRect(x: 0, y: 0, width: 40, height: 30), red: 1, green: 0, blue: 0)
         let child = colorView(CGRect(x: 0, y: 0, width: 10, height: 10), red: 0, green: 1, blue: 0)
@@ -463,28 +463,21 @@ final class DetailCaptureTests: CaptureTestCase {
             )
         }
         XCTAssertNotNil(registry.layer(for: ids[0]), "the layer is alive; only its window is gone")
-    }
 
-    func test_S_SHOT_11_aWindowThatIsNotTheAppsDoesNotCount() throws {
-        // A window outside the list the server is given, such as one of no scene.
+        // Put back, the view is found again, under the same ID.
+        window.addSubview(parent)
+        let back = try XCTUnwrap(capture(ids[0], group: true))
+        XCTAssertEqual(back.status, .ok)
+        XCTAssertNotNil(back.group)
+        XCTAssertEqual(registry.register(parent.layer), ids[0], "the layer kept its ID")
+
+        // A window outside the list the server is given, such as one of no scene, does not count.
         let detached = makeDetachedWindow()
-        let view = colorView(CGRect(x: 0, y: 0, width: 10, height: 10), red: 1, green: 0, blue: 0)
-        detached.addSubview(view)
-        let id = registry.register(view.layer)
-        XCTAssertEqual(capture(id, group: true)?.status, .layerNotFound)
-        XCTAssertEqual(capture(id, group: true, windows: [detached])?.status, .ok)
-    }
-
-    func test_S_SHOT_11_layerPutBackIsFoundAgain() throws {
-        let (view, id) = try redView()
-        let window = try XCTUnwrap(view.window)
-        view.removeFromSuperview()
-        XCTAssertEqual(capture(id, group: true)?.status, .layerNotFound)
-        window.addSubview(view)
-        let detail = try XCTUnwrap(capture(id, group: true))
-        XCTAssertEqual(detail.status, .ok)
-        XCTAssertNotNil(detail.group)
-        XCTAssertEqual(registry.register(view.layer), id, "the layer kept its ID")
+        let elsewhere = colorView(CGRect(x: 0, y: 0, width: 10, height: 10), red: 1, green: 0, blue: 0)
+        detached.addSubview(elsewhere)
+        let elsewhereID = registry.register(elsewhere.layer)
+        XCTAssertEqual(capture(elsewhereID, group: true)?.status, .layerNotFound)
+        XCTAssertEqual(capture(elsewhereID, group: true, windows: [detached])?.status, .ok)
     }
 
     func test_S_SHOT_11_theDefaultConfigurationLooksAtTheAppsWindows() throws {

@@ -114,7 +114,8 @@ extension WireTestSupport {
         "Environment"
     ]
 
-    /// One message of every kind, each with as many of its fields filled in as the schema has.
+    /// One message of every kind, each with as many of its fields filled in as the schema has,
+    /// and the edge cases: empty bodies, absent fields, every error code and stream status.
     static let messageSamples: [Message] = {
         let image = WireImage(
             pixelWidth: 4,
@@ -267,10 +268,16 @@ extension WireTestSupport {
         return [
             .hello(Hello(version: .current, role: .client, client: ClientInfo(name: "Cutaway", version: "1.0"))),
             .hello(Hello(version: .current, role: .server, app: app)),
+            // A hello without the `protocol` field keeps it absent.
+            .hello(Hello(version: nil, role: .client)),
             .getAppIcon,
             .appIcon(AppIcon(image: image)),
+            .appIcon(AppIcon(image: nil)),
             .getHierarchy,
             .hierarchy(Hierarchy(nodes: [root, node], keyWindowID: 2)),
+            .hierarchy(Hierarchy(nodes: [], keyWindowID: 0)),
+            .getLayerDetails(GetLayerDetails(requests: [], maxTextureDimension: 0)),
+            .layerDetailsChunk(LayerDetailsChunk(sequence: 0, details: [])),
             .getLayerDetails(
                 GetLayerDetails(
                     requests: [
@@ -306,14 +313,31 @@ extension WireTestSupport {
             .streamEnd(
                 StreamEnd(status: .failed, chunkCount: 2, error: WireError(code: .appNotActive, message: "inactive"))
             ),
+            .streamEnd(
+                StreamEnd(status: .failed, chunkCount: 0, error: WireError(code: .internalError, message: "x"))
+            ),
+            .streamEnd(StreamEnd(status: .cancelled, chunkCount: 3)),
             .cancel(targetRequestID: 9),
             .error(WireError(code: .invalidAttributeValue, message: "layer.opacity takes finite numbers only")),
+            // Every other error code; the session tells requests from server-only messages by
+            // their kind, so each has to survive a round trip.
+            .error(WireError(code: .unknown, message: "?")),
+            .error(WireError(code: .malformedFrame, message: "")),
+            .error(WireError(code: .unexpectedMessage, message: "unexpected")),
+            .error(WireError(code: .busy, message: "another client is connected")),
+            .error(WireError(code: .layerNotFound, message: "no layer with id 9")),
+            .error(WireError(code: .attributeNotEditable, message: "read-only")),
+            .error(WireError(code: .notSupported, message: "not on this device")),
             .appStateChanged(.background),
             .setAttribute(
                 SetAttribute(layerID: 3, attributeID: "sample.value9", value: .transform(transform))
             ),
+            .setAttribute(SetAttribute(layerID: 3, attributeID: "view.tag", value: .int(-1))),
             .setAttributeResult(SetAttributeResult(layerID: 3, attributeGroups: groups)),
+            .setAttributeResult(SetAttributeResult(layerID: 3, attributeGroups: [])),
             .getSubtree(rootID: 3),
+            .getSubtree(rootID: 0),
+            .getSubtree(rootID: .max),
             .getEnvironment,
             .setEnvironment(
                 overrides: Traits(userInterfaceStyle: .dark, layoutDirection: .rightToLeft, verticalSizeClass: .compact)
