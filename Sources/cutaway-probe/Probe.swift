@@ -40,6 +40,9 @@ enum ProbeRequestID {
     static let viewAttributeOnBar: UInt32 = 27
     // The digests of images (protocol 1.3).
     static let layerDetailsAgain: UInt32 = 28
+    // Hierarchy change notifications (protocol 1.3).
+    static let watchOn: UInt32 = 29
+    static let watchOff: UInt32 = 30
 }
 
 func check(_ options: Options) throws {
@@ -61,6 +64,11 @@ func check(_ options: Options) throws {
         print("app icon: the app has none")
     }
 
+    if let seconds = options.watch {
+        _ = try checkHierarchy(on: server, options: options)
+        try watchHierarchy(for: seconds, on: server)
+        return
+    }
     let (hierarchy, page) = try checkHierarchy(on: server, options: options)
     try checkLayerDetails(of: hierarchy, page: page, on: server, options: options)
 
@@ -220,6 +228,59 @@ private func checkDigests(
     )
     let count = try DigestChecks.allUnchanged(answered, request: again)
     print("images: all \(count) come back unchanged with their digests (P-IMG-05)")
+}
+
+/// S-PROBE-10: hierarchy change notifications on for `seconds`, each event printed with the
+/// time since they were turned on, then off. The probe does not get the subtrees again: the
+/// events are only shown (the server takes what it reported as told, P-WATCH-06).
+private func watchHierarchy(for seconds: TimeInterval, on server: FoundServer) throws {
+    guard server.version.supportsHierarchyWatch else {
+        throw ProbeFailure(
+            "the negotiated version \(server.version.major).\(server.version.minor) has no hierarchy change notifications (P-WATCH-01)"
+        )
+    }
+    let connection = server.connection
+    try WatchChecks.answer(
+        try request(.watchHierarchy(enabled: true), id: ProbeRequestID.watchOn, on: connection),
+        to: ProbeRequestID.watchOn,
+        enabled: true
+    )
+    let start = Date()
+    print(String(format: "watch: on; printing events for %.0f s", seconds))
+    var previous: TimeInterval?
+    var count = 0
+    while true {
+        let left = seconds - Date().timeIntervalSince(start)
+        guard left > 0, let frame = try connection.nextFrame(within: left) else { break }
+        let time = Date().timeIntervalSince(start)
+        if frame.requestID == 0, case .appStateChanged(let state)? = frame.body {
+            print(String(format: "watch: +%.2f s: app state %@", time, "\(state)"))
+            continue
+        }
+        let changed = try WatchChecks.event(frame, at: time, previous: previous)
+        print(WatchChecks.describe(changed, at: time))
+        previous = time
+        count += 1
+    }
+    try connection.send(Frame(requestID: ProbeRequestID.watchOff, body: .watchHierarchy(enabled: false)))
+    // P-WATCH-02: events sent before the answer may still arrive ahead of it.
+    while true {
+        guard let frame = try connection.nextFrame() else {
+            throw ProbeFailure("the server closed the connection before answering request \(ProbeRequestID.watchOff)")
+        }
+        let time = Date().timeIntervalSince(start)
+        if frame.requestID == 0 {
+            if case .hierarchyChanged? = frame.body {
+                print(WatchChecks.describe(try WatchChecks.event(frame, at: time, previous: previous), at: time))
+                previous = time
+                count += 1
+            }
+            continue
+        }
+        try WatchChecks.answer(frame, to: ProbeRequestID.watchOff, enabled: false)
+        break
+    }
+    print("watch: \(count) events; off")
 }
 
 /// The demo app's Extensions page: its layers' details, the host app's extensions in them, and

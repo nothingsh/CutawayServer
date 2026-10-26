@@ -10,9 +10,11 @@ struct Options {
     var expectDemo = false
     /// The pause after each chunk of the layer details, in seconds; `nil` reads at full speed.
     var slowRead: TimeInterval?
+    /// How long to print hierarchy change notifications for, instead of the checks.
+    var watch: TimeInterval?
 
     static let usage = """
-        usage: cutaway-probe [--host ADDRESS] [--port N] [--bundle-id ID] [--wait SECONDS] [--require-icon] [--expect-demo] [--slow-read MILLISECONDS]
+        usage: cutaway-probe [--host ADDRESS] [--port N] [--bundle-id ID] [--wait SECONDS] [--require-icon] [--expect-demo] [--slow-read MILLISECONDS] [--watch SECONDS]
 
           --host ADDRESS   IPv4 address to connect to (default 127.0.0.1)
           --port N         check this port only (default: scan 48160-48167)
@@ -24,6 +26,8 @@ struct Options {
           --slow-read MILLISECONDS
                            read the layer details slowly: a small receive buffer, and a pause
                            after each chunk, so that the server has to hold back
+          --watch SECONDS  instead of the checks: get the hierarchy, turn hierarchy change
+                           notifications on and print each event for this long (protocol 1.3)
         """
 
     init(arguments: [String]) throws {
@@ -57,6 +61,11 @@ struct Options {
                     throw ProbeFailure("--slow-read needs a whole number of milliseconds")
                 }
                 slowRead = TimeInterval(milliseconds) / 1000
+            case "--watch":
+                guard let seconds = TimeInterval(try value(of: argument)), seconds > 0 else {
+                    throw ProbeFailure("--watch needs a number of seconds")
+                }
+                watch = seconds
             default:
                 throw ProbeFailure("unknown argument \(argument)")
             }
