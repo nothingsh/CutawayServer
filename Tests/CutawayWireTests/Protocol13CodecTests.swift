@@ -59,6 +59,22 @@ final class Protocol13CodecTests: XCTestCase {
         XCTAssertNotEqual(blue.digest, orange)
     }
 
+    /// P-IMG-07: the flag on a full image, none on an unchanged one, and the same pixels with
+    /// another digest once the image is no longer composited (P-IMG-04).
+    func test_S_SHOT_17_decodesTheCompositedFixtures() throws {
+        let composited = try XCTUnwrap(chunk("layer-details-composited/02-s2c-chunk-0.bin").details.first?.group)
+        XCTAssertTrue(composited.isComposited)
+        let digest = try XCTUnwrap(composited.digest)
+        XCTAssertEqual(
+            try chunk("layer-details-composited/05-s2c-chunk-0.bin").details.first?.group,
+            .unchanged(digest: digest)
+        )
+        let drawn = try XCTUnwrap(chunk("layer-details-composited/08-s2c-chunk-0.bin").details.first?.group)
+        XCTAssertFalse(drawn.isComposited)
+        XCTAssertNotEqual(drawn.digest, digest)
+        XCTAssertEqual(drawn.data, composited.data)
+    }
+
     func test_S_WATCH_01_decodesTheWatchFixtures() throws {
         let expected: [(String, Frame)] = [
             ("watch-hierarchy/03-c2s-watch-hierarchy.bin", Frame(requestID: 2, body: .watchHierarchy(enabled: true))),

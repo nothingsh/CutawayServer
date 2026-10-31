@@ -30,6 +30,45 @@ final class DigestChecksTests: XCTestCase {
         return try DetailChecks.stream(frames, answering: frames[0].requestID, request: request, hierarchy: hierarchy())
     }
 
+    /// P-IMG-07: not below 1.3, not on an unchanged image, not on a solo, and part of what a
+    /// digest stands for (P-IMG-04).
+    func test_S_PROBE_11_compositedChecksNameWhatIsWrong() throws {
+        let version = ProtocolVersion(major: 1, minor: 3)
+        let details = try self.details(1)
+        var composited = try XCTUnwrap(details[0].group)
+        composited.isComposited = true
+        XCTAssertTrue(try DigestChecks.digest(of: composited, name: "image", known: nil, version: version))
+        XCTAssertThrowsError(
+            try DigestChecks.digest(
+                of: composited,
+                name: "image",
+                known: nil,
+                version: ProtocolVersion(major: 1, minor: 2)
+            )
+        )
+
+        let digest = try XCTUnwrap(composited.digest)
+        var unchanged = WireImage.unchanged(digest: digest)
+        unchanged.isComposited = true
+        XCTAssertThrowsError(try DigestChecks.digest(of: unchanged, name: "image", known: digest, version: version))
+
+        var twin = details[0]
+        twin.group = composited
+        XCTAssertThrowsError(try DigestChecks.sameDigestsSamePixels([details[0], twin]))
+
+        var solo = details[0]
+        solo.solo = composited
+        XCTAssertThrowsError(try DetailChecks.stream(
+            [
+                Frame(requestID: 2, body: .layerDetailsChunk(LayerDetailsChunk(sequence: 0, details: [solo]))),
+                Frame(requestID: 2, body: .streamEnd(StreamEnd(status: .completed, chunkCount: 1)))
+            ],
+            answering: 2,
+            request: try request("layer-details-digest/01-c2s-get-layer-details.bin"),
+            hierarchy: try hierarchy()
+        ))
+    }
+
     func test_S_PROBE_09_digestChecksAcceptTheFixtures() throws {
         let first = try details(1)
         XCTAssertEqual(try DigestChecks.sameDigestsSamePixels(first), 2)

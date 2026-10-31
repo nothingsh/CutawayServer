@@ -1,5 +1,5 @@
 #if canImport(UIKit) && (DEBUG || ReleaseEnabled)
-import QuartzCore
+import UIKit
 
 /// Renders one layer into a bitmap that covers exactly its bounds (PROTOCOL.md, P-DET-07).
 @MainActor
@@ -26,7 +26,40 @@ enum LayerRenderer {
             return true
         }
     ) -> RawImage? {
-        let bounds = layer.bounds
+        bitmap(covering: layer.bounds, plan: plan) { context in
+            withoutOwnEffects(of: layer, mode: mode) { draw(layer, context) }
+        }
+    }
+
+    /// The group of `view` as the app composited it, with the effects drawing layers leaves
+    /// out (P-IMG-07); `nil` when UIKit has no such image, as for a window that is not shown.
+    ///
+    /// This reads what was committed, not the layers' values: whatever is changed for the time
+    /// of a capture has no effect here, which rules out a view that is hidden, translucent, or
+    /// has excluded layers below it. What the app changed but has not committed yet goes first.
+    /// Nothing is laid out or redrawn.
+    static func composited(_ view: UIView, plan: ImagePlan) -> RawImage? {
+        CATransaction.flush()
+        let bounds = view.bounds
+        let drawn = bitmap(covering: bounds, plan: plan) { context in
+            UIGraphicsPushContext(context)
+            defer { UIGraphicsPopContext() }
+            return view.drawHierarchy(in: bounds, afterScreenUpdates: false)
+        }
+        guard var image = drawn else { return nil }
+        image.isComposited = true
+        // A window has nothing around it for a shadow to be cut off from.
+        image.mayHaveCutOffShadow = !(view is UIWindow)
+        return image
+    }
+
+    /// A bitmap of `plan`'s size that `draw` fills with what lies in `bounds`, in the
+    /// coordinates of the layer they belong to; `nil` when it cannot be made or `draw` fails.
+    private static func bitmap(
+        covering bounds: CGRect,
+        plan: ImagePlan,
+        draw: (CGContext) -> Bool
+    ) -> RawImage? {
         let bytesPerRow = plan.pixelWidth * 4
         var pixels = Data(count: bytesPerRow * plan.pixelHeight)
         let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
@@ -46,7 +79,7 @@ enum LayerRenderer {
                 y: -CGFloat(plan.pixelHeight) / bounds.height
             )
             context.translateBy(x: -bounds.origin.x, y: -bounds.origin.y)
-            return withoutOwnEffects(of: layer, mode: mode) { draw(layer, context) }
+            return draw(context)
         }
         guard drawn else { return nil }
         return RawImage(

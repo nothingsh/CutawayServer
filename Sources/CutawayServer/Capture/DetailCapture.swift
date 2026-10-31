@@ -14,6 +14,7 @@ enum DetailCapture {
     ///     wants them.
     ///   - readVirtualAttributes: The same for a virtual node.
     ///   - render: Renders one image; the stability tests time it apart from the rest.
+    ///   - composite: Takes a group from what the app composited; timed the same way.
     static func capture(
         _ request: LayerDetailRequest,
         maxTextureDimension: UInt32,
@@ -24,7 +25,8 @@ enum DetailCapture {
         readVirtualAttributes: (VirtualNodes.Found) -> [AttributeGroup] = { _ in [] },
         render: (CALayer, LayerRenderer.Mode, ImagePlan) -> RawImage? = {
             LayerRenderer.render($0, mode: $1, plan: $2)
-        }
+        },
+        composite: (UIView, ImagePlan) -> RawImage? = { LayerRenderer.composited($0, plan: $1) }
     ) -> CapturedDetail? {
         guard !stopFlag.isSet else { return nil }
         var detail = CapturedDetail(
@@ -84,9 +86,15 @@ enum DetailCapture {
         if request.wantGroup {
             // Between two screenshots: a cancelled stream renders nothing more.
             guard !stopFlag.isSet else { return nil }
-            guard let image = groupImage(of: layer, plan: plan, exclusions: exclusions, render: render) else {
-                return detail
-            }
+            let image = groupImage(
+                of: layer,
+                plan: plan,
+                in: context,
+                exclusions: exclusions,
+                render: render,
+                composite: composite
+            )
+            guard let image else { return detail }
             group = image
         }
         detail.status = .ok
@@ -132,18 +140,54 @@ enum DetailCapture {
         if request.wantAttributes { detail.attributeGroups = readAttributes(node) }
     }
 
-    /// P-DET-10: the group, with the excluded layers below left out as if they were hidden.
+    /// The group: from what the app composited where that is possible and worth it (P-IMG-07),
+    /// otherwise drawn, with the layers below left out that must not be in it.
     ///
-    /// - Parameter exclusions: `nil` when the host app excludes no layer: the subtree need not
-    ///   be searched.
+    /// - Parameter exclusions: `nil` when the host app excludes no layer: nothing need be
+    ///   searched for excluded layers.
     private static func groupImage(
         of layer: CALayer,
         plan: ImagePlan,
+        in context: RequestContext,
         exclusions: ExtensionLookup?,
-        render: (CALayer, LayerRenderer.Mode, ImagePlan) -> RawImage?
+        render: (CALayer, LayerRenderer.Mode, ImagePlan) -> RawImage?,
+        composite: (UIView, ImagePlan) -> RawImage?
     ) -> RawImage? {
-        guard let exclusions else { return render(layer, .group, plan) }
-        return hiding(excludedLayers(below: layer, lookup: exclusions)) { render(layer, .group, plan) }
+        guard !(layer.sublayers ?? []).isEmpty else { return render(layer, .group, plan) }
+        let effects = context.memo.entry { RenderEffects(windows: context.windows) }
+        if let view = viewToComposite(of: layer, effects: effects, in: context, exclusions: exclusions),
+           let image = composite(view, plan) {
+            return image
+        }
+        let excluded = exclusions.map { excludedLayers(below: layer, lookup: $0) } ?? []
+        return hiding(excluded + effects.erasers(below: layer)) { render(layer, .group, plan) }
+    }
+
+    /// The view whose composited image can stand for the group of `layer`, a layer with
+    /// sublayers. A window always, so that it is the picture of the window, whatever is in it;
+    /// another view when drawing would leave something out: it is slower than drawing on small
+    /// images. Not one that is hidden or translucent itself, whose image would show that
+    /// (P-DET-07), and none while an excluded layer shows: it cannot be hidden for this
+    /// (P-DET-10), and an effect may sample it from outside the subtree. That is looked for
+    /// each time, as an excluded layer that appears during a stream must not get through.
+    private static func viewToComposite(
+        of layer: CALayer,
+        effects: RenderEffects,
+        in context: RequestContext,
+        exclusions: ExtensionLookup?
+    ) -> UIView? {
+        guard !layer.isHidden, layer.opacity == 1, let view = LayerTopology.backingView(of: layer) else { return nil }
+        guard view is UIWindow || effects.hasEffect(in: layer) else { return nil }
+        if let exclusions, context.windows.contains(where: { showsExcludedLayer($0, lookup: exclusions) }) {
+            return nil
+        }
+        return view
+    }
+
+    private static func showsExcludedLayer(_ window: UIWindow, lookup: ExtensionLookup) -> Bool {
+        guard !window.isHidden else { return false }
+        return lookup.resolve(window.layer, view: window).isExcludedFromCapture
+            || !excludedLayers(below: window.layer, lookup: lookup).isEmpty
     }
 
     /// The layers below `layer` the host app excludes from images and that are visible now; the
