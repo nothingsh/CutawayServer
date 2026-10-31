@@ -158,6 +158,7 @@ extension FrameCodec {
         // The object API writes an empty vector rather than none: read back as absent.
         object.digest = image.digest.map { [UInt8]($0) } ?? []
         object.unchanged = image.isUnchanged
+        object.composited = image.isComposited
         return object
     }
 

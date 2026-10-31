@@ -56,6 +56,14 @@ final class MainThreadClock: @unchecked Sendable {
                             rendering += seconds
                             self.record(render: seconds)
                             return image
+                        },
+                        composite: { view, plan in
+                            let start = CACurrentMediaTime()
+                            let image = LayerRenderer.composited(view, plan: plan)
+                            let seconds = CACurrentMediaTime() - start
+                            rendering += seconds
+                            self.record(render: seconds)
+                            return image
                         }
                     )
                 }

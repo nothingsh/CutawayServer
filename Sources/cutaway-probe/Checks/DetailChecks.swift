@@ -199,6 +199,9 @@ enum DetailChecks {
         for ((kind, image), known) in zip([("solo", detail.solo), ("group", detail.group)], known) {
             guard let image else { continue }
             let imageName = "\(name): \(kind)"
+            guard kind == "group" || !image.isComposited else {
+                throw ProbeFailure("\(imageName) is composited, which only a group may be (P-IMG-07)")
+            }
             guard try DigestChecks.digest(of: image, name: imageName, known: known, version: version) else { continue }
             try check(image, name: imageName, bounds: size, maxTextureDimension: maxTextureDimension)
         }

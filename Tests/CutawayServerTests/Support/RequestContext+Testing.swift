@@ -14,13 +14,15 @@ extension RequestContext {
         windows: [UIWindow],
         registry: LayerRegistry,
         version: ProtocolVersion = .current,
-        extensions: ExtensionStore? = nil
+        extensions: ExtensionStore? = nil,
+        memo: RequestMemo = RequestMemo()
     ) -> RequestContext {
         RequestContext(
             windows: windows,
             registry: registry,
             version: version,
-            extensions: extensions ?? ExtensionStore()
+            extensions: extensions ?? ExtensionStore(),
+            memo: memo
         )
     }
 }

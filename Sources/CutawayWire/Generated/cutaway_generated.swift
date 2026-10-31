@@ -1489,6 +1489,7 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     case data = 14
     case digest = 16
     case unchanged = 18
+    case composited = 20
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
@@ -1503,7 +1504,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
   var digest: FlatbufferVector<UInt8> { return _accessor.vector(at: VTOFFSET.digest.v, byteSize: 1) }
   func withUnsafePointerToDigest<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.digest.v, body: body) }
   var unchanged: Bool { let o = _accessor.offset(VTOFFSET.unchanged.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
-  static func startImage(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 8) }
+  var composited: Bool { let o = _accessor.offset(VTOFFSET.composited.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
+  static func startImage(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 9) }
   static func add(encoding: Cutaway_Wire_ImageEncoding, _ fbb: inout FlatBufferBuilder) { fbb.add(element: encoding.rawValue, def: 0, at: VTOFFSET.encoding.p) }
   static func add(pixelWidth: UInt32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: pixelWidth, def: 0, at: VTOFFSET.pixelWidth.p) }
   static func add(pixelHeight: UInt32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: pixelHeight, def: 0, at: VTOFFSET.pixelHeight.p) }
@@ -1513,6 +1515,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
   static func addVectorOf(digest: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: digest, at: VTOFFSET.digest.p) }
   static func add(unchanged: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: unchanged, def: false,
    at: VTOFFSET.unchanged.p) }
+  static func add(composited: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: composited, def: false,
+   at: VTOFFSET.composited.p) }
   static func endImage(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
   static func createImage(
     _ fbb: inout FlatBufferBuilder,
@@ -1523,7 +1527,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     scale: Float32 = 0.0,
     dataVectorOffset data: Offset = Offset(),
     digestVectorOffset digest: Offset = Offset(),
-    unchanged: Bool = false
+    unchanged: Bool = false,
+    composited: Bool = false
   ) -> Offset {
     let __start = Cutaway_Wire_Image.startImage(&fbb)
     Cutaway_Wire_Image.add(encoding: encoding, &fbb)
@@ -1534,6 +1539,7 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     Cutaway_Wire_Image.addVectorOf(data: data, &fbb)
     Cutaway_Wire_Image.addVectorOf(digest: digest, &fbb)
     Cutaway_Wire_Image.add(unchanged: unchanged, &fbb)
+    Cutaway_Wire_Image.add(composited: composited, &fbb)
     return Cutaway_Wire_Image.endImage(&fbb, start: __start)
   }
 
@@ -1557,6 +1563,7 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     Cutaway_Wire_Image.addVectorOf(data: __data, &builder)
     Cutaway_Wire_Image.addVectorOf(digest: __digest, &builder)
     Cutaway_Wire_Image.add(unchanged: obj.unchanged, &builder)
+    Cutaway_Wire_Image.add(composited: obj.composited, &builder)
     return Cutaway_Wire_Image.endImage(&builder, start: __root)
   }
 
@@ -1570,6 +1577,7 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     try _v.visit(field: VTOFFSET.data.p, fieldName: "data", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     try _v.visit(field: VTOFFSET.digest.p, fieldName: "digest", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     try _v.visit(field: VTOFFSET.unchanged.p, fieldName: "unchanged", required: false, type: Bool.self)
+    try _v.visit(field: VTOFFSET.composited.p, fieldName: "composited", required: false, type: Bool.self)
     _v.finish()
   }
 }
@@ -1584,6 +1592,7 @@ class Cutaway_Wire_ImageT: NativeObject {
   var data: [UInt8]
   var digest: [UInt8]
   var unchanged: Bool
+  var composited: Bool
 
   init(_ _t: borrowing Cutaway_Wire_Image) {
     encoding = _t.encoding
@@ -1596,6 +1605,7 @@ class Cutaway_Wire_ImageT: NativeObject {
     digest = []
     digest.append(contentsOf: _t.digest)
     unchanged = _t.unchanged
+    composited = _t.composited
   }
 
   init() {
@@ -1607,6 +1617,7 @@ class Cutaway_Wire_ImageT: NativeObject {
     data = []
     digest = []
     unchanged = false
+    composited = false
   }
 
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_Image.self) }

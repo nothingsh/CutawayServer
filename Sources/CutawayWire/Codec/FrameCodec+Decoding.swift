@@ -228,7 +228,8 @@ extension FrameCodec {
             scale: image.scale,
             data: Data(image.data),
             digest: bytes(image.digest),
-            isUnchanged: image.unchanged
+            isUnchanged: image.unchanged,
+            isComposited: image.composited
         )
     }
 
