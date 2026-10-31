@@ -19,7 +19,8 @@ final class ImageDigestTests: XCTestCase {
                 pixelHeight: Int(image.pixelHeight),
                 bytesPerRow: Int(image.bytesPerRow),
                 scale: image.scale,
-                pixels: pixels
+                pixels: pixels,
+                isComposited: image.isComposited
             )
             return (raw, image.digest)
         }
@@ -58,7 +59,10 @@ final class ImageDigestTests: XCTestCase {
     func test_S_SHOT_14_digestsAreThoseOfTheFixtures() throws {
         let images = try rawImages("layer-details-digest/02-s2c-chunk-0.bin")
             + rawImages("layer-details-digest/08-s2c-chunk-0.bin")
-        XCTAssertEqual(images.map(\.raw.bytesPerRow), [800, 256, 240])
+            + rawImages("layer-details-composited/02-s2c-chunk-0.bin")
+            + rawImages("layer-details-composited/08-s2c-chunk-0.bin")
+        XCTAssertEqual(images.map(\.raw.bytesPerRow), [800, 256, 240, 1572, 1572])
+        XCTAssertEqual(images.map(\.raw.isComposited), [false, false, false, true, false])
         for (raw, digest) in images {
             XCTAssertEqual(ImageDigest.of(raw), digest)
         }

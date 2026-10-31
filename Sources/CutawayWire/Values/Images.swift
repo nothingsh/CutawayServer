@@ -19,6 +19,9 @@ public struct WireImage: Sendable, Equatable {
     public var digest: Data?
     /// The image whose digest the client sent; no pixels follow (P-IMG-05, protocol 1.3).
     public var isUnchanged: Bool
+    /// A group taken from what the app composited, not drawn layer by layer (P-IMG-07,
+    /// protocol 1.3).
+    public var isComposited: Bool
 
     public init(
         encoding: ImageEncoding = .bgra8PremultipliedLZFSE,
@@ -28,7 +31,8 @@ public struct WireImage: Sendable, Equatable {
         scale: Float,
         data: Data,
         digest: Data? = nil,
-        isUnchanged: Bool = false
+        isUnchanged: Bool = false,
+        isComposited: Bool = false
     ) {
         self.encoding = encoding
         self.pixelWidth = pixelWidth
@@ -38,6 +42,7 @@ public struct WireImage: Sendable, Equatable {
         self.data = data
         self.digest = digest
         self.isUnchanged = isUnchanged
+        self.isComposited = isComposited
     }
 
     /// P-IMG-05: the client's image with this digest, every other field at its default.

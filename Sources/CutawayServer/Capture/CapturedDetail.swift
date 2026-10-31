@@ -45,8 +45,9 @@ struct CapturedDetail: Sendable, Equatable {
             guard let compressed = Self.encode(image, known: digests.map { $0.solo }) else { return failed }
             encoded.solo = compressed
         }
-        if let image = group {
+        if var image = group {
             group = nil
+            image.clearShadowRemnants()
             guard let compressed = Self.encode(image, known: digests.map { $0.group }) else { return failed }
             encoded.group = compressed
         }
@@ -61,6 +62,8 @@ struct CapturedDetail: Sendable, Equatable {
         if let known, known == digest { return .unchanged(digest: digest) }
         guard var compressed = ImageEncoder.compress(image) else { return nil }
         compressed.digest = digest
+        // A client of 1.3 or later, like the digest (P-IMG-07).
+        compressed.isComposited = image.isComposited
         return compressed
     }
 }

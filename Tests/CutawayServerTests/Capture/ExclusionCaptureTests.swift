@@ -277,12 +277,15 @@ final class ExclusionCaptureTests: CaptureTestCase {
         // How often the layer below was asked for its sublayers while the group was captured;
         // the rendering is left out, since it looks at every layer.
         func searches(with store: ExtensionStore) throws -> Int {
+            // The request's one look at the effects is another matter (S-SHOT-16).
+            let memo = RequestMemo()
+            _ = memo.entry { RenderEffects(windows: [window]) }
             below.sublayerReads = 0
             let detail = try XCTUnwrap(
                 DetailCapture.capture(
                     LayerDetailRequest(layerID: id, wantSolo: false, wantGroup: true, wantAttributes: false),
                     maxTextureDimension: 0,
-                    in: .testing(windows: [window], registry: registry, extensions: store),
+                    in: .testing(windows: [window], registry: registry, extensions: store, memo: memo),
                     stopFlag: StopFlag(),
                     screenScale: 1,
                     readAttributes: { _ in [] },

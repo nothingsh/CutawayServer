@@ -14,7 +14,8 @@ enum DigestChecks {
             guard let known, image.digest == known else {
                 throw ProbeFailure("\(name) is unchanged, but its digest is not the one the request gave (P-IMG-05)")
             }
-            guard image.data.isEmpty, image.pixelWidth == 0, image.pixelHeight == 0, image.bytesPerRow == 0 else {
+            guard image.data.isEmpty, image.pixelWidth == 0, image.pixelHeight == 0, image.bytesPerRow == 0,
+                  !image.isComposited else {
                 throw ProbeFailure("\(name) is unchanged, but has fields other than its digest (P-IMG-05)")
             }
             return false
@@ -23,12 +24,14 @@ enum DigestChecks {
             guard let digest = image.digest, (1...32).contains(digest.count) else {
                 throw ProbeFailure("\(name) has no digest of 1 to 32 bytes (P-IMG-04)")
             }
+        } else if image.isComposited {
+            throw ProbeFailure("\(name) is composited, but the negotiated version is below 1.3 (P-IMG-07)")
         }
         return true
     }
 
-    /// P-IMG-04: two images with the same digest have the same size, scale and pixels, padding
-    /// left out; returns how many digests there are.
+    /// P-IMG-04: two images with the same digest have the same size, scale, `composited` and
+    /// pixels, padding left out; returns how many digests there are.
     static func sameDigestsSamePixels(_ details: [LayerDetail]) throws -> Int {
         var seen: [Data: (content: Content, name: String)] = [:]
         for detail in details {
@@ -82,11 +85,13 @@ enum DigestChecks {
         return count
     }
 
-    /// What P-IMG-04 compares: the size, the scale and the pixels without their padding.
+    /// What P-IMG-04 compares: the size, the scale, `composited` and the pixels without their
+    /// padding.
     private struct Content: Equatable {
         let width: UInt32
         let height: UInt32
         let scale: Float
+        let isComposited: Bool
         let pixels: Data
 
         init(_ image: WireImage, name: String) throws {
@@ -102,6 +107,7 @@ enum DigestChecks {
             width = image.pixelWidth
             height = image.pixelHeight
             scale = image.scale
+            isComposited = image.isComposited
             self.pixels = pixels
         }
     }
