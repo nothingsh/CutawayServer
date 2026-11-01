@@ -41,7 +41,7 @@ CutawayServer 是一個在開發期間嵌入你的 App 的 iOS SDK。它讓 macO
 `https://github.com/nothingsh/CutawayServer`，把 `CutawayServer` 程式庫加入你的 App target。在 `Package.swift` 中：
 
 ```swift
-.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.2.0")
+.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.3.0")
 ```
 
 <a id="quick-start"></a>

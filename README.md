@@ -41,7 +41,7 @@ In Xcode, choose **File › Add Package Dependencies…**, enter
 target. In a `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.2.0")
+.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.3.0")
 ```
 
 ## Quick Start
