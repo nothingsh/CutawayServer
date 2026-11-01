@@ -41,7 +41,7 @@ Dans Xcode, choisissez **File › Add Package Dependencies…**, saisissez
 `https://github.com/nothingsh/CutawayServer` et ajoutez la bibliothèque `CutawayServer` à la cible de votre app. Dans un `Package.swift` :
 
 ```swift
-.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.2.0")
+.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.3.0")
 ```
 
 <a id="quick-start"></a>
