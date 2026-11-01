@@ -171,10 +171,11 @@ final class SessionHarness: @unchecked Sendable {
 
         func encodeDetail(
             _ detail: CapturedDetail,
+            digests: KnownDigests?,
             stopFlag: StopFlag,
             then answer: @escaping @Sendable (LayerDetail) -> Void
         ) {
-            capture.encode(detail, stopFlag: stopFlag, on: queue, then: answer)
+            capture.encode(detail, digests: digests, stopFlag: stopFlag, on: queue, then: answer)
         }
     }
 

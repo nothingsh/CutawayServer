@@ -15,11 +15,13 @@ protocol DetailPipeline {
         stopFlag: StopFlag,
         then answer: @escaping @Sendable (CapturedDetail?) -> Void
     )
-    /// Compresses the images off the main thread. Details complete in the order they were
-    /// handed in. Once the stop flag is set, nothing more is compressed and `answer` may not
-    /// be called.
+    /// Compresses the images off the main thread, with their digests compared with `digests`
+    /// when the client has them (`CapturedDetail.compressed(digests:)`). Details complete in
+    /// the order they were handed in. Once the stop flag is set, nothing more is compressed and
+    /// `answer` may not be called.
     func encodeDetail(
         _ detail: CapturedDetail,
+        digests: KnownDigests?,
         stopFlag: StopFlag,
         then answer: @escaping @Sendable (LayerDetail) -> Void
     )

@@ -62,7 +62,8 @@ enum DetailChecks {
                 for: item,
                 node: nodes[detail.layerID],
                 hasSublayers: parents.contains(detail.layerID),
-                maxTextureDimension: request.maxTextureDimension
+                maxTextureDimension: request.maxTextureDimension,
+                version: version
             )
             try ConstraintChecks.structure(
                 detail,
@@ -166,7 +167,8 @@ enum DetailChecks {
         for request: LayerDetailRequest,
         node: LayerNode?,
         hasSublayers: Bool,
-        maxTextureDimension: UInt32
+        maxTextureDimension: UInt32,
+        version: ProtocolVersion
     ) throws {
         let name = "the detail of layer \(detail.layerID)"
         let wantsImage = request.wantSolo || request.wantGroup
@@ -193,9 +195,12 @@ enum DetailChecks {
                 )
             }
         }
-        for (kind, image) in [("solo", detail.solo), ("group", detail.group)] {
+        let known = [request.knownSoloDigest, request.knownGroupDigest]
+        for ((kind, image), known) in zip([("solo", detail.solo), ("group", detail.group)], known) {
             guard let image else { continue }
-            try check(image, name: "\(name): \(kind)", bounds: size, maxTextureDimension: maxTextureDimension)
+            let imageName = "\(name): \(kind)"
+            guard try DigestChecks.digest(of: image, name: imageName, known: known, version: version) else { continue }
+            try check(image, name: imageName, bounds: size, maxTextureDimension: maxTextureDimension)
         }
     }
 

@@ -37,7 +37,9 @@ private struct Canvas {
             pixelHeight: UInt32(height),
             bytesPerRow: UInt32(width * 4),
             scale: scale,
-            data: try! (Data(pixels) as NSData).compressed(using: .lzfse) as Data
+            data: try! (Data(pixels) as NSData).compressed(using: .lzfse) as Data,
+            // As a server of 1.3 sends it (P-IMG-04); what it is does not matter here.
+            digest: Data(repeating: 1, count: 16)
         )
     }
 }
