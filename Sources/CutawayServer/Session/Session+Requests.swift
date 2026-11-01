@@ -17,12 +17,16 @@ extension Session {
             answer(
                 requestID,
                 requiresActiveApp: true,
-                onMain: { app, context in app.captureHierarchy(in: context) },
-                reply: { session, hierarchy in
+                perform: { [host, version] in host.captureHierarchy(version: version, then: $0) },
+                reply: { session, captured in
                     // The app may have left the active state while the layers were being read. The
                     // client has been told by now, and must not get a hierarchy after that event.
-                    session.appState == .active
-                        ? .hierarchy(hierarchy) : .error(.appNotActive)
+                    guard session.appState == .active, let hierarchy = captured.hierarchy else {
+                        return .error(.appNotActive)
+                    }
+                    // P-WATCH-02: told once it is sent; an event comes after it on this queue.
+                    session.host.didSendHierarchy(captured.candidate)
+                    return .hierarchy(hierarchy)
                 }
             )
         case .getSubtree(let rootID):
@@ -30,13 +34,14 @@ extension Session {
             answer(
                 requestID,
                 requiresActiveApp: true,
-                onMain: { app, context in app.captureSubtree(of: rootID, in: context) },
-                reply: { session, hierarchy in
+                perform: { [host, version] in host.captureSubtree(of: rootID, version: version, then: $0) },
+                reply: { session, captured in
                     // As for the whole hierarchy: nothing read after the client was told the app
                     // left the active state.
                     if session.appState != .active {
                         return .error(.appNotActive)
-                    } else if let hierarchy {
+                    } else if let hierarchy = captured.hierarchy {
+                        session.host.didSendSubtree(captured.candidate)
                         return .hierarchy(hierarchy)
                     } else {
                         return .error(.layerNotFound(rootID))
@@ -49,13 +54,7 @@ extension Session {
             answer(
                 requestID,
                 requiresActiveApp: true,
-                perform: { [host, version] in
-                    host.performChange(
-                        version: version,
-                        { app, context in app.setAttribute(change, in: context) },
-                        then: $0
-                    )
-                },
+                perform: { [host, version] in host.setAttribute(change, version: version, then: $0) },
                 reply: { session, result in
                     // Unlike a hierarchy, the answer is sent whatever the state is now: the change
                     // may have been made, and the main thread checked the state before making it.
@@ -92,15 +91,45 @@ extension Session {
             )
         case .getLayerDetails(let details):
             beginStream(details, requestID: requestID, isCancelled: request.isCancelled)
+        case .watchHierarchy(let enabled):
+            watch(enabled, requestID: requestID)
         case .cancel:
             // Never queued: `accept(_:)` handles it on arrival.
             break
         case nil, .hello, .appIcon, .hierarchy, .layerDetailsChunk, .streamEnd, .error,
-             .appStateChanged, .setAttributeResult, .environment, .watchHierarchy, .watchHierarchyResult,
-             .hierarchyChanged:
+             .appStateChanged, .setAttributeResult, .environment, .watchHierarchyResult, .hierarchyChanged:
             // P-REQ-08: answer and keep the connection.
             transport.send(Frame(requestID: requestID, body: .error(.unexpectedMessage)))
         }
+    }
+
+    /// P-WATCH-01: notifications on or off, answered whatever the app's state (P-APP-01). A
+    /// client of 1.2 does not send it (S-CONN-12).
+    private func watch(_ enabled: Bool, requestID: UInt32) {
+        guard version.supportsHierarchyWatch else {
+            transport.send(Frame(requestID: requestID, body: .error(.unexpectedMessage)))
+            return
+        }
+        answer(
+            requestID,
+            requiresActiveApp: false,
+            perform: { [host, appState] in
+                host.setWatching(
+                    enabled,
+                    isActive: appState == .active,
+                    events: { [weak self] changed in self?.sendEvent(changed) },
+                    then: $0
+                )
+            },
+            reply: { _, enabled in .watchHierarchyResult(enabled: enabled) }
+        )
+    }
+
+    /// P-WATCH-02: an event, with `request_id` 0, while the connection is up.
+    private func sendEvent(_ changed: HierarchyChanged) {
+        // On the session's queue, as `HostAccess.setWatching` delivers it.
+        guard state == .ready, version.supportsHierarchyWatch else { return }
+        transport.send(Frame(requestID: 0, body: .hierarchyChanged(changed)))
     }
 
     /// A request with one answer. When it needs the app active and the app is not, it is
@@ -122,22 +151,6 @@ extension Session {
             self.transport.send(Frame(requestID: requestID, body: reply(self, value)))
             self.endRequest()
         }
-    }
-
-    /// A request answered by what the host app says on the main thread, with the request's
-    /// context (`HostAccess.perform(version:_:then:)`).
-    private func answer<Value: Sendable>(
-        _ requestID: UInt32,
-        requiresActiveApp: Bool,
-        onMain work: @escaping @MainActor @Sendable (any HostApp, RequestContext) -> Value,
-        reply: @escaping @Sendable (Session, Value) -> Message
-    ) {
-        answer(
-            requestID,
-            requiresActiveApp: requiresActiveApp,
-            perform: { [host, version] in host.perform(version: version, work, then: $0) },
-            reply: reply
-        )
     }
 }
 #endif
