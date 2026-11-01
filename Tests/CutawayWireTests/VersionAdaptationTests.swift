@@ -72,11 +72,12 @@ final class VersionAdaptationTests: XCTestCase {
 
     func test_S_CONN_12_negotiatedVersionIsTheLowerMinor() {
         let current = ProtocolVersion.current
-        XCTAssertEqual(current, version(2))
+        XCTAssertEqual(current, version(3))
         XCTAssertEqual(current.negotiated(with: version(0)), version(0))
         XCTAssertEqual(current.negotiated(with: version(1)), version(1))
         XCTAssertEqual(current.negotiated(with: version(2)), version(2))
-        XCTAssertEqual(current.negotiated(with: version(3)), version(2))
+        XCTAssertEqual(current.negotiated(with: version(3)), version(3))
+        XCTAssertEqual(current.negotiated(with: version(4)), version(3))
         XCTAssertEqual(version(2).negotiated(with: version(1)), version(1))
         XCTAssertEqual(version(1).negotiated(with: version(3)), version(1))
     }
@@ -91,18 +92,20 @@ final class VersionAdaptationTests: XCTestCase {
                 version.supportsGuideKinds,
                 version.supportsConstraintOrigins,
                 version.supportsVirtualNodes,
-                version.supportsExcludedStatus
+                version.supportsExcludedStatus,
+                version.supportsImageDigests,
+                version.supportsHierarchyWatch
             ]
         }
         let of11 = Array(repeating: true, count: 6)
-        XCTAssertEqual(features(version(0)), Array(repeating: false, count: 8))
-        XCTAssertEqual(features(version(1)), of11 + [false, false])
-        XCTAssertEqual(features(version(2)), Array(repeating: true, count: 8))
-        XCTAssertEqual(features(version(3)), Array(repeating: true, count: 8))
-        XCTAssertEqual(features(.current), Array(repeating: true, count: 8))
+        XCTAssertEqual(features(version(0)), Array(repeating: false, count: 10))
+        XCTAssertEqual(features(version(1)), of11 + [false, false, false, false])
+        XCTAssertEqual(features(version(2)), of11 + [true, true, false, false])
+        XCTAssertEqual(features(version(3)), Array(repeating: true, count: 10))
+        XCTAssertEqual(features(.current), Array(repeating: true, count: 10))
         // A later major version has them all; one before 1.0 has none.
-        XCTAssertEqual(features(ProtocolVersion(major: 2, minor: 0)), Array(repeating: true, count: 8))
-        XCTAssertEqual(features(ProtocolVersion(major: 0, minor: 5)), Array(repeating: false, count: 8))
+        XCTAssertEqual(features(ProtocolVersion(major: 2, minor: 0)), Array(repeating: true, count: 10))
+        XCTAssertEqual(features(ProtocolVersion(major: 0, minor: 5)), Array(repeating: false, count: 10))
     }
 
     func test_S_CONN_12_everyPeerOfProtocol1GetsTheAttributes() {

@@ -96,7 +96,8 @@ extension Session {
             // Never queued: `accept(_:)` handles it on arrival.
             break
         case nil, .hello, .appIcon, .hierarchy, .layerDetailsChunk, .streamEnd, .error,
-             .appStateChanged, .setAttributeResult, .environment:
+             .appStateChanged, .setAttributeResult, .environment, .watchHierarchy, .watchHierarchyResult,
+             .hierarchyChanged:
             // P-REQ-08: answer and keep the connection.
             transport.send(Frame(requestID: requestID, body: .error(.unexpectedMessage)))
         }

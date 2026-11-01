@@ -117,6 +117,9 @@ enum HelloChecks {
         case .getEnvironment: kind = "GetEnvironment"
         case .setEnvironment: kind = "SetEnvironment"
         case .environment: kind = "Environment"
+        case .watchHierarchy(let enabled): kind = "WatchHierarchy(\(enabled))"
+        case .watchHierarchyResult(let enabled): kind = "WatchHierarchyResult(\(enabled))"
+        case .hierarchyChanged(let changed): kind = "HierarchyChanged(\(changed.whole ? "whole" : "\(changed.roots)"))"
         }
         return "\(kind) with request_id \(frame.requestID)"
     }

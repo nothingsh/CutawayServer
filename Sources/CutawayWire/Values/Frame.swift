@@ -26,6 +26,28 @@ public enum Message: Sendable, Equatable {
     case setEnvironment(overrides: Traits?)
     /// The answer to `getEnvironment` and `setEnvironment`. Protocol 1.2.
     case environment(Environment)
+    /// Turns hierarchy change notifications on or off (P-WATCH-01). Protocol 1.3.
+    case watchHierarchy(enabled: Bool)
+    /// The answer to `watchHierarchy`: the state after the request. Protocol 1.3.
+    case watchHierarchyResult(enabled: Bool)
+    /// An event: part of the hierarchy changed (P-WATCH-02, P-WATCH-03). Protocol 1.3.
+    case hierarchyChanged(HierarchyChanged)
+}
+
+/// The subtrees that changed, or the whole hierarchy (P-WATCH-03). Protocol 1.3.
+public struct HierarchyChanged: Sendable, Equatable {
+    /// None lies in another's subtree; empty when `whole`.
+    public var roots: [UInt64]
+    /// Get the whole hierarchy again.
+    public var whole: Bool
+
+    public init(roots: [UInt64], whole: Bool) {
+        self.roots = roots
+        self.whole = whole
+    }
+
+    /// The whole hierarchy changed.
+    public static let everything = Self(roots: [], whole: true)
 }
 
 public struct Frame: Sendable, Equatable {

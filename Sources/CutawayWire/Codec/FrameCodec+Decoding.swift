@@ -80,6 +80,8 @@ extension FrameCodec {
             return .setEnvironment(overrides: try body(of: frame, as: RawTable.self).table(at: 0).map(traits(of:)))
         case .environment:
             return .environment(try environment(of: body(of: frame, as: RawTable.self)))
+        case .watchhierarchy, .watchhierarchyresult, .hierarchychanged:
+            return try watchMessage(of: frame)
         }
     }
 
@@ -102,14 +104,16 @@ extension FrameCodec {
                     wantSolo: request.wantSolo,
                     wantGroup: request.wantGroup,
                     wantAttributes: request.wantAttributes,
-                    wantConstraints: request.wantConstraints
+                    wantConstraints: request.wantConstraints,
+                    knownSoloDigest: bytes(request.knownSoloDigest),
+                    knownGroupDigest: bytes(request.knownGroupDigest)
                 )
             },
             maxTextureDimension: get.maxTextureDimension
         )
     }
 
-    private static func body<T: FlatbuffersInitializable>(
+    static func body<T: FlatbuffersInitializable>(
         of frame: Cutaway_Wire_Frame,
         as type: T.Type
     ) throws -> T {
@@ -222,8 +226,15 @@ extension FrameCodec {
             pixelHeight: image.pixelHeight,
             bytesPerRow: image.bytesPerRow,
             scale: image.scale,
-            data: Data(image.data)
+            data: Data(image.data),
+            digest: bytes(image.digest),
+            isUnchanged: image.unchanged
         )
+    }
+
+    /// A byte vector that may be absent; an empty one reads as absent too.
+    private static func bytes(_ vector: FlatbufferVector<UInt8>) -> Data? {
+        vector.isEmpty ? nil : Data(vector)
     }
 
     private static func layerDetail(of detail: Cutaway_Wire_LayerDetail) throws -> LayerDetail {

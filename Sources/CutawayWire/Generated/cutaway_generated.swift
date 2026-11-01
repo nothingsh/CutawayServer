@@ -465,8 +465,11 @@ enum Cutaway_Wire_Body: UInt8, FlatbuffersVectorInitializable, UnionEnum {
   case getenvironment = 15
   case setenvironment = 16
   case environment = 17
+  case watchhierarchy = 18
+  case watchhierarchyresult = 19
+  case hierarchychanged = 20
 
-  static var max: Cutaway_Wire_Body { return .environment }
+  static var max: Cutaway_Wire_Body { return .hierarchychanged }
   static var min: Cutaway_Wire_Body { return .none_ }
 }
 
@@ -531,6 +534,15 @@ struct Cutaway_Wire_BodyUnion {
     case .environment:
       var __obj = value as? Cutaway_Wire_EnvironmentT
       return Cutaway_Wire_Environment.pack(&builder, obj: &__obj)
+    case .watchhierarchy:
+      var __obj = value as? Cutaway_Wire_WatchHierarchyT
+      return Cutaway_Wire_WatchHierarchy.pack(&builder, obj: &__obj)
+    case .watchhierarchyresult:
+      var __obj = value as? Cutaway_Wire_WatchHierarchyResultT
+      return Cutaway_Wire_WatchHierarchyResult.pack(&builder, obj: &__obj)
+    case .hierarchychanged:
+      var __obj = value as? Cutaway_Wire_HierarchyChangedT
+      return Cutaway_Wire_HierarchyChanged.pack(&builder, obj: &__obj)
     default: return Offset()
     }
   }
@@ -1475,6 +1487,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     case bytesPerRow = 10
     case scale = 12
     case data = 14
+    case digest = 16
+    case unchanged = 18
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
@@ -1486,13 +1500,19 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
   var scale: Float32 { let o = _accessor.offset(VTOFFSET.scale.v); return o == 0 ? 0.0 : _accessor.readBuffer(of: Float32.self, at: o) }
   var data: FlatbufferVector<UInt8> { return _accessor.vector(at: VTOFFSET.data.v, byteSize: 1) }
   func withUnsafePointerToData<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.data.v, body: body) }
-  static func startImage(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 6) }
+  var digest: FlatbufferVector<UInt8> { return _accessor.vector(at: VTOFFSET.digest.v, byteSize: 1) }
+  func withUnsafePointerToDigest<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.digest.v, body: body) }
+  var unchanged: Bool { let o = _accessor.offset(VTOFFSET.unchanged.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
+  static func startImage(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 8) }
   static func add(encoding: Cutaway_Wire_ImageEncoding, _ fbb: inout FlatBufferBuilder) { fbb.add(element: encoding.rawValue, def: 0, at: VTOFFSET.encoding.p) }
   static func add(pixelWidth: UInt32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: pixelWidth, def: 0, at: VTOFFSET.pixelWidth.p) }
   static func add(pixelHeight: UInt32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: pixelHeight, def: 0, at: VTOFFSET.pixelHeight.p) }
   static func add(bytesPerRow: UInt32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: bytesPerRow, def: 0, at: VTOFFSET.bytesPerRow.p) }
   static func add(scale: Float32, _ fbb: inout FlatBufferBuilder) { fbb.add(element: scale, def: 0.0, at: VTOFFSET.scale.p) }
   static func addVectorOf(data: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: data, at: VTOFFSET.data.p) }
+  static func addVectorOf(digest: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: digest, at: VTOFFSET.digest.p) }
+  static func add(unchanged: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: unchanged, def: false,
+   at: VTOFFSET.unchanged.p) }
   static func endImage(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
   static func createImage(
     _ fbb: inout FlatBufferBuilder,
@@ -1501,7 +1521,9 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     pixelHeight: UInt32 = 0,
     bytesPerRow: UInt32 = 0,
     scale: Float32 = 0.0,
-    dataVectorOffset data: Offset = Offset()
+    dataVectorOffset data: Offset = Offset(),
+    digestVectorOffset digest: Offset = Offset(),
+    unchanged: Bool = false
   ) -> Offset {
     let __start = Cutaway_Wire_Image.startImage(&fbb)
     Cutaway_Wire_Image.add(encoding: encoding, &fbb)
@@ -1510,6 +1532,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     Cutaway_Wire_Image.add(bytesPerRow: bytesPerRow, &fbb)
     Cutaway_Wire_Image.add(scale: scale, &fbb)
     Cutaway_Wire_Image.addVectorOf(data: data, &fbb)
+    Cutaway_Wire_Image.addVectorOf(digest: digest, &fbb)
+    Cutaway_Wire_Image.add(unchanged: unchanged, &fbb)
     return Cutaway_Wire_Image.endImage(&fbb, start: __start)
   }
 
@@ -1523,6 +1547,7 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
 
   static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_ImageT) -> Offset {
     let __data = builder.createVector(obj.data)
+    let __digest = builder.createVector(obj.digest)
     let __root = Cutaway_Wire_Image.startImage(&builder)
     Cutaway_Wire_Image.add(encoding: obj.encoding, &builder)
     Cutaway_Wire_Image.add(pixelWidth: obj.pixelWidth, &builder)
@@ -1530,6 +1555,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     Cutaway_Wire_Image.add(bytesPerRow: obj.bytesPerRow, &builder)
     Cutaway_Wire_Image.add(scale: obj.scale, &builder)
     Cutaway_Wire_Image.addVectorOf(data: __data, &builder)
+    Cutaway_Wire_Image.addVectorOf(digest: __digest, &builder)
+    Cutaway_Wire_Image.add(unchanged: obj.unchanged, &builder)
     return Cutaway_Wire_Image.endImage(&builder, start: __root)
   }
 
@@ -1541,6 +1568,8 @@ struct Cutaway_Wire_Image: FlatBufferTable, FlatbuffersVectorInitializable, Veri
     try _v.visit(field: VTOFFSET.bytesPerRow.p, fieldName: "bytesPerRow", required: false, type: UInt32.self)
     try _v.visit(field: VTOFFSET.scale.p, fieldName: "scale", required: false, type: Float32.self)
     try _v.visit(field: VTOFFSET.data.p, fieldName: "data", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.digest.p, fieldName: "digest", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.unchanged.p, fieldName: "unchanged", required: false, type: Bool.self)
     _v.finish()
   }
 }
@@ -1553,6 +1582,8 @@ class Cutaway_Wire_ImageT: NativeObject {
   var bytesPerRow: UInt32
   var scale: Float32
   var data: [UInt8]
+  var digest: [UInt8]
+  var unchanged: Bool
 
   init(_ _t: borrowing Cutaway_Wire_Image) {
     encoding = _t.encoding
@@ -1562,6 +1593,9 @@ class Cutaway_Wire_ImageT: NativeObject {
     scale = _t.scale
     data = []
     data.append(contentsOf: _t.data)
+    digest = []
+    digest.append(contentsOf: _t.digest)
+    unchanged = _t.unchanged
   }
 
   init() {
@@ -1571,6 +1605,8 @@ class Cutaway_Wire_ImageT: NativeObject {
     bytesPerRow = 0
     scale = 0.0
     data = []
+    digest = []
+    unchanged = false
   }
 
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_Image.self) }
@@ -2376,6 +2412,8 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
     case wantGroup = 8
     case wantAttributes = 10
     case wantConstraints = 12
+    case knownSoloDigest = 14
+    case knownGroupDigest = 16
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
@@ -2385,7 +2423,11 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
   var wantGroup: Bool { let o = _accessor.offset(VTOFFSET.wantGroup.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
   var wantAttributes: Bool { let o = _accessor.offset(VTOFFSET.wantAttributes.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
   var wantConstraints: Bool { let o = _accessor.offset(VTOFFSET.wantConstraints.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
-  static func startLayerDetailRequest(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 5) }
+  var knownSoloDigest: FlatbufferVector<UInt8> { return _accessor.vector(at: VTOFFSET.knownSoloDigest.v, byteSize: 1) }
+  func withUnsafePointerToKnownSoloDigest<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.knownSoloDigest.v, body: body) }
+  var knownGroupDigest: FlatbufferVector<UInt8> { return _accessor.vector(at: VTOFFSET.knownGroupDigest.v, byteSize: 1) }
+  func withUnsafePointerToKnownGroupDigest<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.knownGroupDigest.v, body: body) }
+  static func startLayerDetailRequest(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 7) }
   static func add(layerId: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: layerId, def: 0, at: VTOFFSET.layerId.p) }
   static func add(wantSolo: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: wantSolo, def: false,
    at: VTOFFSET.wantSolo.p) }
@@ -2395,6 +2437,8 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
    at: VTOFFSET.wantAttributes.p) }
   static func add(wantConstraints: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: wantConstraints, def: false,
    at: VTOFFSET.wantConstraints.p) }
+  static func addVectorOf(knownSoloDigest: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: knownSoloDigest, at: VTOFFSET.knownSoloDigest.p) }
+  static func addVectorOf(knownGroupDigest: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: knownGroupDigest, at: VTOFFSET.knownGroupDigest.p) }
   static func endLayerDetailRequest(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
   static func createLayerDetailRequest(
     _ fbb: inout FlatBufferBuilder,
@@ -2402,7 +2446,9 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
     wantSolo: Bool = false,
     wantGroup: Bool = false,
     wantAttributes: Bool = false,
-    wantConstraints: Bool = false
+    wantConstraints: Bool = false,
+    knownSoloDigestVectorOffset knownSoloDigest: Offset = Offset(),
+    knownGroupDigestVectorOffset knownGroupDigest: Offset = Offset()
   ) -> Offset {
     let __start = Cutaway_Wire_LayerDetailRequest.startLayerDetailRequest(&fbb)
     Cutaway_Wire_LayerDetailRequest.add(layerId: layerId, &fbb)
@@ -2410,6 +2456,8 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
     Cutaway_Wire_LayerDetailRequest.add(wantGroup: wantGroup, &fbb)
     Cutaway_Wire_LayerDetailRequest.add(wantAttributes: wantAttributes, &fbb)
     Cutaway_Wire_LayerDetailRequest.add(wantConstraints: wantConstraints, &fbb)
+    Cutaway_Wire_LayerDetailRequest.addVectorOf(knownSoloDigest: knownSoloDigest, &fbb)
+    Cutaway_Wire_LayerDetailRequest.addVectorOf(knownGroupDigest: knownGroupDigest, &fbb)
     return Cutaway_Wire_LayerDetailRequest.endLayerDetailRequest(&fbb, start: __start)
   }
 
@@ -2422,12 +2470,16 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
   }
 
   static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_LayerDetailRequestT) -> Offset {
+    let __knownSoloDigest = builder.createVector(obj.knownSoloDigest)
+    let __knownGroupDigest = builder.createVector(obj.knownGroupDigest)
     let __root = Cutaway_Wire_LayerDetailRequest.startLayerDetailRequest(&builder)
     Cutaway_Wire_LayerDetailRequest.add(layerId: obj.layerId, &builder)
     Cutaway_Wire_LayerDetailRequest.add(wantSolo: obj.wantSolo, &builder)
     Cutaway_Wire_LayerDetailRequest.add(wantGroup: obj.wantGroup, &builder)
     Cutaway_Wire_LayerDetailRequest.add(wantAttributes: obj.wantAttributes, &builder)
     Cutaway_Wire_LayerDetailRequest.add(wantConstraints: obj.wantConstraints, &builder)
+    Cutaway_Wire_LayerDetailRequest.addVectorOf(knownSoloDigest: __knownSoloDigest, &builder)
+    Cutaway_Wire_LayerDetailRequest.addVectorOf(knownGroupDigest: __knownGroupDigest, &builder)
     return Cutaway_Wire_LayerDetailRequest.endLayerDetailRequest(&builder, start: __root)
   }
 
@@ -2438,6 +2490,8 @@ struct Cutaway_Wire_LayerDetailRequest: FlatBufferTable, FlatbuffersVectorInitia
     try _v.visit(field: VTOFFSET.wantGroup.p, fieldName: "wantGroup", required: false, type: Bool.self)
     try _v.visit(field: VTOFFSET.wantAttributes.p, fieldName: "wantAttributes", required: false, type: Bool.self)
     try _v.visit(field: VTOFFSET.wantConstraints.p, fieldName: "wantConstraints", required: false, type: Bool.self)
+    try _v.visit(field: VTOFFSET.knownSoloDigest.p, fieldName: "knownSoloDigest", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.knownGroupDigest.p, fieldName: "knownGroupDigest", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     _v.finish()
   }
 }
@@ -2449,6 +2503,8 @@ class Cutaway_Wire_LayerDetailRequestT: NativeObject {
   var wantGroup: Bool
   var wantAttributes: Bool
   var wantConstraints: Bool
+  var knownSoloDigest: [UInt8]
+  var knownGroupDigest: [UInt8]
 
   init(_ _t: borrowing Cutaway_Wire_LayerDetailRequest) {
     layerId = _t.layerId
@@ -2456,6 +2512,10 @@ class Cutaway_Wire_LayerDetailRequestT: NativeObject {
     wantGroup = _t.wantGroup
     wantAttributes = _t.wantAttributes
     wantConstraints = _t.wantConstraints
+    knownSoloDigest = []
+    knownSoloDigest.append(contentsOf: _t.knownSoloDigest)
+    knownGroupDigest = []
+    knownGroupDigest.append(contentsOf: _t.knownGroupDigest)
   }
 
   init() {
@@ -2464,6 +2524,8 @@ class Cutaway_Wire_LayerDetailRequestT: NativeObject {
     wantGroup = false
     wantAttributes = false
     wantConstraints = false
+    knownSoloDigest = []
+    knownGroupDigest = []
   }
 
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_LayerDetailRequest.self) }
@@ -5323,6 +5385,220 @@ class Cutaway_Wire_EnvironmentT: NativeObject {
   func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_Environment.self) }
 
 }
+struct Cutaway_Wire_WatchHierarchy: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_WatchHierarchy.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case enabled = 4
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var enabled: Bool { let o = _accessor.offset(VTOFFSET.enabled.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
+  static func startWatchHierarchy(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 1) }
+  static func add(enabled: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: enabled, def: false,
+   at: VTOFFSET.enabled.p) }
+  static func endWatchHierarchy(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createWatchHierarchy(
+    _ fbb: inout FlatBufferBuilder,
+    enabled: Bool = false
+  ) -> Offset {
+    let __start = Cutaway_Wire_WatchHierarchy.startWatchHierarchy(&fbb)
+    Cutaway_Wire_WatchHierarchy.add(enabled: enabled, &fbb)
+    return Cutaway_Wire_WatchHierarchy.endWatchHierarchy(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_WatchHierarchyT {
+    return Cutaway_Wire_WatchHierarchyT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_WatchHierarchyT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_WatchHierarchyT) -> Offset {
+    let __root = Cutaway_Wire_WatchHierarchy.startWatchHierarchy(&builder)
+    Cutaway_Wire_WatchHierarchy.add(enabled: obj.enabled, &builder)
+    return Cutaway_Wire_WatchHierarchy.endWatchHierarchy(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.enabled.p, fieldName: "enabled", required: false, type: Bool.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_WatchHierarchyT: NativeObject {
+
+  var enabled: Bool
+
+  init(_ _t: borrowing Cutaway_Wire_WatchHierarchy) {
+    enabled = _t.enabled
+  }
+
+  init() {
+    enabled = false
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_WatchHierarchy.self) }
+
+}
+struct Cutaway_Wire_WatchHierarchyResult: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_WatchHierarchyResult.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case enabled = 4
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var enabled: Bool { let o = _accessor.offset(VTOFFSET.enabled.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
+  static func startWatchHierarchyResult(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 1) }
+  static func add(enabled: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: enabled, def: false,
+   at: VTOFFSET.enabled.p) }
+  static func endWatchHierarchyResult(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createWatchHierarchyResult(
+    _ fbb: inout FlatBufferBuilder,
+    enabled: Bool = false
+  ) -> Offset {
+    let __start = Cutaway_Wire_WatchHierarchyResult.startWatchHierarchyResult(&fbb)
+    Cutaway_Wire_WatchHierarchyResult.add(enabled: enabled, &fbb)
+    return Cutaway_Wire_WatchHierarchyResult.endWatchHierarchyResult(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_WatchHierarchyResultT {
+    return Cutaway_Wire_WatchHierarchyResultT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_WatchHierarchyResultT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_WatchHierarchyResultT) -> Offset {
+    let __root = Cutaway_Wire_WatchHierarchyResult.startWatchHierarchyResult(&builder)
+    Cutaway_Wire_WatchHierarchyResult.add(enabled: obj.enabled, &builder)
+    return Cutaway_Wire_WatchHierarchyResult.endWatchHierarchyResult(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.enabled.p, fieldName: "enabled", required: false, type: Bool.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_WatchHierarchyResultT: NativeObject {
+
+  var enabled: Bool
+
+  init(_ _t: borrowing Cutaway_Wire_WatchHierarchyResult) {
+    enabled = _t.enabled
+  }
+
+  init() {
+    enabled = false
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_WatchHierarchyResult.self) }
+
+}
+struct Cutaway_Wire_HierarchyChanged: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
+
+  static func validateVersion() { FlatBuffersVersion_25_12_19() }
+  var __buffer: ByteBuffer! { return _accessor.bb }
+  private var _accessor: Table
+
+  static var id: String { "CTWY" } 
+  static func finish(_ fbb: inout FlatBufferBuilder, end: Offset, prefix: Bool = false) { fbb.finish(offset: end, fileId: Cutaway_Wire_HierarchyChanged.id, addPrefix: prefix) }
+  private init(_ t: Table) { _accessor = t }
+  init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
+
+  private enum VTOFFSET: VOffset {
+    case roots = 4
+    case whole = 6
+    var v: Int32 { Int32(self.rawValue) }
+    var p: VOffset { self.rawValue }
+  }
+
+  var roots: FlatbufferVector<UInt64> { return _accessor.vector(at: VTOFFSET.roots.v, byteSize: 8) }
+  func withUnsafePointerToRoots<T>(_ body: (UnsafeRawBufferPointer, Int) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.roots.v, body: body) }
+  var whole: Bool { let o = _accessor.offset(VTOFFSET.whole.v); return o == 0 ? false : _accessor.readBuffer(of: Bool.self, at: o) }
+  static func startHierarchyChanged(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 2) }
+  static func addVectorOf(roots: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: roots, at: VTOFFSET.roots.p) }
+  static func add(whole: Bool, _ fbb: inout FlatBufferBuilder) { fbb.add(element: whole, def: false,
+   at: VTOFFSET.whole.p) }
+  static func endHierarchyChanged(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
+  static func createHierarchyChanged(
+    _ fbb: inout FlatBufferBuilder,
+    rootsVectorOffset roots: Offset = Offset(),
+    whole: Bool = false
+  ) -> Offset {
+    let __start = Cutaway_Wire_HierarchyChanged.startHierarchyChanged(&fbb)
+    Cutaway_Wire_HierarchyChanged.addVectorOf(roots: roots, &fbb)
+    Cutaway_Wire_HierarchyChanged.add(whole: whole, &fbb)
+    return Cutaway_Wire_HierarchyChanged.endHierarchyChanged(&fbb, start: __start)
+  }
+
+  func unpack() -> Cutaway_Wire_HierarchyChangedT {
+    return Cutaway_Wire_HierarchyChangedT(self)
+  }
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_HierarchyChangedT?) -> Offset {
+    guard var obj = obj else { return Offset() }
+    return pack(&builder, obj: &obj)
+  }
+
+  static func pack(_ builder: inout FlatBufferBuilder, obj: inout Cutaway_Wire_HierarchyChangedT) -> Offset {
+    let __roots = builder.createVector(obj.roots)
+    let __root = Cutaway_Wire_HierarchyChanged.startHierarchyChanged(&builder)
+    Cutaway_Wire_HierarchyChanged.addVectorOf(roots: __roots, &builder)
+    Cutaway_Wire_HierarchyChanged.add(whole: obj.whole, &builder)
+    return Cutaway_Wire_HierarchyChanged.endHierarchyChanged(&builder, start: __root)
+  }
+
+  static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
+    var _v = try verifier.visitTable(at: position)
+    try _v.visit(field: VTOFFSET.roots.p, fieldName: "roots", required: false, type: ForwardOffset<Vector<UInt64, UInt64>>.self)
+    try _v.visit(field: VTOFFSET.whole.p, fieldName: "whole", required: false, type: Bool.self)
+    _v.finish()
+  }
+}
+
+class Cutaway_Wire_HierarchyChangedT: NativeObject {
+
+  var roots: [UInt64]
+  var whole: Bool
+
+  init(_ _t: borrowing Cutaway_Wire_HierarchyChanged) {
+    roots = []
+    roots.append(contentsOf: _t.roots)
+    whole = _t.whole
+  }
+
+  init() {
+    roots = []
+    whole = false
+  }
+
+  func serialize() -> ByteBuffer { return serialize(type: Cutaway_Wire_HierarchyChanged.self) }
+
+}
 struct Cutaway_Wire_Error: FlatBufferTable, FlatbuffersVectorInitializable, Verifiable, ObjectAPIPacker {
 
   static func validateVersion() { FlatBuffersVersion_25_12_19() }
@@ -5726,6 +6002,12 @@ struct Cutaway_Wire_Frame: FlatBufferTable, FlatbuffersVectorInitializable, Veri
         try ForwardOffset<Cutaway_Wire_SetEnvironment>.verify(&verifier, at: pos, of: Cutaway_Wire_SetEnvironment.self)
       case .environment:
         try ForwardOffset<Cutaway_Wire_Environment>.verify(&verifier, at: pos, of: Cutaway_Wire_Environment.self)
+      case .watchhierarchy:
+        try ForwardOffset<Cutaway_Wire_WatchHierarchy>.verify(&verifier, at: pos, of: Cutaway_Wire_WatchHierarchy.self)
+      case .watchhierarchyresult:
+        try ForwardOffset<Cutaway_Wire_WatchHierarchyResult>.verify(&verifier, at: pos, of: Cutaway_Wire_WatchHierarchyResult.self)
+      case .hierarchychanged:
+        try ForwardOffset<Cutaway_Wire_HierarchyChanged>.verify(&verifier, at: pos, of: Cutaway_Wire_HierarchyChanged.self)
       }
     })
     _v.finish()
@@ -5791,6 +6073,15 @@ class Cutaway_Wire_FrameT: NativeObject {
     case .environment:
       let _v = _t.body(type: Cutaway_Wire_Environment.self)
       body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .environment)
+    case .watchhierarchy:
+      let _v = _t.body(type: Cutaway_Wire_WatchHierarchy.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .watchhierarchy)
+    case .watchhierarchyresult:
+      let _v = _t.body(type: Cutaway_Wire_WatchHierarchyResult.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .watchhierarchyresult)
+    case .hierarchychanged:
+      let _v = _t.body(type: Cutaway_Wire_HierarchyChanged.self)
+      body = Cutaway_Wire_BodyUnion(_v?.unpack(), type: .hierarchychanged)
     default: break
     }
   }
