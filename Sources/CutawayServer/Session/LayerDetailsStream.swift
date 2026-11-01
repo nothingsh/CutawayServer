@@ -121,7 +121,8 @@ final class LayerDetailsStream: @unchecked Sendable {
         )
         let estimate = Self.estimatedByteCount(of: detail)
         pendingByteCount += estimate
-        pipeline.encodeDetail(detail, stopFlag: stopFlag) { [weak self] encoded in
+        let digests = KnownDigests(item, version: version)
+        pipeline.encodeDetail(detail, digests: digests, stopFlag: stopFlag) { [weak self] encoded in
             self?.didEncode(encoded, of: item, estimate: estimate)
         }
         advance()

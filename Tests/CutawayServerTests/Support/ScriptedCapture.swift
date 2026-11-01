@@ -164,6 +164,7 @@ final class ScriptedCapture: @unchecked Sendable {
     /// Compresses a detail a moment later, on `queue`; nothing once the stop flag is set.
     func encode(
         _ detail: CapturedDetail,
+        digests: KnownDigests? = nil,
         stopFlag: StopFlag,
         on queue: DispatchQueue,
         then answer: @escaping @Sendable (LayerDetail) -> Void
@@ -173,7 +174,7 @@ final class ScriptedCapture: @unchecked Sendable {
             self.lock.lock()
             self.compressedIDs.append(detail.layerID)
             self.lock.unlock()
-            answer(detail.compressed())
+            answer(detail.compressed(digests: digests))
         }
     }
 }

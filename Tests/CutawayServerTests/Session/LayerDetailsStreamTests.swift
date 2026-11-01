@@ -101,11 +101,12 @@ private struct NotingPipeline: DetailPipeline {
 
     func encodeDetail(
         _ detail: CapturedDetail,
+        digests: KnownDigests?,
         stopFlag: StopFlag,
         then answer: @escaping @Sendable (LayerDetail) -> Void
     ) {
         let main = self.main
-        base.encodeDetail(detail, stopFlag: stopFlag) { encoded in
+        base.encodeDetail(detail, digests: digests, stopFlag: stopFlag) { encoded in
             main.note("compress")
             answer(encoded)
         }
