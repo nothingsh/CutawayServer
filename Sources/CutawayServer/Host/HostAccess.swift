@@ -86,6 +86,8 @@ struct HostAccess: Sendable {
                 queue.async { answer(.failure(refusal)) }
                 return
             }
+            // P-WATCH-02: applied, so no event until the next hierarchy; a refusal changed nothing.
+            connection.watch.didChangeEnvironment()
             // Queued from this block of the main queue, so that the turns are counted from here.
             onMain(afterTurns: EnvironmentOverrides.responseTurns) {
                 let settled = connection.environment.settle()

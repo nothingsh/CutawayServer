@@ -6,10 +6,15 @@ struct ConnectionContext: Sendable {
     let registry: LayerRegistry
     /// The connection's overrides of the app's environment (P-ENV-01). Main thread only.
     let environment: any EnvironmentControl
+    /// The connection's hierarchy change notifications (P-WATCH-01), with the same registry.
+    /// Main thread only.
+    let watch: HierarchyWatch
 
-    init(registry: LayerRegistry, environment: any EnvironmentControl) {
+    /// - Parameter watch: A new one with `registry` unless given.
+    init(registry: LayerRegistry, environment: any EnvironmentControl, watch: HierarchyWatch? = nil) {
         self.registry = registry
         self.environment = environment
+        self.watch = watch ?? HierarchyWatch(registry: registry)
     }
 
     /// A new registry, and a new hold on the environment of `app`.
