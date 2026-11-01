@@ -105,6 +105,8 @@ final class Session: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(queue))
         self.appState = appState
         guard state == .ready else { return }
+        // P-WATCH-08: no checks unless the app is active.
+        host.watchAppState(isActive: appState == .active)
         transport.send(Frame(requestID: 0, body: .appStateChanged(appState)))
         // P-APP-01: no screenshots unless the app is active. The event went out first, so the
         // client gets no chunk after it has been told.
@@ -332,6 +334,7 @@ final class Session: @unchecked Sendable {
         activeStream = nil
         // P-ENV-03: whoever ended the connection, and however.
         host.removeOverrides()
+        host.stopWatching()
         let delegate = self.delegate
         self.delegate = nil
         delegate?.sessionDidEnd(self)

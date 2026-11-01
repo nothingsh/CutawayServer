@@ -330,6 +330,12 @@ final class SessionHarness: @unchecked Sendable {
         }
     }
 
+    /// The connection's IDs; main thread only.
+    var connectionRegistry: LayerRegistry { queue.sync { session.host.connection.registry } }
+
+    /// The connection's hierarchy change notifications; main thread only.
+    var watch: HierarchyWatch { queue.sync { session.host.connection.watch } }
+
     /// The changes the session asked the host to make, in order.
     var changes: [SetAttribute] { queue.sync { state.changes } }
 
