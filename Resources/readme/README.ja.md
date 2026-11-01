@@ -38,7 +38,7 @@ Xcode で **File › Add Package Dependencies…** を選び、
 `https://github.com/nothingsh/CutawayServer` を入力して、`CutawayServer` ライブラリをアプリのターゲットに追加します。`Package.swift` では：
 
 ```swift
-.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.2.0")
+.package(url: "https://github.com/nothingsh/CutawayServer", from: "1.3.0")
 ```
 
 <a id="quick-start"></a>
