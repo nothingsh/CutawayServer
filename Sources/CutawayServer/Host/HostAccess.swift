@@ -151,6 +151,7 @@ extension HostAccess: DetailPipeline {
 
     func encodeDetail(
         _ detail: CapturedDetail,
+        digests: KnownDigests?,
         stopFlag: StopFlag,
         then answer: @escaping @Sendable (LayerDetail) -> Void
     ) {
@@ -162,7 +163,7 @@ extension HostAccess: DetailPipeline {
             // A stopped stream drops its details: compressing them would only cost time and
             // memory.
             guard !stopFlag.isSet, let detail = handed.take() else { return }
-            let encoded = (consume detail).compressed()
+            let encoded = (consume detail).compressed(digests: digests)
             queue.async { answer(encoded) }
         }
     }

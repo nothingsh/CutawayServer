@@ -38,6 +38,8 @@ enum ProbeRequestID {
     static let restoreBarAfterFailure: UInt32 = 25
     static let barTooTall: UInt32 = 26
     static let viewAttributeOnBar: UInt32 = 27
+    // The digests of images (protocol 1.3).
+    static let layerDetailsAgain: UInt32 = 28
 }
 
 func check(_ options: Options) throws {
@@ -117,18 +119,7 @@ private func checkLayerDetails(
 ) throws {
     // Both images, the attributes and the constraints of every layer, in the order of the
     // hierarchy.
-    let wanted = GetLayerDetails(
-        requests: hierarchy.nodes.map {
-            LayerDetailRequest(
-                layerID: $0.id,
-                wantSolo: true,
-                wantGroup: true,
-                wantAttributes: true,
-                wantConstraints: true
-            )
-        },
-        maxTextureDimension: 16384
-    )
+    let wanted = GetLayerDetails(requests: hierarchy.nodes.map(everything(of:)), maxTextureDimension: 16384)
     let started = Date()
     let frames = try stream(
         .getLayerDetails(wanted),
@@ -156,6 +147,7 @@ private func checkLayerDetails(
             + "\(summary.captureFailed) capture failed, \(summary.notFound) not found"
     )
     reportAttributeNotes(of: details)
+    try checkDigests(of: details, request: wanted, hierarchy: hierarchy, on: server, options: options)
     let constraints = ConstraintChecks.summary(of: details)
     print(
         "constraints: \(constraints.total) on \(constraints.layers) layers, \(constraints.distinct) distinct: "
@@ -197,6 +189,37 @@ private func checkLayerDetails(
         try checkDemoEditing(scene: scene, hierarchy: hierarchy, on: server.connection)
         try checkDemoConstraints(demo, hierarchy: hierarchy, on: server.connection)
     }
+}
+
+private func everything(of node: LayerNode) -> LayerDetailRequest {
+    LayerDetailRequest(layerID: node.id, wantSolo: true, wantGroup: true, wantAttributes: true, wantConstraints: true)
+}
+
+/// S-PROBE-09, from protocol 1.3: images with the same digest have the same content
+/// (P-IMG-04). With the demo app, the same images again with the digests just received: its
+/// screen holds still, so every one comes back unchanged (P-IMG-05).
+private func checkDigests(
+    of details: [LayerDetail],
+    request: GetLayerDetails,
+    hierarchy: Hierarchy,
+    on server: FoundServer,
+    options: Options
+) throws {
+    guard server.version.supportsImageDigests else { return }
+    let digests = try DigestChecks.sameDigestsSamePixels(details)
+    print("images: \(digests) distinct digests, each for one content (P-IMG-04)")
+    guard options.expectDemo else { return }
+    let again = DigestChecks.request(holding: details, of: request)
+    let frames = try stream(.getLayerDetails(again), id: ProbeRequestID.layerDetailsAgain, on: server.connection)
+    let answered = try DetailChecks.stream(
+        frames,
+        answering: ProbeRequestID.layerDetailsAgain,
+        request: again,
+        hierarchy: hierarchy,
+        version: server.version
+    )
+    let count = try DigestChecks.allUnchanged(answered, request: again)
+    print("images: all \(count) come back unchanged with their digests (P-IMG-05)")
 }
 
 /// The demo app's Extensions page: its layers' details, the host app's extensions in them, and
