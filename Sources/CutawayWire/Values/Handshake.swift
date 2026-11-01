@@ -13,7 +13,7 @@ public struct ProtocolVersion: Sendable, Equatable {
     }
 
     /// The version this build speaks.
-    public static let current = Self(major: 1, minor: 2)
+    public static let current = Self(major: 1, minor: 3)
 
     /// P-HELLO-04: the lower of the two minor versions. Only meaningful for the same major.
     public func negotiated(with peer: Self) -> Self {
@@ -63,6 +63,14 @@ extension ProtocolVersion {
     /// The detail status `Excluded` (P-DET-10). Without it a node excluded from images is
     /// `CaptureFailed` or `Ok`.
     public var supportsExcludedStatus: Bool { includes(minor: 2) }
+
+    // Protocol 1.3.
+
+    /// The digests of images and unchanged images (P-IMG-04, P-IMG-05).
+    public var supportsImageDigests: Bool { includes(minor: 3) }
+
+    /// `WatchHierarchy` and the event `HierarchyChanged` (P-WATCH-01, P-WATCH-02).
+    public var supportsHierarchyWatch: Bool { includes(minor: 3) }
 }
 
 public enum Role: Sendable, Equatable {

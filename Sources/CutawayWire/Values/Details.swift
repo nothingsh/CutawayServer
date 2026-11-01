@@ -1,4 +1,5 @@
 #if !canImport(UIKit) || DEBUG || ReleaseEnabled
+import Foundation
 
 // The value types of layer details (PROTOCOL.md, "Layer details"). Images are in Images.swift,
 // attributes in Attributes.swift, constraints in Layout.swift.
@@ -11,19 +12,27 @@ public struct LayerDetailRequest: Sendable, Equatable {
     public var wantAttributes: Bool
     /// The constraints that refer to the layer's view (P-LAYOUT-01, protocol 0.4).
     public var wantConstraints: Bool
+    /// The digests of the images the client holds for this layer (P-DET-11, protocol 1.3);
+    /// `nil` when absent.
+    public var knownSoloDigest: Data?
+    public var knownGroupDigest: Data?
 
     public init(
         layerID: UInt64,
         wantSolo: Bool,
         wantGroup: Bool,
         wantAttributes: Bool,
-        wantConstraints: Bool = false
+        wantConstraints: Bool = false,
+        knownSoloDigest: Data? = nil,
+        knownGroupDigest: Data? = nil
     ) {
         self.layerID = layerID
         self.wantSolo = wantSolo
         self.wantGroup = wantGroup
         self.wantAttributes = wantAttributes
         self.wantConstraints = wantConstraints
+        self.knownSoloDigest = knownSoloDigest
+        self.knownGroupDigest = knownGroupDigest
     }
 }
 

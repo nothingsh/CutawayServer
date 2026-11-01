@@ -65,7 +65,9 @@ enum WireTestSupport {
         "subtree",
         "layout-constraints",
         "environment",
-        "environment-rejected"
+        "environment-rejected",
+        "layer-details-digest",
+        "watch-hierarchy"
     ]
 }
 
@@ -91,6 +93,9 @@ extension WireTestSupport {
         case .getEnvironment: return "GetEnvironment"
         case .setEnvironment: return "SetEnvironment"
         case .environment: return "Environment"
+        case .watchHierarchy: return "WatchHierarchy"
+        case .watchHierarchyResult: return "WatchHierarchyResult"
+        case .hierarchyChanged: return "HierarchyChanged"
         }
     }
 
@@ -111,7 +116,10 @@ extension WireTestSupport {
         "GetSubtree",
         "GetEnvironment",
         "SetEnvironment",
-        "Environment"
+        "Environment",
+        "WatchHierarchy",
+        "WatchHierarchyResult",
+        "HierarchyChanged"
     ]
 
     /// One message of every kind, each with as many of its fields filled in as the schema has,
@@ -286,7 +294,9 @@ extension WireTestSupport {
                             wantSolo: true,
                             wantGroup: true,
                             wantAttributes: true,
-                            wantConstraints: true
+                            wantConstraints: true,
+                            knownSoloDigest: Data([1, 2, 3]),
+                            knownGroupDigest: Data(repeating: 0xFF, count: 32)
                         ),
                         LayerDetailRequest(layerID: 0, wantSolo: false, wantGroup: false, wantAttributes: false)
                     ],
@@ -354,6 +364,32 @@ extension WireTestSupport {
                         verticalSizeClass: .regular
                     ),
                     overridable: TraitKind.allCases
+                )
+            ),
+            .watchHierarchy(enabled: true),
+            .watchHierarchy(enabled: false),
+            .watchHierarchyResult(enabled: true),
+            .watchHierarchyResult(enabled: false),
+            .hierarchyChanged(HierarchyChanged(roots: [3, .max], whole: false)),
+            .hierarchyChanged(.everything),
+            .layerDetailsChunk(
+                LayerDetailsChunk(
+                    sequence: 1,
+                    details: [
+                        LayerDetail(
+                            layerID: 5,
+                            status: .ok,
+                            solo: .unchanged(digest: Data(repeating: 7, count: 16)),
+                            group: WireImage(
+                                pixelWidth: 4,
+                                pixelHeight: 2,
+                                bytesPerRow: 16,
+                                scale: 2,
+                                data: image.data,
+                                digest: Data(repeating: 9, count: 16)
+                            )
+                        )
+                    ]
                 )
             )
         ]
