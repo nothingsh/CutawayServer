@@ -321,7 +321,7 @@ final class AttributeChecksTests: XCTestCase {
         // Since 1.2 a cluster or slot outside the negotiated table is a failure (P-ATTR-12).
         try assertStructureRejects(
             "view.isUserInteractionEnabled is the enabled of the cluster interaction, "
-                + "which protocol 1.2 does not name (P-ATTR-12)"
+                + "which protocol \(ProtocolVersion.current.major).\(ProtocolVersion.current.minor) does not name (P-ATTR-12)"
         ) {
             $0[2].attributes[5].cluster = "interaction"
             $0[2].attributes[5].slot = "enabled"

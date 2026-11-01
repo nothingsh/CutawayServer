@@ -31,15 +31,7 @@ extension FrameCodec {
             return Cutaway_Wire_BodyUnion(object, type: .hierarchy)
         case .getLayerDetails(let get):
             let object = Cutaway_Wire_GetLayerDetailsT()
-            object.requests = get.requests.map { request in
-                let item = Cutaway_Wire_LayerDetailRequestT()
-                item.layerId = request.layerID
-                item.wantSolo = request.wantSolo
-                item.wantGroup = request.wantGroup
-                item.wantAttributes = request.wantAttributes
-                item.wantConstraints = request.wantConstraints
-                return item
-            }
+            object.requests = get.requests.map(layerDetailRequestObject(for:))
             object.maxTextureDimension = get.maxTextureDimension
             return Cutaway_Wire_BodyUnion(object, type: .getlayerdetails)
         case .layerDetailsChunk(let chunk):
@@ -80,6 +72,8 @@ extension FrameCodec {
             return Cutaway_Wire_BodyUnion(object, type: .getsubtree)
         case .getEnvironment, .setEnvironment, .environment:
             return environmentUnion(for: message)
+        case .watchHierarchy, .watchHierarchyResult, .hierarchyChanged:
+            return watchUnion(for: message)
         }
     }
 
@@ -140,6 +134,19 @@ extension FrameCodec {
         return object
     }
 
+    private static func layerDetailRequestObject(for request: LayerDetailRequest) -> Cutaway_Wire_LayerDetailRequestT {
+        let item = Cutaway_Wire_LayerDetailRequestT()
+        item.layerId = request.layerID
+        item.wantSolo = request.wantSolo
+        item.wantGroup = request.wantGroup
+        item.wantAttributes = request.wantAttributes
+        item.wantConstraints = request.wantConstraints
+        // The object API writes an empty vector rather than none: read back as absent.
+        item.knownSoloDigest = request.knownSoloDigest.map { [UInt8]($0) } ?? []
+        item.knownGroupDigest = request.knownGroupDigest.map { [UInt8]($0) } ?? []
+        return item
+    }
+
     private static func imageObject(for image: WireImage) -> Cutaway_Wire_ImageT {
         let object = Cutaway_Wire_ImageT()
         object.encoding = .bgra8premultipliedlzfse
@@ -148,6 +155,9 @@ extension FrameCodec {
         object.bytesPerRow = image.bytesPerRow
         object.scale = image.scale
         object.data = [UInt8](image.data)
+        // The object API writes an empty vector rather than none: read back as absent.
+        object.digest = image.digest.map { [UInt8]($0) } ?? []
+        object.unchanged = image.isUnchanged
         return object
     }
 
